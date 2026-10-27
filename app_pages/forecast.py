@@ -73,7 +73,7 @@ fig.update_layout(
     yaxis=dict(autorange="reversed"),
     xaxis=dict(side="top"),
 )
-st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 st.caption("Confidence: days 1–3 high · 4–7 medium · 8–14 low (long-range weather is less reliable).")
 
 # ---------------------------------------------------------------- day detail
@@ -97,7 +97,7 @@ bar = go.Figure(
     )
 )
 bar.update_layout(height=260, margin=dict(l=0, r=0, t=10, b=0), yaxis=dict(range=[0, 10]))
-st.plotly_chart(bar, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(bar, width="stretch", config={"displayModeBar": False})
 st.caption("Orange = legal shooting hours (30 min before sunrise to 30 min after sunset — check your state's rules).")
 
 with st.expander("Why this score? (factor breakdown)"):
@@ -110,7 +110,7 @@ with st.expander("Why this score? (factor breakdown)"):
     st.dataframe(
         t.style.format(precision=2).format({"score": "{:.1f}", "temp_f": "{:.0f}", "dtemp_24h": "{:+.0f}",
                                              "wind_mph": "{:.0f}", "cloud_pct": "{:.0f}"}),
-        use_container_width=True,
+        width="stretch",
     )
     st.markdown(
         "Factors multiply together; ~1.00 is neutral. **diel** = time of day (sunrise/sunset peaks, moon-adjusted), "

@@ -89,7 +89,7 @@ def location_picker(container=st.sidebar) -> geo.Location:
         st.caption(f"{loc.lat:.4f}, {loc.lon:.4f}")
         with st.form("zip_form", clear_on_submit=True, border=False):
             z = st.text_input("ZIP code", placeholder="e.g. 42729", max_chars=5)
-            if st.form_submit_button("Use ZIP", use_container_width=True) and z:
+            if st.form_submit_button("Use ZIP", width="stretch") and z:
                 try:
                     set_location(cached_zip(z))
                     st.rerun()
@@ -99,7 +99,7 @@ def location_picker(container=st.sidebar) -> geo.Location:
         if stands:
             names = ["—"] + [s["name"] for s in stands]
             pick = st.selectbox("…or a stand", names, key="stand_pick")
-            if pick != "—" and st.button("Forecast this stand", use_container_width=True):
+            if pick != "—" and st.button("Forecast this stand", width="stretch"):
                 s = next(s for s in stands if s["name"] == pick)
                 set_location(geo.Location(s["lat"], s["lon"], f"Stand: {s['name']}"))
                 st.rerun()

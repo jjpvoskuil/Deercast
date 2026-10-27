@@ -55,10 +55,12 @@ folium.TileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     attr="Esri, Maxar, Earthstar Geographics",
     name="Satellite",
-    max_zoom=20,
+    max_zoom=21,
+    max_native_zoom=19,
+    show=True,
 ).add_to(m)
-folium.TileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr="OpenTopoMap (CC-BY-SA)", name="Topo", max_zoom=17).add_to(m)
-folium.TileLayer("OpenStreetMap", name="Streets").add_to(m)
+folium.TileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr="OpenTopoMap (CC-BY-SA)", name="Topo", max_zoom=21, max_native_zoom=17, show=False).add_to(m)
+folium.TileLayer("OpenStreetMap", name="Streets", max_zoom=21, max_native_zoom=19, show=False).add_to(m)
 folium.TileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
     attr="Esri", name="Labels", overlay=True, control=True,
@@ -132,10 +134,10 @@ st.caption(
 if clicked:
     st.subheader(f"📍 Pin {clicked[0]:.5f}, {clicked[1]:.5f}")
     a1, a2 = st.columns(2)
-    if a1.button("📈 Forecast this pin", use_container_width=True):
+    if a1.button("📈 Forecast this pin", width="stretch"):
         ui.set_location(geo.pin_location(*clicked))
         st.switch_page("app_pages/forecast.py")
-    if a2.button("✖ Clear pin", use_container_width=True):
+    if a2.button("✖ Clear pin", width="stretch"):
         st.session_state.last_click = None
         st.rerun()
 

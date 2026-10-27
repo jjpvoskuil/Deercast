@@ -47,3 +47,11 @@ def test_compass_svg():
     m = folium.Map()
     Compass(225, 8, "SW 8 mph").add_to(m)
     assert "deercast-compass" in m.get_root().render()
+
+
+def test_kentucky_zones():
+    from deercast.regs import kentucky as k
+    assert len(k.ZONES) == 120
+    assert k.zone_for("Hart County") == 1 and k.zone_for("Edmonson") == 2 and k.zone_for("Grayson") == 1
+    assert k.zone_for("Rockcastle") == 3 and k.zone_for("Bell") == 4
+    assert "Hardin" in k.CWD_COUNTIES and "Hart" not in k.CWD_COUNTIES

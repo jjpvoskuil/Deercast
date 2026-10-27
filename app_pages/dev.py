@@ -69,7 +69,7 @@ view = view.sort_values(["_p", "created"]).drop(columns="_p")
 edited = st.data_editor(
     view[["id", "title", "status", "priority", "category", "details", "created", "updated"]],
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     disabled=["id", "created", "updated"],
     column_config={
         "id": None,
