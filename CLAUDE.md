@@ -18,14 +18,14 @@ doesn't need to run anything locally. Design for phone screens first.
 ## Architecture
 - `deercast/scoring.py` — the model; tunable constants in `MODEL`, `SEASON_KNOTS`, `HOT_THRESHOLD_F`. Documented in `docs/MODEL.md` — keep that doc in sync.
 - `deercast/weather.py` — Open-Meteo (no key). `astro.py` — PyEphem. `geo.py` — zippopotam.us ZIP lookup.
-- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON store: GitHub Contents API (private data repo) or local fallback.
+- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON key/value store in Supabase table `deercast_kv` (setup: `docs/supabase_setup.sql`); GitHub/local fallbacks.
 - `app_pages/` — forecast, map (folium + streamlit-folium, Esri satellite), dev punch list.
 - Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network). Run before every push.
 
 ## Conventions
 - Units: °F, mph, inches, inHg. Times in the location's local timezone.
-- Never commit secrets or stand coordinates to this (public) repo. Stand + punch list data live in the private `deercast-data` repo.
+- Never commit secrets or stand coordinates to this (public) repo. Stand + punch list data live in Supabase (secret key in Streamlit secrets only).
 - Bump `deercast/__init__.py` `__version__` on meaningful releases.
 - **End of every session:** append a dated entry to `docs/SESSION_LOG.md` (what changed, decisions, open items) and push.
 - The sandbox may block outbound calls to Open-Meteo; test with `tests/synthetic.py`.
-- To read the live punch list, read `data/punchlist.json` in `jjpvoskuil/deercast-data` (if attached to the session).
+- Claude's sandbox usually can't reach Supabase directly; John pastes the punch list (Development page → export) at session start if needed.

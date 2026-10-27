@@ -1,22 +1,23 @@
 """Persistent JSON storage for stands and the dev punch list.
 
 Streamlit Community Cloud has an ephemeral filesystem — anything written to
-local disk disappears when the app restarts. So in production we store JSON
-files in a GitHub repo via the Contents API.
+local disk disappears when the app restarts — so production data lives in
+Supabase (Postgres), in a simple key/value table:
 
-IMPORTANT: point this at a PRIVATE repo (e.g. `deercast-data`), not the public
-app repo, so stand GPS coordinates aren't public. Also avoid the branch the app
-deploys from — every data commit would trigger a redeploy.
+    deercast_kv(name text primary key, data jsonb, updated_at timestamptz)
 
-Configure in Streamlit secrets:
+Created by `docs/supabase_setup.sql`. Row Level Security is ON with no
+policies, so only the server-side secret key (kept in Streamlit secrets) can
+read or write it.
 
-    [storage]
-    github_token = "github_pat_..."   # fine-grained, Contents: read/write on the data repo only
-    repo = "jjpvoskuil/deercast-data"
-    branch = "main"
-    path = "data"
+Streamlit secrets:
 
-Without those secrets, falls back to local files in ./.deercast_data/ (dev only).
+    [supabase]
+    url = "https://<project-ref>.supabase.co"
+    key = "<secret / service_role key>"
+
+Fallbacks: a GitHub repo via `[storage]` secrets (legacy), else local files in
+./.deercast_data/ (dev only — wiped on Streamlit restart).
 """
 
 from __future__ import annotations
@@ -89,13 +90,52 @@ class GitHubStore:
         self._sha[name] = r.json()["content"]["sha"]
 
 
-def make_store(secrets=None):
-    cfg = {}
+class SupabaseStore:
+    kind = "supabase"
+    TABLE = "deercast_kv"
+
+    def __init__(self, url: str, key: str):
+        self.base = url.rstrip("/") + f"/rest/v1/{self.TABLE}"
+        self.s = requests.Session()
+        self.s.headers.update({"apikey": key, "Content-Type": "application/json"})
+        if key.startswith("eyJ"):  # legacy JWT-style keys also go in Authorization
+            self.s.headers["Authorization"] = f"Bearer {key}"
+
+    def get(self, name: str, default):
+        r = self.s.get(self.base, params={"name": f"eq.{name}", "select": "data"}, timeout=15)
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0]["data"] if rows else default
+
+    def put(self, name: str, obj, message: str = "") -> None:
+        body = {"name": name, "data": json.loads(json.dumps(obj, default=str))}
+        r = self.s.post(
+            self.base,
+            params={"on_conflict": "name"},
+            headers={"Prefer": "resolution=merge-duplicates,return=minimal"},
+            json=body,
+            timeout=15,
+        )
+        r.raise_for_status()
+
+
+def _section(secrets, name) -> dict:
     try:
-        if secrets is not None and "storage" in secrets:
-            cfg = dict(secrets["storage"])
+        if secrets is not None and name in secrets:
+            return dict(secrets[name])
     except Exception:
-        cfg = {}
+        pass
+    return {}
+
+
+def make_store(secrets=None):
+    sb = _section(secrets, "supabase")
+    url = sb.get("url") or os.environ.get("DEERCAST_SUPABASE_URL")
+    key = sb.get("key") or os.environ.get("DEERCAST_SUPABASE_KEY")
+    if url and key:
+        return SupabaseStore(url, key)
+
+    cfg = _section(secrets, "storage")
     token = cfg.get("github_token") or os.environ.get("DEERCAST_GITHUB_TOKEN")
     repo = cfg.get("repo") or os.environ.get("DEERCAST_DATA_REPO")
     if token and repo:

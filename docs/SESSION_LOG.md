@@ -17,12 +17,14 @@ Newest first. Each session: what changed, decisions made, and what's open.
 **Decisions**
 - Weather provider: Open-Meteo (free, no key, 16-day hourly).
 - Map: Folium + Esri satellite instead of Google Maps (Google needs a paid API key + custom component). Google basemap is a punch-list item.
-- App repo is **public**, so stands/punch list go in a separate **private** repo `jjpvoskuil/deercast-data` via a fine-grained PAT in Streamlit secrets.
+- App repo is **public**, so stands/punch list must not live in it. ~~Private data repo~~ → switched to **Supabase** (John already has an account): one table `deercast_kv`, RLS on, secret key in Streamlit secrets.
 - Primary device is iPhone (Safari, Add to Home Screen); Mac is for development review only.
 - Claude pushes directly to `main` using the Claude GitHub connection (no PAT needed for Claude).
 
 **Open / next**
-- John: deploy on Streamlit Cloud, create `deercast-data` private repo + PAT, set secrets, test on iPhone.
+- John: run `docs/supabase_setup.sql`, deploy on Streamlit Cloud, set `[supabase]` + `APP_PASSWORD` secrets, test on iPhone.
+- Add a punch-list export (copy-paste markdown) on the Development page for session handoff — Claude's sandbox can't reach Supabase.
+- Supabase free tier pauses after ~7 days idle; consider a keep-alive or just resume after off-season.
 - Default rut peak is latitude-based (KY ≈ Nov 14) — replace with state-agency table.
 - Model weights are literature/hunter-knowledge priors, not yet calibrated — hunt log feature planned.
 - Live weather wasn't reachable from Claude's sandbox; first real-data check happens on Streamlit.

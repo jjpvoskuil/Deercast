@@ -10,7 +10,7 @@ st.caption(f"Deercast v{__version__} · storage: **{ui.get_store().kind}**")
 if ui.get_store().kind == "local":
     st.warning(
         "Using temporary local storage — items will be lost when the Streamlit app restarts. "
-        "Add the `[storage]` secrets (see README) to save to the private data repo."
+        "Add the `[storage]` secrets (see README) to save to Supabase."
     )
 
 STATUSES = ["Open", "In progress", "Done", "Won't do"]
@@ -98,3 +98,10 @@ if st.button("Save changes", type="primary"):
 
 done = sum(i["status"] == "Done" for i in items)
 st.caption(f"{len(items)} items · {done} done")
+
+with st.expander("📋 Export for a new Claude session"):
+    lines = [f"- [{i['status']}] ({i['priority']}, {i['category']}) {i['title']}" + (f" — {i['details']}" if i.get("details") else "")
+             for i in sorted(items, key=lambda x: (STATUSES.index(x["status"]), PRIORITIES.index(x["priority"])))]
+    st.code("\n".join(lines) or "(empty)", language="markdown")
+    st.caption("Tap the copy icon and paste this into NEW_SESSION_PROMPT.txt where it says 'Punch list export'.")
+
