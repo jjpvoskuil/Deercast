@@ -29,3 +29,4 @@ doesn't need to run anything locally. Design for phone screens first.
 - **End of every session:** append a dated entry to `docs/SESSION_LOG.md` (what changed, decisions, open items) and push.
 - The sandbox may block outbound calls to Open-Meteo; test with `tests/synthetic.py`.
 - Live punch list: `data/punchlist.json` in `jjpvoskuil/deercast-data` — attach read-only if Claude's GitHub app has access; otherwise John pastes the Development page export. Never write to the data repo from a session unless John asks.
+- Session startup is automated via the claude.ai Project doc `claude/deercast-session-start.md` (+ a one-line Project instruction). `NEW_SESSION_PROMPT.txt` is the manual fallback; keep both in sync.

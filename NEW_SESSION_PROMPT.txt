@@ -1,3 +1,6 @@
+# Normally not needed: the Deercast claude.ai Project has a doc (claude/deercast-session-start.md)
+# plus a Project instruction that runs these steps automatically. Use this only outside the Project.
+
 We're continuing development of Deercast, my whitetail deer activity forecast app (Python/Streamlit, used on my iPhone).
 
 1. Attach the GitHub repo jjpvoskuil/Deercast with push access and clone it. Also try to attach jjpvoskuil/deercast-data read-only (private; stands + punch list).
