@@ -171,10 +171,22 @@ def elevations(points):
     return recovery.fetch_elevations(list(points))
 
 
+@st.cache_data(ttl=7 * 86400, show_spinner="Finding water and cover…")
+def osm_features(lat, lon, radius_m):
+    return recovery.fetch_osm_features(lat, lon, radius_m)
+
+
 cells = recovery.search_grid(hit_lat, hit_lon, yards, run_dir)
 bias = recovery.DOWNHILL_BIAS.get(plan_key, 0.0)
 elev = elevations(tuple([(hit_lat, hit_lon)] + [c["center"] for c in cells])) if bias > 0 else None
 w = recovery.weight_cells(cells, yards, run_dir, elev[1:] if elev else None, elev[0] if elev else None, bias)
+marks = ui.load("features", [])
+osm = osm_features(round(hit_lat, 4), round(hit_lon, 4), yards[2] * 0.9144 * 1.2)
+wb, cb = recovery.WATER_BIAS.get(plan_key, 0.5), recovery.COVER_BIAS.get(plan_key, 0.7)
+habitat_used = bool((osm and (osm["water"] or osm["cover"])) or marks)
+if habitat_used:
+    w = w * recovery.habitat_multiplier(recovery.feature_distances(cells, hit_lat, hit_lon, osm, marks), wb, cb)
+    w = w / w.sum()
 
 m = folium.Map(location=[hit_lat, hit_lon], zoom_start=17, tiles=None, control_scale=True)
 folium.TileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -202,14 +214,28 @@ for rank, k in enumerate(np.argsort(w)[::-1][:3], 1):
                   icon=folium.DivIcon(html=f'<div style="background:#ffd60a;color:#111;border-radius:50%;width:22px;'
                                            f'height:22px;text-align:center;font:700 13px/22px sans-serif">{rank}</div>')
                   ).add_to(m)
+hab = folium.FeatureGroup(name="Water & cover")
+for g in (osm or {}).get("water", []):
+    folium.PolyLine(g, color="#3a86ff", weight=3, opacity=0.8, tooltip="Water").add_to(hab)
+for g in (osm or {}).get("cover", []):
+    folium.PolyLine(g, color="#52b788", weight=2, opacity=0.7, dash_array="4", tooltip="Woods / cover").add_to(hab)
+for f in marks:
+    col = {"water": "#3a86ff", "cover": "#2d6a4f", "bedding": "#ffb703"}.get(f["type"], "#999")
+    folium.Circle([f["lat"], f["lon"]], radius=f.get("radius_yd", 40) * 0.9144, color=col, weight=2, fill=True,
+                  fill_opacity=0.2, tooltip=f"Your mark: {f['type']} {f.get('name') or ''}").add_to(hab)
+hab.add_to(m)
 Compass().add_to(m)
 folium.LayerControl(collapsed=True).add_to(m)
 st_folium(m, height=460, use_container_width=True, returned_objects=[], key="recmap")
 st.caption("Red shading = relative chance the deer is there, from typical travel distance for this hit"
            + (", the direction it ran" if run_dir is not None else "")
-           + (", and terrain (wounded deer tend to go downhill / toward cover and water)" if elev else "")
-           + ". Numbers 1–3 = best places to search first. Real deer follow trails, cover and creek bottoms — "
-             "use what you know about the property.")
+           + (", terrain (downhill)" if elev else "")
+           + (", and nearby water & heavy cover (blue = water, green dashes = woods"
+              + (", circles = your marks" if marks else "") + ")" if habitat_used else "")
+           + ". Numbers 1–3 = best places to search first.")
+if not habitat_used:
+    st.caption("ℹ️ No water/cover data found here. Mark creeks, ponds, thickets and bedding areas on the 🗺️ Map page "
+               "(tap → '…or mark water / cover / bedding here') and they'll be weighted in.")
 
 # ---------------------------------------------------------------- 6. timing & weather
 st.subheader("6 · When to go")

@@ -43,12 +43,20 @@ from typical cases, so the hunter's physical sign (blood, hair, arrow) should ta
   - **Downhill:** exp(bias × clamp(drop_m / 8, −3, 3)), using elevations from Open-Meteo.
     The bias is applied only for slow-death hits (liver, gut, single lung, muscle and similar),
     since those deer usually bed down downhill or in cover.
+- **Water & cover** (v0.3.1): wounded deer head for water and heavy cover to bed.
+  - Streams, ponds, lakes (including multipolygon lakes like Nolin), wetlands, woods and scrub are pulled from
+    OpenStreetMap via the Overpass API (free, cached 7 days) within about 1.2 × the maximum distance.
+  - The hunter can also mark **water / thick cover / bedding** circles on the Map page (`features.json` in the private repo).
+  - Multiplier per cell: (1 + water_bias·e^(−d_water/90 m)) × (1 + cover_bias·e^(−d_cover/40 m)), with an extra
+    (1 + 1.5·cover_bias·e^(−d_bed/40 m)) for marked bedding areas. d_cover is 0 inside a woods polygon.
+  - The biases depend on the outcome (`WATER_BIAS`, `COVER_BIAS`). They are strongest for liver, gut and single-lung hits
+    (water ~1.2–1.5, cover ~1.2–1.5) and weak for quick kills (~0.3–0.5), since those deer die before they get far.
 - The three highest-weight cells are numbered on the map as the first places to search.
 - **Weather:** the forecast at the hit site is checked for rain during the wait plus 4 hours (it can wash out the trail),
   and for temperatures of 50°F or more during waits of 4 hours or longer (meat spoilage).
 
 ## Known limits / next steps
-- The model does not know about habitat cover, water, trails or fences, so the hunter's knowledge of the property matters.
+- OSM cover mapping in rural Kentucky is coarse (large woodlots only; it misses cedar thickets and CRP), so the hunter's own marks are the most reliable input. Trails, fences and pressure are not modeled.
 - Organ sizes are fixed. A future option could scale them by deer size (doe, yearling, mature buck).
 - Saved shots go to `shots.json` in the private data repo. Recording the recovery outcome later
   would let these estimates be calibrated against real results.

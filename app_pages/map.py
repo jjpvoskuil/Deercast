@@ -104,6 +104,16 @@ for s in stands:
     if show_cones:
         draw_cone(s["lat"], s["lon"])
 
+features = ui.load("features", [])
+FEATURE_STYLE = {"water": ("#3a86ff", "💧 Water"), "cover": ("#2d6a4f", "🌲 Thick cover"),
+                 "bedding": ("#ffb703", "🛏️ Bedding area")}
+feat_fg = folium.FeatureGroup(name="Water / cover / bedding")
+for f in features:
+    col, lbl = FEATURE_STYLE.get(f["type"], ("#999", f["type"]))
+    folium.Circle([f["lat"], f["lon"]], radius=f.get("radius_yd", 40) * 0.9144, color=col, weight=2, fill=True,
+                  fill_color=col, fill_opacity=0.25, tooltip=f"{lbl}: {f.get('name') or ''}").add_to(feat_fg)
+feat_fg.add_to(m)
+
 clicked = st.session_state.get("last_click")
 if clicked:
     folium.CircleMarker(clicked, radius=7, color="#fff", fill=True, fill_color="#ff3b30", fill_opacity=1).add_to(m)
@@ -160,6 +170,31 @@ if clicked:
                     st.session_state.last_click = None
                     st.success(f"Saved {name}")
                     st.rerun()
+
+    with st.form("add_feature", clear_on_submit=True):
+        st.markdown("**…or mark water / cover / bedding here**")
+        st.caption("Used by the Shot & Recovery map — wounded deer head for water and heavy cover to bed.")
+        g1, g2 = st.columns(2)
+        ftype = g1.selectbox("Type", list(FEATURE_STYLE), format_func=lambda t: FEATURE_STYLE[t][1])
+        frad = g2.number_input("Radius (yd)", 10, 300, 40, step=10)
+        fname = st.text_input("Name (optional)", placeholder="e.g. creek bottom, cedar thicket, pond")
+        if st.form_submit_button("Save feature"):
+            new = features + [{"id": ui.new_id(), "type": ftype, "name": fname.strip(), "lat": round(clicked[0], 6),
+                               "lon": round(clicked[1], 6), "radius_yd": int(frad), "created": ui.now_str()}]
+            if ui.save("features", new, f"Add {ftype} feature"):
+                st.session_state.last_click = None
+                st.rerun()
+
+# ---------------------------------------------------------------- features list
+if features:
+    with st.expander(f"Water / cover / bedding marks ({len(features)})"):
+        for f in features:
+            c1, c2 = st.columns([4, 1])
+            c1.markdown(f"{FEATURE_STYLE.get(f['type'], ('', f['type']))[1]} · {f.get('name') or 'unnamed'} · "
+                        f"{f.get('radius_yd', 40)} yd")
+            if c2.button("Delete", key=f"delf_{f['id']}"):
+                ui.save("features", [x for x in features if x["id"] != f["id"]], "Delete feature")
+                st.rerun()
 
 # ---------------------------------------------------------------- stand list
 st.subheader(f"Stands ({len(stands)})")

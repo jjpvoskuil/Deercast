@@ -21,9 +21,9 @@ doesn't need to run anything locally. Design for phone screens first.
 ## Architecture
 - `deercast/scoring.py` — the model; tunable constants in `MODEL`, `SEASON_KNOTS`, `HOT_THRESHOLD_F`. Documented in `docs/MODEL.md` — keep that doc in sync.
 - `deercast/weather.py` — Open-Meteo (no key). `astro.py` — PyEphem. `geo.py` — zippopotam.us ZIP lookup.
-- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON files in private repo `jjpvoskuil/deercast-data` (`data/stands.json`, `data/punchlist.json`, `data/shots.json`) via GitHub Contents API; Supabase and local fallbacks.
+- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON files in private repo `jjpvoskuil/deercast-data` (`data/stands.json`, `data/punchlist.json`, `data/shots.json`, `data/features.json` = hunter-marked water/cover/bedding) via GitHub Contents API; Supabase and local fallbacks.
 - `app_pages/` — forecast, map (folium + streamlit-folium, Esri satellite, compass), regs, dev punch list.
-- `deercast/shot.py` (anatomy ellipsoids, ray-cast, outcomes), `shot_render.py` (matplotlib views; fixed frame so taps map linearly), `recovery.py` (polar search grid, log-normal distance × run direction × downhill bias, Open-Meteo elevation). Documented in `docs/SHOT_MODEL.md` — keep in sync. `app_pages/track.py` uses `streamlit-image-coordinates` for taps.
+- `deercast/shot.py` (anatomy ellipsoids, ray-cast, outcomes), `shot_render.py` (matplotlib views; fixed frame so taps map linearly), `recovery.py` (polar search grid, log-normal distance × run direction × downhill bias × water/cover proximity; Open-Meteo elevation, OSM Overpass water/woods, hunter marks). Documented in `docs/SHOT_MODEL.md` — keep in sync. `app_pages/track.py` uses `streamlit-image-coordinates` for taps.
 - `deercast/regs/` — county lookup via FCC Census Block API; curated state data (`kentucky.py`: 2026-27 seasons, zones for all 120 counties, CWD counties, sources). **Update every season** and bump `SEASON`/`VERIFIED`. Other states show agency + search link.
 - Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network). Run before every push.
 

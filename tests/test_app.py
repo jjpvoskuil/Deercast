@@ -77,7 +77,9 @@ def test_default_location_is_hart_county():
 
 def test_track_page_with_shot():
     with mock.patch("deercast.weather.fetch_hourly", fake_hourly), \
-         mock.patch("deercast.recovery.fetch_elevations", lambda pts: [180.0 - i * 0.1 for i in range(len(pts))]):
+         mock.patch("deercast.recovery.fetch_elevations", lambda pts: [180.0 - i * 0.1 for i in range(len(pts))]), \
+         mock.patch("deercast.recovery.fetch_osm_features", lambda lat, lon, r: {
+             "water": [[(lat - 0.002, lon + 0.0015), (lat + 0.002, lon + 0.0015)]], "cover": []}):
         at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
         at.run(); at.switch_page("app_pages/track.py")
         at.session_state["shot_cross"] = (-6.0, 1.0)  # broadside, behind the shoulder

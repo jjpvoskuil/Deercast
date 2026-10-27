@@ -89,3 +89,22 @@ def test_render_and_recovery():
     w = recovery.weight_cells(cells, (80, 200, 400), 90.0, None, None, 0)
     best = cells[int(w.argmax())]
     assert 45 <= best["bearing"] <= 135 and 80 <= best["dist_yd"] <= 260
+
+
+def test_habitat_pulls_search_toward_water():
+    import math
+    import numpy as np
+    from deercast import recovery
+    lat, lon = 37.30, -86.06
+    east = 150 / (111320 * math.cos(math.radians(lat)))
+    osm = {"water": [[(lat - 0.01, lon + east), (lat + 0.01, lon + east)]], "cover": []}
+    cells = recovery.search_grid(lat, lon, (80, 200, 400), None)
+    w = recovery.weight_cells(cells, (80, 200, 400), None, None, None, 0)
+    w2 = w * recovery.habitat_multiplier(recovery.feature_distances(cells, lat, lon, osm, []), 1.5, 1.5)
+    best = cells[int(np.argmax(w2))]
+    assert 30 <= best["bearing"] <= 150  # pulled toward the creek to the east
+    # bedding mark dominates
+    marks = [{"type": "bedding", "lat": lat + 0.0018, "lon": lon, "radius_yd": 30}]
+    w3 = w * recovery.habitat_multiplier(recovery.feature_distances(cells, lat, lon, None, marks), 1.5, 1.5)
+    b3 = cells[int(np.argmax(w3))]
+    assert b3["bearing"] < 30 or b3["bearing"] > 330
