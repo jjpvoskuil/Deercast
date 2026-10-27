@@ -24,7 +24,7 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 **Open / next**
 - John: deploy on Streamlit Cloud, set `[storage]` + `APP_PASSWORD` secrets, test on iPhone.
-- Optional: give Claude's GitHub app access to `deercast-data` so sessions can read the punch list directly.
+- Done: Claude's GitHub app has read access to `deercast-data` (verified — private, `main` exists); new sessions can read `data/punchlist.json` directly.
 - Default rut peak is latitude-based (KY ≈ Nov 14) — replace with state-agency table.
 - Model weights are literature/hunter-knowledge priors, not yet calibrated — hunt log feature planned.
 - Live weather wasn't reachable from Claude's sandbox; first real-data check happens on Streamlit.
