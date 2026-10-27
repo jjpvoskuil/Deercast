@@ -11,7 +11,9 @@ import streamlit as st
 from . import geo, scoring, weather
 from .storage import make_store
 
-DEFAULT_LOCATION = geo.Location(lat=37.3557, lon=-86.1197, label="Cub Run, KY 42729", state="KY", zip_code="42729")
+# Home area: Cub Run, Hart County, KY (town center — not a stand location).
+DEFAULT_LOCATION = geo.Location(lat=37.3006, lon=-86.0608, label="Cub Run, Hart Co., KY", state="KY", zip_code="42729")
+DEFAULT_COUNTY = "Hart"
 
 
 @st.cache_resource
@@ -102,6 +104,11 @@ def location_picker(container=st.sidebar) -> geo.Location:
             if pick != "—" and st.button("Forecast this stand", width="stretch"):
                 s = next(s for s in stands if s["name"] == pick)
                 set_location(geo.Location(s["lat"], s["lon"], f"Stand: {s['name']}"))
+                st.rerun()
+        if (loc.lat, loc.lon) != (DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon):
+            if st.button(f"🏠 Back to home ({DEFAULT_COUNTY} Co.)", width="stretch"):
+                set_location(DEFAULT_LOCATION)
+                st.session_state.pop("map_center", None)
                 st.rerun()
         st.caption("Tip: tap the map on the 🗺️ Map page to forecast any pin.")
     return get_location()

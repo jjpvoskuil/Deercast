@@ -12,10 +12,11 @@ Newest first. Each session: what changed, decisions made, and what's open.
 - Weather: Open-Meteo, 15 days (today + 14) plus previous 24 h for trends. ZIP lookup via zippopotam.us.
 - Map: Esri satellite / OpenTopoMap / OSM, stand pins with good-wind directions (green/red by current wind), live or 48 h forecast wind, scent cones from all stands and a tap-to-test pin, "Forecast this pin", GPS locate button.
 - Punch list with seed backlog; storage via GitHub Contents API to a private data repo, local fallback.
-- Tests: scoring sanity + headless render of all pages + storage (12 passing).
+- Tests: scoring sanity + headless render of all pages + storage (14 passing).
 - v0.1.2: storage = private GitHub repo `deercast-data` (Supabase backend retained as option); punch-list export on the Development page for session handoff.
 - v0.1.3: compass rose on the map (top-right, north-up) with an orange wind arrow pointing downwind (scent travel) + wind caption (`deercast/compass.py`).
 - v0.2.0: Map always opens on Satellite (folium was showing the last-added base layer, Streets); satellite overzooms past z19 instead of blanking. New **Regulations** page: FCC county lookup → KY 2026-27 zone, seasons (open/closed, days to open), today's legal hours, zone + statewide bag limits, CWD rules for the 23 surveillance counties, official links. Replaced deprecated `use_container_width`; pinned streamlit <2.
+- v0.2.1: John's stand is in **Hart County**. Default location moved to Cub Run town center (37.3006, -86.0608, Hart Co.) — old default point sat near the Hart/Edmonson/Grayson line. `ui.DEFAULT_COUNTY = "Hart"` is the regs fallback; sidebar has a 🏠 Back to home button.
 
 **Decisions**
 - Weather provider: Open-Meteo (free, no key, 16-day hourly).

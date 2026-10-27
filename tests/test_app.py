@@ -56,3 +56,20 @@ def test_map_defaults_to_satellite():
     import re
     src = (ROOT / "app_pages" / "map.py").read_text()
     assert src.count("show=False") >= 2 and 'name="Satellite"' in src
+
+
+def test_regs_falls_back_to_hart_when_lookup_fails():
+    def boom(lat, lon):
+        raise RuntimeError("offline")
+    with mock.patch("deercast.weather.fetch_hourly", fake_hourly), mock.patch("deercast.regs.county_for_point", boom):
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/regs.py"); at.run()
+    assert not at.exception
+    assert "Hart" in [m.value for m in at.metric] and "Zone 1" in [m.value for m in at.metric]
+
+
+def test_default_location_is_hart_county():
+    from deercast import ui
+    from deercast.regs import kentucky as k
+    assert ui.DEFAULT_COUNTY == "Hart" and k.zone_for(ui.DEFAULT_COUNTY) == 1
+    assert abs(ui.DEFAULT_LOCATION.lat - 37.3006) < 0.01 and abs(ui.DEFAULT_LOCATION.lon + 86.0608) < 0.01

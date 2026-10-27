@@ -1,6 +1,6 @@
 # Deercast — context for Claude
 
-Owner: John (jjpvoskuil). Retiree, deer hunter in central Kentucky (Cub Run / Nolin Lake area).
+Owner: John (jjpvoskuil). Retiree, deer hunter in central Kentucky (Cub Run / Nolin Lake area). His stand is in **Hart County** (Zone 1) — Hart is the default county/location everywhere (`ui.DEFAULT_LOCATION`, `ui.DEFAULT_COUNTY`).
 Wants direct, accurate answers; Claude writes all code and commits/pushes directly to `main`.
 
 ## What it is

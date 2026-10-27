@@ -41,7 +41,9 @@ if mod is None:
 # ---------------------------------------------------------------- county / zone
 counties = sorted(mod.ZONES)
 detected = mod.normalize_county(place.get("county"))
-idx = counties.index(detected) if detected in counties else 0
+if detected not in counties:  # lookup failed or point outside the state's list → home county
+    detected = ui.DEFAULT_COUNTY if ui.DEFAULT_COUNTY in counties else counties[0]
+idx = counties.index(detected)
 county = st.selectbox(
     "County",
     counties,
