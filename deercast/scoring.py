@@ -150,7 +150,8 @@ def _gauss(x_min, sigma):
 # ---------------------------------------------------------------- main
 
 
-def score_forecast(weather: pd.DataFrame, lat: float, lon: float, tz: str, settings: Settings) -> pd.DataFrame:
+def score_forecast(weather: pd.DataFrame, lat: float, lon: float, tz: str, settings: Settings,
+                   start: pd.Timestamp | None = None) -> pd.DataFrame:
     """Add feature, factor and score columns to an hourly weather frame.
 
     `weather` must include the prior 24h (for trends); output starts at local
@@ -241,7 +242,7 @@ def score_forecast(weather: pd.DataFrame, lat: float, lon: float, tz: str, setti
         df[col] = df["date"].map(ast[col])
 
     today = pd.Timestamp.now(tz=tz).normalize()
-    df = df[df.index >= today]
+    df = df[df.index >= (start if start is not None else today)]
     # forecast confidence by lead day
     lead = np.array([(pd.Timestamp(d) - today.tz_localize(None)).days for d in df["date"]])
     df["confidence"] = np.where(lead <= 2, "High", np.where(lead <= 6, "Medium", "Low"))

@@ -16,16 +16,19 @@ doesn't need to run anything locally. Design for phone screens first.
 - Development page with a punch list to track iterations.
 - Regulations page: current deer regs for the chosen ZIP/pin (county → zone, seasons, bag limits, CWD rules).
 - Map defaults to satellite view.
+- Hunt Log page: live sit (start/stop, quick +Buck/+Doe/+Fawn/+Unknown, activity, bait site) + past-hunt entry; each hour saved with forecast score → validation (deer/hour by score band, Spearman ρ).
+- Map: bait/food marks — broadcast corn feeder, shelled corn pile, ear corn pile, other food — with last-filled date + 'Filled today'.
 - Shot & Recovery page: rotate deer (angle + side), tap crosshair on entry spot, shot angle from stand height/distance → organs hit, survival time, wait time, travel distance, probability search map, weather alerts, tracking tips, save to log.
 
 ## Architecture
 - `deercast/scoring.py` — the model; tunable constants in `MODEL`, `SEASON_KNOTS`, `HOT_THRESHOLD_F`. Documented in `docs/MODEL.md` — keep that doc in sync.
 - `deercast/weather.py` — Open-Meteo (no key). `astro.py` — PyEphem. `geo.py` — zippopotam.us ZIP lookup.
-- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON files in private repo `jjpvoskuil/deercast-data` (`data/stands.json`, `data/punchlist.json`, `data/shots.json`, `data/features.json` = hunter-marked water/cover/bedding) via GitHub Contents API; Supabase and local fallbacks.
+- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON files in private repo `jjpvoskuil/deercast-data` (`data/stands.json`, `data/punchlist.json`, `data/shots.json`, `data/features.json` = hunter-marked water/cover/bedding + bait/food sites, `data/hunts.json`, `data/active_hunt.json`) via GitHub Contents API; Supabase and local fallbacks.
 - `app_pages/` — forecast, map (folium + streamlit-folium, Esri satellite, compass), regs, dev punch list.
 - `deercast/shot.py` (anatomy ellipsoids, ray-cast, outcomes), `shot_render.py` (matplotlib views; fixed frame so taps map linearly), `recovery.py` (polar search grid, log-normal distance × run direction × downhill bias × water/cover proximity; Open-Meteo elevation, OSM Overpass water/woods, hunter marks). Documented in `docs/SHOT_MODEL.md` — keep in sync. `app_pages/track.py` uses `streamlit-image-coordinates` for taps.
+- `deercast/huntlog.py` — session_hours (per-hour score/minutes/seen) + validation stats; `app_pages/log.py`. `scoring.score_forecast(start=...)` scores past days; `weather.fetch_hourly_range` (forecast API → archive fallback).
 - `deercast/regs/` — county lookup via FCC Census Block API; curated state data (`kentucky.py`: 2026-27 seasons, zones for all 120 counties, CWD counties, sources). **Update every season** and bump `SEASON`/`VERIFIED`. Other states show agency + search link.
-- Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network). Run before every push.
+- Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network; `conftest.py` gives each test an empty temp data dir). Run before every push.
 
 ## Conventions
 - Use `width="stretch"` not `use_container_width` (removed in newer Streamlit; st_folium still takes its own `use_container_width`).

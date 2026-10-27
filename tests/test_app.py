@@ -40,7 +40,7 @@ def run(page_path):
 
 
 def test_pages_render():
-    for p in [None, "app_pages/map.py", "app_pages/track.py", "app_pages/regs.py", "app_pages/dev.py"]:
+    for p in [None, "app_pages/map.py", "app_pages/log.py", "app_pages/track.py", "app_pages/regs.py", "app_pages/dev.py"]:
         at = run(p)
         assert not at.exception, (p, [e.value for e in at.exception])
 
@@ -89,3 +89,59 @@ def test_track_page_with_shot():
     assert "Double lung" in md
     vals = [m.value for m in at.metric]
     assert "30 min" in vals
+
+
+def _patched():
+    return [mock.patch("deercast.weather.fetch_hourly", fake_hourly),
+            mock.patch("deercast.weather.fetch_current_wind", fake_current),
+            mock.patch("deercast.weather.fetch_hourly_wind", fake_hourly_wind)]
+
+
+def test_hunt_log_flow():
+    import contextlib
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/log.py"); at.run()
+        start = next(b for b in at.button if "Start hunt" in b.label)
+        start.click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        next(b for b in at.button if b.label == "+ Doe").click().run()
+        next(b for b in at.button if b.label == "+ Buck").click().run()
+        assert "Time on stand" in [m.label for m in at.metric]
+        # end & save
+        next(b for b in at.button if "End & save" in b.label).click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        import json, pathlib
+        hunts = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())
+        assert len(hunts) == 1 and len(hunts[0]["sightings"]) == 2
+        assert hunts[0]["hours"] and hunts[0]["hours"][0]["score"] is not None
+        assert any("2 deer" in e.label for e in at.expander)
+
+
+def test_validation_math():
+    from deercast import huntlog
+    mk = lambda score, seen: {"hour": "2026-11-05T07:00:00-06:00", "score": score, "minutes": 60, "seen": seen}
+    hunts = [{"id": str(i), "hours": [mk(2, 0), mk(5, 1), mk(8.5, 3)]} for i in range(6)]
+    v = huntlog.validation(hunts)
+    assert v["rho"] > 0.8 and "tracking your sightings well" in v["verdict"]
+    b = v["bands"].set_index("band")["deer_per_hour"]
+    assert b["8–10"] > b["4–6"] > b["0–2"]
+
+
+def test_bait_marks_on_map():
+    import contextlib, json, pathlib
+    pathlib.Path(".deercast_data").mkdir()
+    pathlib.Path(".deercast_data/features.json").write_text(json.dumps([
+        {"id": "a", "type": "feeder", "name": "Back feeder", "lat": 37.301, "lon": -86.06, "radius_yd": 10,
+         "last_filled": "2026-10-20"},
+        {"id": "b", "type": "corn_ear", "name": "Ear pile", "lat": 37.302, "lon": -86.061, "radius_yd": 10}]))
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/map.py"); at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    assert any("Bait & food sites (2)" in e.label for e in at.expander)
+    assert any(b.label == "Filled today" for b in at.button)

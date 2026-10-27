@@ -106,13 +106,26 @@ for s in stands:
 
 features = ui.load("features", [])
 FEATURE_STYLE = {"water": ("#3a86ff", "💧 Water"), "cover": ("#2d6a4f", "🌲 Thick cover"),
-                 "bedding": ("#ffb703", "🛏️ Bedding area")}
+                 "bedding": ("#ffb703", "🛏️ Bedding area"),
+                 "feeder": ("#f4a261", "🌽 Broadcast corn feeder"), "corn_shelled": ("#e9c46a", "🌽 Shelled corn pile"),
+                 "corn_ear": ("#e9c46a", "🌽 Ear corn pile"), "food_other": ("#90be6d", "🍎 Other food / plot")}
+BAIT_TYPES = ("feeder", "corn_shelled", "corn_ear", "food_other")
 feat_fg = folium.FeatureGroup(name="Water / cover / bedding")
+bait_fg = folium.FeatureGroup(name="Bait & food")
 for f in features:
     col, lbl = FEATURE_STYLE.get(f["type"], ("#999", f["type"]))
-    folium.Circle([f["lat"], f["lon"]], radius=f.get("radius_yd", 40) * 0.9144, color=col, weight=2, fill=True,
-                  fill_color=col, fill_opacity=0.25, tooltip=f"{lbl}: {f.get('name') or ''}").add_to(feat_fg)
+    if f["type"] in BAIT_TYPES:
+        icon = {"feeder": "🛢️", "corn_shelled": "🌽", "corn_ear": "🌽", "food_other": "🍎"}[f["type"]]
+        filled = f" · filled {f['last_filled']}" if f.get("last_filled") else ""
+        folium.Marker([f["lat"], f["lon"]], tooltip=f"{lbl}: {f.get('name') or ''}{filled}",
+                      icon=folium.DivIcon(html=f'<div style="font-size:22px;line-height:22px;'
+                                               f'text-shadow:0 0 3px #000">{icon}</div>',
+                                          icon_size=(24, 24), icon_anchor=(12, 12))).add_to(bait_fg)
+    else:
+        folium.Circle([f["lat"], f["lon"]], radius=f.get("radius_yd", 40) * 0.9144, color=col, weight=2, fill=True,
+                      fill_color=col, fill_opacity=0.25, tooltip=f"{lbl}: {f.get('name') or ''}").add_to(feat_fg)
 feat_fg.add_to(m)
+bait_fg.add_to(m)
 
 clicked = st.session_state.get("last_click")
 if clicked:
@@ -172,23 +185,49 @@ if clicked:
                     st.rerun()
 
     with st.form("add_feature", clear_on_submit=True):
-        st.markdown("**…or mark water / cover / bedding here**")
-        st.caption("Used by the Shot & Recovery map — wounded deer head for water and heavy cover to bed.")
+        st.markdown("**…or mark bait, food, water, cover or bedding here**")
+        st.caption("Bait/food sites can be tagged in the Hunt Log. Water, cover and bedding feed the Shot & Recovery "
+                   "map — wounded deer head for water and heavy cover to bed.")
         g1, g2 = st.columns(2)
         ftype = g1.selectbox("Type", list(FEATURE_STYLE), format_func=lambda t: FEATURE_STYLE[t][1])
-        frad = g2.number_input("Radius (yd)", 10, 300, 40, step=10)
-        fname = st.text_input("Name (optional)", placeholder="e.g. creek bottom, cedar thicket, pond")
+        frad = g2.number_input("Radius (yd) — water/cover/bedding", 10, 300, 40, step=10)
+        fname = st.text_input("Name (optional)", placeholder="e.g. back feeder, creek bottom, cedar thicket")
+        ffill = st.date_input("Last filled / refreshed (bait & food)", value=None)
         if st.form_submit_button("Save feature"):
-            new = features + [{"id": ui.new_id(), "type": ftype, "name": fname.strip(), "lat": round(clicked[0], 6),
-                               "lon": round(clicked[1], 6), "radius_yd": int(frad), "created": ui.now_str()}]
+            rec = {"id": ui.new_id(), "type": ftype, "name": fname.strip(), "lat": round(clicked[0], 6),
+                   "lon": round(clicked[1], 6), "radius_yd": int(frad), "created": ui.now_str()}
+            if ftype in BAIT_TYPES:
+                rec["radius_yd"] = 10
+                rec["last_filled"] = (ffill or pd.Timestamp.now(tz="America/Chicago").date()).isoformat()
+            new = features + [rec]
             if ui.save("features", new, f"Add {ftype} feature"):
                 st.session_state.last_click = None
                 st.rerun()
 
 # ---------------------------------------------------------------- features list
-if features:
-    with st.expander(f"Water / cover / bedding marks ({len(features)})"):
-        for f in features:
+bait_list = [f for f in features if f["type"] in BAIT_TYPES]
+other_list = [f for f in features if f["type"] not in BAIT_TYPES]
+if bait_list:
+    with st.expander(f"🌽 Bait & food sites ({len(bait_list)})", expanded=True):
+        today = pd.Timestamp.now(tz="America/Chicago").date()
+        for f in bait_list:
+            days = (today - pd.Timestamp(f["last_filled"]).date()).days if f.get("last_filled") else None
+            c1, c2, c3 = st.columns([4, 2, 1])
+            c1.markdown(f"{FEATURE_STYLE[f['type']][1]} · **{f.get('name') or 'unnamed'}**"
+                        + (f" · filled {days} day{'s' if days != 1 else ''} ago" if days is not None else ""))
+            if c2.button("Filled today", key=f"fill_{f['id']}", width="stretch"):
+                f["last_filled"] = today.isoformat()
+                ui.save("features", features, f"Refill {f.get('name') or f['type']}")
+                st.rerun()
+            if c3.button("🗑", key=f"delb_{f['id']}"):
+                ui.save("features", [x for x in features if x["id"] != f["id"]], "Delete bait site")
+                st.rerun()
+        st.caption("Baiting rules: legal on private land in Kentucky for 2026-27, but **not** on WMAs/public land, and "
+                   "contact-style feeders (troughs, gravity feeders) are banned in CWD Surveillance Zone counties. "
+                   "Check the 📜 Regulations page for your county.")
+if other_list:
+    with st.expander(f"Water / cover / bedding marks ({len(other_list)})"):
+        for f in other_list:
             c1, c2 = st.columns([4, 1])
             c1.markdown(f"{FEATURE_STYLE.get(f['type'], ('', f['type']))[1]} · {f.get('name') or 'unnamed'} · "
                         f"{f.get('radius_yd', 40)} yd")

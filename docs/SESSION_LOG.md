@@ -12,13 +12,14 @@ Newest first. Each session: what changed, decisions made, and what's open.
 - Weather: Open-Meteo, 15 days (today + 14) plus previous 24 h for trends. ZIP lookup via zippopotam.us.
 - Map: Esri satellite / OpenTopoMap / OSM, stand pins with good-wind directions (green/red by current wind), live or 48 h forecast wind, scent cones from all stands and a tap-to-test pin, "Forecast this pin", GPS locate button.
 - Punch list with seed backlog; storage via GitHub Contents API to a private data repo, local fallback.
-- Tests: scoring sanity + headless render of all pages + storage (18 passing).
+- Tests: scoring sanity + headless render of all pages + storage (21 passing).
 - v0.1.2: storage = private GitHub repo `deercast-data` (Supabase backend retained as option); punch-list export on the Development page for session handoff.
 - v0.1.3: compass rose on the map (top-right, north-up) with an orange wind arrow pointing downwind (scent travel) + wind caption (`deercast/compass.py`).
 - v0.2.0: Map always opens on Satellite (folium was showing the last-added base layer, Streets); satellite overzooms past z19 instead of blanking. New **Regulations** page: FCC county lookup → KY 2026-27 zone, seasons (open/closed, days to open), today's legal hours, zone + statewide bag limits, CWD rules for the 23 surveillance counties, official links. Replaced deprecated `use_container_width`; pinned streamlit <2.
 - v0.2.1: John's stand is in **Hart County**. Default location moved to Cub Run town center (37.3006, -86.0608, Hart Co.) — old default point sat near the Hart/Edmonson/Grayson line. `ui.DEFAULT_COUNTY = "Hart"` is the regs fallback; sidebar has a 🏠 Back to home button.
 - v0.3.0: **Shot & Recovery** page (`app_pages/track.py`): 3D ellipsoid deer anatomy, rotatable shooter's-eye view (angle select-slider, left/right side, buck/doe, vitals overlay), tap-to-place crosshair + nudge buttons, downward angle from stand height/distance, ray-cast organs hit with bow bone-stop alternate outcome, evidence/reaction inputs (sign can override geometry), survival/wait/distance, arrow-path top+side diagram, search-probability map (stand → hit site by bearing+distance, run direction, Open-Meteo terrain), start-tracking time, rain/heat alerts, tips, save to `shots` log. Model doc: `docs/SHOT_MODEL.md`. New deps: matplotlib, streamlit-image-coordinates, pillow.
 - v0.3.1: Recovery map now weights **water and heavy cover** (John: wounded deer head to water/thick cover to die). OSM Overpass water/woods (ways + multipolygon relations, cached 7 d) + hunter-marked water/cover/bedding circles on the Map page (`features.json`). Per-outcome water/cover bias; drawn on the recovery map. Overpass not reachable from sandbox — verify live on Streamlit.
+- v0.4.0: **Hunt Log** page — live sit tracking (start/stop stored in `active_hunt` so it survives reloads; quick +Buck/+Doe/+Fawn/+Unknown buttons; editable activity/bait/notes), past-hunt entry, per-hour forecast score snapshot, weather snapshot, and **forecast validation** (deer/hour by score band chart, Spearman ρ, plain-English verdict, re-score button). **Bait & food marks** on the Map: broadcast feeder, shelled corn pile, ear corn pile, other food, with last-filled date and 'Filled today'; baiting-rule reminder. Bait marks excluded from recovery weighting.
 
 **Decisions**
 - Weather provider: Open-Meteo (free, no key, 16-day hourly).
@@ -34,5 +35,6 @@ Newest first. Each session: what changed, decisions made, and what's open.
 - Shot page: validate outcome tables/wait times with John's experience; add deer-size scaling; record recovery result per saved shot for calibration; test tap accuracy on iPhone.
 - Add other states' regulation data as needed (currently link-out only).
 - Default rut peak is latitude-based (KY ≈ Nov 14) — replace with state-agency table.
-- Model weights are literature/hunter-knowledge priors, not yet calibrated — hunt log feature planned.
+- Model weights are literature/hunter-knowledge priors, not yet calibrated — Hunt Log now collects the data; fit weights once ~30+ hours are logged.
+- Possible next: bait-site activity stats from the log (which feeder/pile draws deer at what hours); flag bait sites not filled in N days.
 - Live weather wasn't reachable from Claude's sandbox; first real-data check happens on Streamlit.

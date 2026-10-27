@@ -41,6 +41,7 @@ class LocalStore:
         return json.loads(p.read_text())
 
     def put(self, name: str, obj, message: str = "") -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
         (self.root / f"{name}.json").write_text(json.dumps(obj, indent=2, default=str))
 
 

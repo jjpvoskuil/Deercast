@@ -36,5 +36,17 @@ Southern states vary enormously (some peak in January) — override with the sta
 - Sun/moon: PyEphem, computed locally.
 - ZIP → lat/lon: zippopotam.us, fallback Open-Meteo geocoding.
 
+## Validation (Hunt Log, v0.4)
+- Each saved sit stores, for every clock hour hunted: the model score, the minutes hunted, and the deer seen.
+  It also records the app version. Scores for past dates use Open-Meteo forecast data from the last ~3 months,
+  with the historical archive as a fallback.
+- The **Hunt Log** page compares the forecast with sightings in two ways:
+  - Deer seen per hour within each score band (0–2, 2–4, 4–6, 6–8, 8–10).
+  - The Spearman rank correlation between the hourly score and deer seen per hour. Hours with less than
+    10 minutes hunted are excluded.
+- **How to read it:** about 30 hunted hours (10+ sits) are needed before the trend means much.
+  If ρ ≥ 0.3, the forecast is working. If ρ is around 0, or negative, the model needs tuning for the property.
+- **Next step:** use the logged hours to fit the factor weights (`MODEL`, `SEASON_KNOTS`) once there's enough data.
+
 ## Next model steps
 State rut table, hunt-log feedback loop for calibration, thermals from elevation.

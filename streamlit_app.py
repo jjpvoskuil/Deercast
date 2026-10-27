@@ -33,6 +33,7 @@ if not check_password():
 pages = [
     st.Page("app_pages/forecast.py", title="Forecast", icon="📈", default=True),
     st.Page("app_pages/map.py", title="Map & Wind", icon="🗺️"),
+    st.Page("app_pages/log.py", title="Hunt Log", icon="🗒️"),
     st.Page("app_pages/track.py", title="Shot & Recovery", icon="🎯"),
     st.Page("app_pages/regs.py", title="Regulations", icon="📜"),
     st.Page("app_pages/dev.py", title="Development", icon="🛠️"),
