@@ -4,6 +4,7 @@ Whitetail deer activity forecasting for hunters — an iPhone-friendly Streamlit
 
 - **Forecast** — hourly activity score (0–10) for the next 14 days for any ZIP code, map pin, or saved stand. Built from weather (temperature & 24 h change, pressure & trend, wind, rain, cloud), daily moon phase + solunar times, and season/rut timing. Factor breakdown shown for every hour.
 - **Map & Wind** — satellite/topo map, saved stand pins (with "good wind" directions), live or forecast wind, and scent-drift cones from every stand or any point you tap.
+- **Shot & Recovery** — rotate a deer to how it stood, tap where you hit it, set the shot angle: estimates organs hit, survival time, how long to wait, likely distance, a search-probability map from the hit site (run direction + terrain), weather alerts and tracking tips. Details: [`docs/SHOT_MODEL.md`](docs/SHOT_MODEL.md).
 - **Regulations** — deer regs for the chosen location: county & zone detection, season dates with open/closed status, today's legal shooting hours, bag limits, CWD rules (Kentucky built in; other states link to the official agency).
 - **Development** — punch list for tracking features, bugs and model changes.
 

@@ -40,7 +40,7 @@ def run(page_path):
 
 
 def test_pages_render():
-    for p in [None, "app_pages/map.py", "app_pages/regs.py", "app_pages/dev.py"]:
+    for p in [None, "app_pages/map.py", "app_pages/track.py", "app_pages/regs.py", "app_pages/dev.py"]:
         at = run(p)
         assert not at.exception, (p, [e.value for e in at.exception])
 
@@ -73,3 +73,17 @@ def test_default_location_is_hart_county():
     from deercast.regs import kentucky as k
     assert ui.DEFAULT_COUNTY == "Hart" and k.zone_for(ui.DEFAULT_COUNTY) == 1
     assert abs(ui.DEFAULT_LOCATION.lat - 37.3006) < 0.01 and abs(ui.DEFAULT_LOCATION.lon + 86.0608) < 0.01
+
+
+def test_track_page_with_shot():
+    with mock.patch("deercast.weather.fetch_hourly", fake_hourly), \
+         mock.patch("deercast.recovery.fetch_elevations", lambda pts: [180.0 - i * 0.1 for i in range(len(pts))]):
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/track.py")
+        at.session_state["shot_cross"] = (-6.0, 1.0)  # broadside, behind the shoulder
+        at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    md = " ".join(m.value for m in at.markdown)
+    assert "Double lung" in md
+    vals = [m.value for m in at.metric]
+    assert "30 min" in vals

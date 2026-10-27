@@ -6,3 +6,6 @@ plotly>=5.20
 folium>=0.17
 streamlit-folium>=0.22
 ephem>=4.1
+matplotlib>=3.8
+streamlit-image-coordinates>=0.4
+pillow>=10

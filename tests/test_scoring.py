@@ -55,3 +55,37 @@ def test_kentucky_zones():
     assert k.zone_for("Hart County") == 1 and k.zone_for("Edmonson") == 2 and k.zone_for("Grayson") == 1
     assert k.zone_for("Rockcastle") == 3 and k.zone_for("Bell") == 4
     assert "Hardin" in k.CWD_COUNTIES and "Hart" not in k.CWD_COUNTIES
+
+
+def _hit(yaw, pitch, x, z, weapon="Bow"):
+    import numpy as np
+    from deercast import shot
+    d, r, u = shot.view_basis(yaw, pitch)
+    p = np.array([x, 0, z], float)
+    res = shot.trace(p @ r, p @ u, yaw, pitch)
+    return shot.classify(res, weapon)
+
+
+def test_shot_classification():
+    assert _hit(0, 0, 6, 1)[0] == "double_lung"
+    assert _hit(0, 0, 12.5, -4.5)[0] == "heart"
+    assert _hit(0, 0, -1, 0)[0] == "liver"
+    assert _hit(0, 0, -9, -2)[0] == "paunch"
+    assert _hit(0, 0, 6, 8.6)[0] == "spine"
+    assert _hit(0, 0, 6, 14)[0] == "miss"
+    prim, stopped, _ = _hit(0, 0, 13.5, 0)  # on the shoulder with a bow
+    assert prim == "double_lung" and stopped == "shoulder_only"
+    assert _hit(0, 0, 13.5, 0, "Rifle / shotgun slug")[1] is None
+    assert _hit(0, 25, 6, 3)[0] == "double_lung"  # from a tree stand
+
+
+def test_render_and_recovery():
+    from deercast import recovery, shot_render as R
+    img = R.deer_view(30, 15, True, (0, 0), True, {"lung_l"})
+    assert img.size == (720, 600)
+    sx, sy = R.screen_to_model(360, 300, 720, 600, False)
+    assert abs(sx) < 1e-6 and abs(sy) < 1e-6
+    cells = recovery.search_grid(37.3, -86.06, (80, 200, 400), 90.0)
+    w = recovery.weight_cells(cells, (80, 200, 400), 90.0, None, None, 0)
+    best = cells[int(w.argmax())]
+    assert 45 <= best["bearing"] <= 135 and 80 <= best["dist_yd"] <= 260
