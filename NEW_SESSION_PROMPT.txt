@@ -1,8 +1,8 @@
 We're continuing development of Deercast, my whitetail deer activity forecast app (Python/Streamlit, used on my iPhone).
 
-1. Attach the GitHub repo jjpvoskuil/Deercast with push access and clone it.
+1. Attach the GitHub repo jjpvoskuil/Deercast with push access and clone it. Also try to attach jjpvoskuil/deercast-data read-only (private; stands + punch list).
 2. Read CLAUDE.md, docs/SESSION_LOG.md (latest entries first), and docs/MODEL.md before doing anything else.
-3. If I've pasted the punch list export from the app's Development page below, use it as the current backlog.
+3. Read the current punch list from data/punchlist.json in deercast-data. If you can't reach it, use the export I paste below.
 4. Run the tests (pytest -q tests) to confirm the baseline is green.
 5. Give me a short status: current version, what was done last session, open punch list items by priority, and anything that looks broken. Then wait for my direction.
 

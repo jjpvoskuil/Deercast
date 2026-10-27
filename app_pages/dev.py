@@ -10,7 +10,7 @@ st.caption(f"Deercast v{__version__} · storage: **{ui.get_store().kind}**")
 if ui.get_store().kind == "local":
     st.warning(
         "Using temporary local storage — items will be lost when the Streamlit app restarts. "
-        "Add the `[storage]` secrets (see README) to save to Supabase."
+        "Add the `[storage]` secrets (see README) to save to the private deercast-data repo."
     )
 
 STATUSES = ["Open", "In progress", "Done", "Won't do"]

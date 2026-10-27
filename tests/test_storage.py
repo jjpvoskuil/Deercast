@@ -20,3 +20,11 @@ def test_supabase_selected_and_requests_shape():
 def test_fallback_local(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert storage.make_store({}).kind == "local"
+
+
+def test_github_preferred_when_configured():
+    st = storage.make_store({
+        "storage": {"github_token": "t", "repo": "jjpvoskuil/deercast-data"},
+        "supabase": {"url": "https://x.supabase.co", "key": "k"},
+    })
+    assert st.kind == "github" and st.repo == "jjpvoskuil/deercast-data" and st.path == "data"

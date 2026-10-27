@@ -15,16 +15,15 @@ Open the Streamlit app URL in Safari → Share → **Add to Home Screen**.
 1. share.streamlit.io → **Create app** → repo `jjpvoskuil/Deercast`, branch `main`, main file `streamlit_app.py`.
 2. App settings → **Secrets** → paste from `.streamlit/secrets.toml.example` with real values.
 
-## Persistent storage (stands + punch list) — Supabase
-Streamlit Cloud's disk is wiped on restart, so data lives in Supabase.
-1. Supabase → your project → **SQL Editor** → run [`docs/supabase_setup.sql`](docs/supabase_setup.sql) (creates one locked-down table, `deercast_kv`).
-2. Project Settings → **API Keys** → copy the **secret** key (or legacy `service_role`) and the project URL.
-3. Paste both into the Streamlit app's Secrets under `[supabase]` (see `.streamlit/secrets.toml.example`).
+## Persistent storage (stands + punch list) — private GitHub repo
+Streamlit Cloud's disk is wiped on restart, so the app saves JSON files (`data/stands.json`,
+`data/punchlist.json`) to the **private** repo `jjpvoskuil/deercast-data` using a fine-grained PAT
+(Contents: read/write on that repo only) stored in the app's Secrets under `[storage]`.
+This public app repo never holds stand coordinates. Data commits go to a different repo, so they
+don't trigger app redeploys.
 
-Never put the secret key in the repo or the browser — it stays in Streamlit secrets only.
-Free Supabase projects pause after ~7 days with no database activity; normal app use keeps it awake.
-If it does pause (off-season), click **Resume project** in the Supabase dashboard — data is kept.
-Without secrets, the app uses temporary local files (fine for testing).
+Without secrets, the app uses temporary local files (fine for testing). A Supabase backend is also
+supported (`[supabase]` secrets + `docs/supabase_setup.sql`) if ever needed.
 
 ## Local development (optional)
 ```bash

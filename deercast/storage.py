@@ -1,23 +1,20 @@
 """Persistent JSON storage for stands and the dev punch list.
 
 Streamlit Community Cloud has an ephemeral filesystem — anything written to
-local disk disappears when the app restarts — so production data lives in
-Supabase (Postgres), in a simple key/value table:
-
-    deercast_kv(name text primary key, data jsonb, updated_at timestamptz)
-
-Created by `docs/supabase_setup.sql`. Row Level Security is ON with no
-policies, so only the server-side secret key (kept in Streamlit secrets) can
-read or write it.
+local disk disappears when the app restarts — so production data is stored as
+JSON files in the PRIVATE GitHub repo `jjpvoskuil/deercast-data` via the
+Contents API (the app repo is public; stand GPS must not go there).
 
 Streamlit secrets:
 
-    [supabase]
-    url = "https://<project-ref>.supabase.co"
-    key = "<secret / service_role key>"
+    [storage]
+    github_token = "github_pat_..."   # fine-grained: Contents read/write on deercast-data only
+    repo = "jjpvoskuil/deercast-data"
+    branch = "main"
+    path = "data"
 
-Fallbacks: a GitHub repo via `[storage]` secrets (legacy), else local files in
-./.deercast_data/ (dev only — wiped on Streamlit restart).
+Also supported: `[supabase]` (url, key) — see docs/supabase_setup.sql — and a
+local-file fallback in ./.deercast_data/ for development.
 """
 
 from __future__ import annotations
@@ -129,15 +126,15 @@ def _section(secrets, name) -> dict:
 
 
 def make_store(secrets=None):
-    sb = _section(secrets, "supabase")
-    url = sb.get("url") or os.environ.get("DEERCAST_SUPABASE_URL")
-    key = sb.get("key") or os.environ.get("DEERCAST_SUPABASE_KEY")
-    if url and key:
-        return SupabaseStore(url, key)
 
     cfg = _section(secrets, "storage")
     token = cfg.get("github_token") or os.environ.get("DEERCAST_GITHUB_TOKEN")
     repo = cfg.get("repo") or os.environ.get("DEERCAST_DATA_REPO")
     if token and repo:
         return GitHubStore(token, repo, cfg.get("branch", "main"), cfg.get("path", "data"))
+    sb = _section(secrets, "supabase")
+    url = sb.get("url") or os.environ.get("DEERCAST_SUPABASE_URL")
+    key = sb.get("key") or os.environ.get("DEERCAST_SUPABASE_KEY")
+    if url and key:
+        return SupabaseStore(url, key)
     return LocalStore()
