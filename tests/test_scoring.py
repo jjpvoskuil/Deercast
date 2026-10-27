@@ -36,3 +36,14 @@ def test_scent_cone_points_downwind():
     pts = scent.scent_cone(37.0, -86.0, wind_from_deg=270, wind_mph=8)  # west wind → scent east
     assert all(lon >= -86.0 for _, lon in pts)
     assert scent.wind_ok_for_stand(260, ["W"]) and not scent.wind_ok_for_stand(90, ["W"])
+
+
+def test_compass_svg():
+    from deercast.compass import Compass, compass_svg
+    svg = compass_svg(225, 8)
+    assert svg.startswith("<svg") and ">N<" in svg and "rotate(45 " in svg  # SW wind → arrow points NE
+    assert "rotate(" not in compass_svg(None)
+    import folium
+    m = folium.Map()
+    Compass(225, 8, "SW 8 mph").add_to(m)
+    assert "deercast-compass" in m.get_root().render()

@@ -7,6 +7,7 @@ from folium.plugins import LocateControl
 from streamlit_folium import st_folium
 
 from deercast import geo, scent, ui
+from deercast.compass import Compass
 from deercast.weather import CARDINALS_8, deg_to_cardinal
 
 st.title("🗺️ Map & Wind")
@@ -63,6 +64,11 @@ folium.TileLayer(
     attr="Esri", name="Labels", overlay=True, control=True,
 ).add_to(m)
 LocateControl(auto_start=False, flyTo=True).add_to(m)
+Compass(
+    wind_from_deg=wind["dir"] if wind else None,
+    wind_mph=wind["mph"] if wind else None,
+    wind_label=f"{deg_to_cardinal(wind['dir'])} {wind['mph']:.0f} mph" if wind else "",
+).add_to(m)
 
 scent_fg = folium.FeatureGroup(name="Scent cones")
 
@@ -117,6 +123,7 @@ if out:
 
 st.toggle("Show scent cones on all stands", key="show_cones")
 st.caption(
+    "Compass: map is always north-up; the orange arrow shows which way the wind (and your scent) is moving. "
     "Cones show where your scent drifts (downwind). Short & wide = light, swirly wind; long & narrow = steady wind. "
     "Tap anywhere to drop a yellow test cone. Planning aid only — terrain and thermals bend real air flow."
 )
