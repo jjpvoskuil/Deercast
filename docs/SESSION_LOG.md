@@ -12,7 +12,8 @@ Newest first. Each session: what changed, decisions made, and what's open.
 - Weather: Open-Meteo, 15 days (today + 14) plus previous 24 h for trends. ZIP lookup via zippopotam.us.
 - Map: Esri satellite / OpenTopoMap / OSM, stand pins with good-wind directions (green/red by current wind), live or 48 h forecast wind, scent cones from all stands and a tap-to-test pin, "Forecast this pin", GPS locate button.
 - Punch list with seed backlog; storage via GitHub Contents API to a private data repo, local fallback.
-- Tests: scoring sanity + headless render of all pages (5 passing).
+- Tests: scoring sanity + headless render of all pages + storage (7 passing).
+- v0.1.1: Supabase storage backend (`docs/supabase_setup.sql`) and a punch-list export on the Development page for Claude session handoff.
 
 **Decisions**
 - Weather provider: Open-Meteo (free, no key, 16-day hourly).
@@ -23,7 +24,6 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 **Open / next**
 - John: run `docs/supabase_setup.sql`, deploy on Streamlit Cloud, set `[supabase]` + `APP_PASSWORD` secrets, test on iPhone.
-- Add a punch-list export (copy-paste markdown) on the Development page for session handoff — Claude's sandbox can't reach Supabase.
 - Supabase free tier pauses after ~7 days idle; consider a keep-alive or just resume after off-season.
 - Default rut peak is latitude-based (KY ≈ Nov 14) — replace with state-agency table.
 - Model weights are literature/hunter-knowledge priors, not yet calibrated — hunt log feature planned.
