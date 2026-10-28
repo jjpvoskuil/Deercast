@@ -115,8 +115,7 @@ def location_picker(container=st.sidebar) -> geo.Location:
 
 
 def rut_peak_setting(lat: float, container=st.sidebar):
-    year = pd.Timestamp.now().year
-    default = scoring.default_rut_peak(lat, year)
+    default = scoring.rut_peak_for(pd.Timestamp.now(), lat)
     with container:
         override = st.date_input(
             "Peak breeding (rut) date",
@@ -126,3 +125,34 @@ def rut_peak_setting(lat: float, container=st.sidebar):
         )
     st.session_state.rut_peak = override
     return override
+
+
+# ---------------------------------------------------------------- charts
+# Red = poor conditions → green = best (John's preference).
+SCORE_COLORSCALE = [[0.0, "#8b1a14"], [0.25, "#d7261e"], [0.45, "#e07b24"], [0.6, "#e9c46a"], [0.8, "#8cc152"],
+                    [1.0, "#1f8a3e"]]
+PLOTLY_CONFIG = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False, "showTips": False}
+
+
+def score_color(score: float) -> str:
+    """Hex color for a 0–10 score on SCORE_COLORSCALE."""
+    import plotly.colors as pc
+
+    return pc.sample_colorscale(SCORE_COLORSCALE, [max(0.0, min(1.0, score / 10))], colortype="rgb")[0]
+
+
+def lock_figure(fig, height: int | None = None):
+    """Fixed charts: no zoom/pan/rescale on touch — tap still shows values."""
+    fig.update_layout(dragmode=False, margin=dict(l=0, r=0, t=10, b=0), **({"height": height} if height else {}))
+    fig.update_xaxes(fixedrange=True)
+    fig.update_yaxes(fixedrange=True)
+    return fig
+
+
+def html_frame(html: str, height: int):
+    """Embed our own (trusted) HTML+JS. Uses st.iframe on newer Streamlit, components.html on older."""
+    if hasattr(st, "iframe"):
+        return st.iframe(html, height=height)
+    import streamlit.components.v1 as components  # pragma: no cover
+
+    return components.html(html, height=height)

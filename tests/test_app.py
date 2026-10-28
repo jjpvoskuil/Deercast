@@ -109,7 +109,7 @@ def test_hunt_log_flow():
         assert not at.exception, [e.value for e in at.exception]
         next(b for b in at.button if b.label == "+ Doe").click().run()
         next(b for b in at.button if b.label == "+ Buck").click().run()
-        assert "Time on stand" in [m.label for m in at.metric]
+        assert any("since" in m.value for m in at.markdown)
         # end & save
         next(b for b in at.button if "End & save" in b.label).click().run()
         assert not at.exception, [e.value for e in at.exception]
@@ -145,3 +145,58 @@ def test_bait_marks_on_map():
     assert not at.exception, [e.value for e in at.exception]
     assert any("Bait & food sites (2)" in e.label for e in at.expander)
     assert any(b.label == "Filled today" for b in at.button)
+
+
+def test_past_hunt_entry_last_season():
+    """Past hunt from last season: multi-deer sighting via buttons, saves without error, rut uses that season."""
+    import contextlib, json, pathlib
+    from datetime import date, time as dtime
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        stack.enter_context(mock.patch("deercast.weather.fetch_hourly_range",
+                                       lambda lat, lon, s, e: (synthetic_weather(TZ), TZ)))
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/log.py"); at.run()
+        at.date_input(key="past_date").set_value(date(2025, 11, 8)).run()
+        at.time_input(key="past_stime").set_value(dtime(7, 10)).run()
+        at.session_state["past_n"] = 3
+        at.run()
+        next(b for b in at.button if b.key == "past_Doe").click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        next(b for b in at.button if b.label == "Save past hunt").click().run()
+        assert not at.exception, [e.value for e in at.exception]
+    hunts = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())
+    assert hunts[0]["date"] == "2025-11-08"
+    assert hunts[0]["sightings"][0]["count"] == 3 and hunts[0]["sightings"][0]["kind"] == "Doe"
+
+
+def test_rut_peak_follows_season():
+    from deercast import scoring
+    assert str(scoring.rut_peak_for("2025-11-08", 37.3)) == "2025-11-14"
+    assert str(scoring.rut_peak_for("2027-01-05", 37.3)) == "2026-11-14"
+
+
+def test_login_persists_via_url_token():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    with mock.patch("deercast.weather.fetch_hourly", fake_hourly):
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.secrets["APP_PASSWORD"] = "buck"
+        at.run()
+        assert at.text_input[0].label == "Password"
+        at.text_input[0].input("buck").run()
+        tok = at.query_params["k"][0] if isinstance(at.query_params["k"], list) else at.query_params["k"]
+        assert tok and at.session_state["authed"]
+        # brand-new session (e.g. Safari reconnect) with the token in the URL → no password prompt
+        at2 = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at2.secrets["APP_PASSWORD"] = "buck"
+        at2.query_params["k"] = tok
+        at2.run()
+        assert not any(t.label == "Password" for t in at2.text_input)
+        # wrong token → prompt
+        at3 = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at3.secrets["APP_PASSWORD"] = "buck"
+        at3.query_params["k"] = "nope"
+        at3.run()
+        assert any(t.label == "Password" for t in at3.text_input)

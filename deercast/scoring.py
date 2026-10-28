@@ -82,6 +82,21 @@ def default_rut_peak(lat: float, year: int) -> date:
     return date(year, 12, 15)
 
 
+def season_year(d) -> int:
+    """Hunting season a date belongs to: Jul–Dec → that year, Jan–Jun → previous year's season."""
+    d = pd.Timestamp(d)
+    return d.year if d.month >= 7 else d.year - 1
+
+
+def rut_peak_for(d, lat: float, override=None) -> date:
+    """Peak-rut date for the season containing date d. An override keeps its month/day, moved to that season."""
+    yr = season_year(d)
+    if override is not None:
+        o = pd.Timestamp(override)
+        return date(yr if o.month >= 7 else yr + 1, o.month, o.day)
+    return default_rut_peak(lat, yr)
+
+
 @dataclass
 class Settings:
     rut_peak: date

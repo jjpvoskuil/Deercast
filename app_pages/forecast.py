@@ -59,7 +59,8 @@ fig = go.Figure(
         y=day_lbl,
         zmin=0,
         zmax=10,
-        colorscale=[[0, "#1d2b1f"], [0.3, "#3f5f3a"], [0.55, "#b9a43a"], [0.75, "#e07b24"], [1, "#d7261e"]],
+        colorscale=ui.SCORE_COLORSCALE,
+        textfont=dict(color="#ffffff"),
         texttemplate="%{z:.0f}",
         hovertemplate="%{y} %{x}<br>Score %{z:.1f}<extra></extra>",
         colorbar=dict(title="Score", thickness=10),
@@ -67,13 +68,9 @@ fig = go.Figure(
         ygap=1,
     )
 )
-fig.update_layout(
-    height=60 + 30 * len(pivot),
-    margin=dict(l=0, r=0, t=10, b=0),
-    yaxis=dict(autorange="reversed"),
-    xaxis=dict(side="top"),
-)
-st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+ui.lock_figure(fig, height=60 + 30 * len(pivot))
+fig.update_layout(yaxis=dict(autorange="reversed", fixedrange=True), xaxis=dict(side="top", fixedrange=True))
+st.plotly_chart(fig, width="stretch", config=ui.PLOTLY_CONFIG)
 st.caption("Confidence: days 1–3 high · 4–7 medium · 8–14 low (long-range weather is less reliable).")
 
 # ---------------------------------------------------------------- day detail
@@ -92,13 +89,15 @@ bar = go.Figure(
     go.Bar(
         x=[t.strftime("%-I%p").lower() for t in dd.index],
         y=dd["score"],
-        marker_color=["#e07b24" if l else "#5b6b5c" for l in dd["legal"]],
+        marker_color=[ui.score_color(v) if l else "rgba(140,150,140,0.35)" for v, l in zip(dd["score"], dd["legal"])],
         hovertemplate="%{x}: %{y:.1f}<extra></extra>",
     )
 )
-bar.update_layout(height=260, margin=dict(l=0, r=0, t=10, b=0), yaxis=dict(range=[0, 10]))
-st.plotly_chart(bar, width="stretch", config={"displayModeBar": False})
-st.caption("Orange = legal shooting hours (30 min before sunrise to 30 min after sunset — check your state's rules).")
+ui.lock_figure(bar, height=260)
+bar.update_layout(yaxis=dict(range=[0, 10], fixedrange=True))
+st.plotly_chart(bar, width="stretch", config=ui.PLOTLY_CONFIG)
+st.caption("Red = poor → green = best. Grey bars = outside legal shooting hours (30 min before sunrise to 30 min "
+           "after sunset — check your state's rules).")
 
 with st.expander("Why this score? (factor breakdown)"):
     t = dd[
