@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from deercast import beststand, scoring, terrain, ui
+from deercast import beststand, daychart, scoring, terrain, ui
 from deercast.weather import deg_to_cardinal
 
 st.title("🦌 Deer Activity Forecast")
@@ -130,19 +130,11 @@ c2.metric("High / Low", f"{r.hi:.0f}° / {r.lo:.0f}°")
 c3.metric("Moon", r.moon)
 c4.metric("Sunrise / Sunset", f"{dd['sunrise'].iloc[0]:%-I:%M} / {dd['sunset'].iloc[0]:%-I:%M}")
 
-bar = go.Figure(
-    go.Bar(
-        x=[t.strftime("%-I%p").lower() for t in dd.index],
-        y=dd["score"],
-        marker_color=[ui.score_color(v) if l else "rgba(140,150,140,0.35)" for v, l in zip(dd["score"], dd["legal"])],
-        hovertemplate="%{x}: %{y:.1f}<extra></extra>",
-    )
-)
-ui.lock_figure(bar, height=260)
-bar.update_layout(yaxis=dict(range=[0, 10], fixedrange=True))
-st.plotly_chart(bar, width="stretch", config=ui.PLOTLY_CONFIG)
-st.caption("Red = poor → green = best. Grey bars = outside legal shooting hours (30 min before sunrise to 30 min "
-           "after sunset — check your state's rules).")
+show_wx = st.toggle("Show hourly weather", value=True, key="show_day_wx")
+st.plotly_chart(daychart.day_figure(dd, show_wx), width="stretch", config=ui.PLOTLY_CONFIG)
+st.caption("Score bars: red = poor → green = best; grey = outside legal shooting hours. "
+           + ("Wind arrows point the way the wind is blowing (speed in mph). Tap any hour for all its values."
+              if show_wx else "Tap a bar for that hour's weather."))
 
 with st.expander("Why this score? (factor breakdown)"):
     t = dd[

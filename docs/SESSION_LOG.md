@@ -27,7 +27,8 @@ Cleared John's open punch-list items plus two he reopened:
   - Each stand gets one-line reasons.
 - **Home-screen polish:** Deercast icon (`tools/make_icon.py` → `static/`), favicon, and tags for the iOS title, full-screen standalone mode and theme color, injected via `ui.add_home_screen_tags()`. `server.enableStaticServing = true`. John needs to re-add the home-screen icon once.
 - **Bug fixes:** `st.cache_data` was caching failed network lookups. A failed elevation, OSM or state lookup was stuck for 1–30 days. These now raise inside the cached function so failures retry (convention noted in CLAUDE.md).
-- Tests: 34 passing.
+- v0.6.1: The **Day detail** chart has an aligned hourly weather strip under the score bars (`deercast/daychart.py`): temp line (°F labels every 3 h), wind arrows pointing where the wind blows (size ∝ speed, mph labels), rain-chance bars over a cloud-cover band, and a pressure line (inHg) with the 3-hour trend. Tapping a score bar shows all values for that hour. There's a "Show hourly weather" toggle. Checked visually at phone width (rendered with Chromium from npm `@sparticuz/chromium`, since kaleido's Chrome download is blocked in the sandbox).
+- Tests: 35 passing.
 
 **Open / next**
 - Calibrate factor weights: stays open until there are ~30+ logged hours.

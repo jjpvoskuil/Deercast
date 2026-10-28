@@ -366,3 +366,18 @@ def test_forecast_best_stand_section():
     assert not at.exception, [e.value for e in at.exception]
     md = " ".join(m.value for m in at.markdown)
     assert "🥇 **West stand**" in md and "Morning" in md and "Evening" in md
+
+
+def test_day_chart_weather_rows():
+    import sys
+    sys.path.insert(0, str(ROOT / "tests"))
+    from deercast import daychart, scoring
+    sc = scoring.score_forecast(synthetic_weather(TZ), 37.3, -86.06, TZ,
+                                scoring.Settings(rut_peak=scoring.rut_peak_for("2026-10-27", 37.3, lon=-86.06,
+                                                                               state="KY")))
+    dd = sc[sc["date"] == sc["date"].iloc[30]]
+    fig = daychart.day_figure(dd, True)
+    assert len(fig.data) == 6  # score, temp, wind, cloud, rain, pressure
+    assert fig.layout.dragmode is False and fig.layout.yaxis.fixedrange
+    assert "inHg" in fig.data[0].customdata[0] and "wind" in fig.data[0].customdata[0]
+    assert len(daychart.day_figure(dd, False).data) == 1
