@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from deercast import __version__, clock, huntlog, scoring, ui, weather
-from deercast.weather import deg_to_cardinal
+from deercast.weather import CARDINALS_8, deg_to_cardinal
 
 st.title("🗒️ Hunt Log")
 
@@ -77,24 +77,60 @@ def build_hunt(where, start, end, sightings, notes, harvest):
     return rec
 
 
-def sighting_picker(prefix: str, when_fn):
-    """How many → (optional) activity / bait → tap the deer type. Returns a new sighting dict or None."""
+DIR_OPTS = ["—"] + CARDINALS_8
+
+
+def location_fields(prefix: str):
+    """Where the deer were relative to the stand, and travel direction. All optional."""
+    with st.container(border=True):
+        st.caption("📍 Where (optional)")
+        c1, c2 = st.columns(2)
+        d = c1.selectbox("Direction from stand", DIR_OPTS, key=f"{prefix}_dir")
+        dist = c2.number_input("Distance (yd)", 0, 500, 0, step=5, key=f"{prefix}_dist")
+        c3, c4 = st.columns(2)
+        came = c3.selectbox("Came from", DIR_OPTS, key=f"{prefix}_from")
+        went = c4.selectbox("Went toward", DIR_OPTS, key=f"{prefix}_to")
+    return {"dir": None if d == "—" else d, "dist_yd": int(dist) or None,
+            "came_from": None if came == "—" else came, "went_to": None if went == "—" else went}
+
+
+def with_position(rec: dict, anchor) -> dict:
+    if anchor:
+        pos = huntlog.locate(anchor[0], anchor[1], rec.get("dir"), rec.get("dist_yd"))
+        if pos:
+            rec["lat"], rec["lon"] = pos
+    return rec
+
+
+def _loc_keys(prefix):
+    return [f"{prefix}_{k}" for k in ("dir", "dist", "from", "to")]
+
+
+def sighting_picker(prefix: str, when_fn, anchor=None):
+    """How many → (optional) activity / bait / where → tap the deer type. Returns a new sighting dict or None."""
+    if st.session_state.pop(f"_{prefix}_qreset", False):
+        for k in _loc_keys(f"{prefix}_q"):
+            st.session_state.pop(k, None)
     count = st.segmented_control("How many", [1, 2, 3, 4, 5, 6, 8, 10], default=1, key=f"{prefix}_n") or 1
     c1, c2 = st.columns(2)
     act = c1.selectbox("Doing (optional)", ["—"] + huntlog.ACTIVITIES, key=f"{prefix}_act")
     bait = c2.selectbox("At bait (optional)", BAIT_NAMES, key=f"{prefix}_bait")
+    where = location_fields(f"{prefix}_q")
     cols = st.columns(4)
     for col, kind in zip(cols, huntlog.KINDS):
         if col.button(f"+ {kind}", width="stretch", key=f"{prefix}_{kind}", type="primary" if kind == "Buck" else
                       "secondary"):
-            return {"time": when_fn().isoformat(), "kind": kind, "count": int(count),
-                    "activity": "" if act == "—" else act, "bait": "" if bait == "—" else bait, "notes": ""}
+            st.session_state[f"_{prefix}_qreset"] = True
+            return with_position({"time": when_fn().isoformat(), "kind": kind, "count": int(count),
+                                  "activity": "" if act == "—" else act, "bait": "" if bait == "—" else bait,
+                                  "notes": "", **where}, anchor)
     return None
 
 
-def group_picker(prefix: str, when_fn):
+def group_picker(prefix: str, when_fn, anchor=None):
     """Deer seen together: counts per type + one Add. Returns a list of records sharing a group id, or None."""
-    keys = [f"{prefix}_c_{k}" for k in huntlog.KINDS] + [f"{prefix}_gact", f"{prefix}_gbait"]
+    keys = [f"{prefix}_c_{k}" for k in huntlog.KINDS] + [f"{prefix}_gact", f"{prefix}_gbait"] + \
+        _loc_keys(f"{prefix}_g")
     if st.session_state.pop(f"_{prefix}_greset", False):  # clear after the previous Add
         for k in keys:
             st.session_state.pop(k, None)
@@ -105,14 +141,15 @@ def group_picker(prefix: str, when_fn):
     c1, c2 = st.columns(2)
     act = c1.selectbox("Doing (optional)", ["—"] + huntlog.ACTIVITIES, key=f"{prefix}_gact")
     bait = c2.selectbox("At bait (optional)", BAIT_NAMES, key=f"{prefix}_gbait")
+    where = location_fields(f"{prefix}_g")
     if st.button("➕ Add these deer", width="stretch", key=f"{prefix}_gadd"):
         if not any(counts.values()):
             st.error("Set at least one count above.")
             return None
         t, g = when_fn().isoformat(), ui.new_id()
         st.session_state[f"_{prefix}_greset"] = True
-        return [{"time": t, "kind": k, "count": int(n), "activity": "" if act == "—" else act,
-                 "bait": "" if bait == "—" else bait, "notes": "", "group": g}
+        return [with_position({"time": t, "kind": k, "count": int(n), "activity": "" if act == "—" else act,
+                               "bait": "" if bait == "—" else bait, "notes": "", "group": g, **where}, anchor)
                 for k, n in counts.items() if n]
     return None
 
@@ -122,9 +159,11 @@ def sighting_list(sightings: list, prefix: str) -> bool:
     for e in huntlog.group_sightings(sightings):
         c1, c2 = st.columns([6, 1])
         icon = KIND_ICON.get(e["deer"][0][0], "") if len(e["deer"]) == 1 else "🦌"
+        loc_txt = huntlog.where_text(e)
         c1.markdown(f"{icon} **{pd.Timestamp(e['time']):%-I:%M %p}** — {huntlog.deer_text(e['deer'])}"
                     + (f" · {e['activity']}" if e.get("activity") else "")
-                    + (f" · at {e['bait']}" if e.get("bait") else ""))
+                    + (f" · at {e['bait']}" if e.get("bait") else "")
+                    + (f"  \n<small>📍 {loc_txt}</small>" if loc_txt else ""), unsafe_allow_html=True)
         if c2.button("✖", key=f"{prefix}_del_{e['group']}"):
             for i in sorted(e["idx"], reverse=True):
                 sightings.pop(i)
@@ -170,13 +209,13 @@ else:
         pass
 
     st.markdown("**Deer seen**")
-    new = sighting_picker("live", lambda: pd.Timestamp.now(tz=start.tz).floor("min"))
+    new = sighting_picker("live", lambda: pd.Timestamp.now(tz=start.tz).floor("min"), anchor=(lat, lon))
     if new:
         active["sightings"].append(new)
         ui.save("active_hunt", active, f"Sighting: {new['count']} {new['kind']}")
         st.rerun()
     with st.expander("Several deer together (e.g. doe + fawns)"):
-        grp = group_picker("live", lambda: pd.Timestamp.now(tz=start.tz).floor("min"))
+        grp = group_picker("live", lambda: pd.Timestamp.now(tz=start.tz).floor("min"), anchor=(lat, lon))
     if grp:
         active["sightings"].extend(grp)
         ui.save("active_hunt", active, "Sighting group")
@@ -224,7 +263,8 @@ with st.expander("➕ Add a past hunt"):
     stime = st.time_input("Time seen", value=time(7, 0), step=300, key="past_stime")
     plat, plon = where_coords(pwhere)
     ptz = tz_for(plat, plon)
-    grp = group_picker("past", lambda: pd.Timestamp(datetime.combine(pdate, stime)).tz_localize(ptz))
+    grp = group_picker("past", lambda: pd.Timestamp(datetime.combine(pdate, stime)).tz_localize(ptz),
+                       anchor=(plat, plon))
     if grp:
         st.session_state.past_sightings.extend(grp)
         st.rerun()
@@ -306,6 +346,7 @@ for h in sorted(hunts, key=lambda x: x["start"], reverse=True):
             st.markdown(f"- {pd.Timestamp(e['time']):%-I:%M %p} — {huntlog.deer_text(e['deer'])}"
                         + (f", {e['activity']}" if e.get("activity") else "")
                         + (f", at {e['bait']}" if e.get("bait") else "")
+                        + (f" ({huntlog.where_text(e)})" if huntlog.where_text(e) else "")
                         + (f" — {e['notes']}" if e.get("notes") else ""))
         if h.get("notes"):
             st.markdown(f"_{h['notes']}_")

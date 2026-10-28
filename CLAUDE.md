@@ -16,7 +16,7 @@ doesn't need to run anything locally. Design for phone screens first.
 - Development page with a punch list to track iterations.
 - Regulations page: current deer regs for the chosen ZIP/pin (county → zone, seasons, bag limits, CWD rules).
 - Map defaults to satellite view.
-- Hunt Log page: live sit (start/stop, quick +Buck/+Doe/+Fawn/+Unknown, activity, bait site) + past-hunt entry (deer seen together = one entry with per-type counts, `group` id; form clears after save); each hour saved with forecast score → validation (deer/hour by score band, Spearman ρ).
+- Hunt Log page: live sit (start/stop, quick +Buck/+Doe/+Fawn/+Unknown, activity, bait site) + past-hunt entry (deer seen together = one entry with per-type counts, `group` id; optional direction/distance from stand, came from, went toward → `lat`/`lon`; form clears after save; sightings drawn on the Map); each hour saved with forecast score → validation (deer/hour by score band, Spearman ρ).
 - Map: bait/food marks — broadcast corn feeder, shelled corn pile, ear corn pile, other food — with last-filled date + 'Filled today'.
 - Bow Setup page (`app_pages/gear.py`, `deercast/archery.py`, `gear.json`): setups with IBO/rated speed, draw weight/length, arrow weight, tip → est. fps, KE, momentum, bone-penetration rating; active setup feeds the Shot page.
 - Login persists via signed token in URL query param `k` (HMAC of APP_PASSWORD) so Safari reconnects don't force re-login; sidebar Log out.

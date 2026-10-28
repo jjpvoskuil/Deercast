@@ -245,3 +245,37 @@ def test_gear_save_new_setup():
         assert at.selectbox(key="gear_pick").value == "Hoyt"
         assert any(m.label == "Arrow speed" for m in at.metric)
         assert any("Active setup" in s.value for s in at.success)
+
+
+def test_sighting_location_recorded_and_mapped():
+    import contextlib, json, pathlib
+    from datetime import date, time as dtime
+    pathlib.Path(".deercast_data").mkdir(exist_ok=True)
+    pathlib.Path(".deercast_data/stands.json").write_text(json.dumps([
+        {"id": "s1", "name": "Ridge", "lat": 37.30, "lon": -86.06, "type": "Ladder", "good_winds": ["N"]}]))
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        stack.enter_context(mock.patch("deercast.weather.fetch_hourly_range",
+                                       lambda lat, lon, s, e: (synthetic_weather(TZ), TZ)))
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/log.py"); at.run()
+        at.selectbox(key="past_where").set_value("Stand: Ridge")
+        at.date_input(key="past_date").set_value(date(2025, 11, 8))
+        at.time_input(key="past_stime").set_value(dtime(7, 10))
+        at.number_input(key="past_c_Buck").set_value(1)
+        at.selectbox(key="past_g_dir").set_value("NE")
+        at.number_input(key="past_g_dist").set_value(60)
+        at.selectbox(key="past_g_from").set_value("N")
+        at.selectbox(key="past_g_to").set_value("S")
+        at.button(key="past_gadd").click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        assert any("60 yd NE of stand · came from N · went S" in m.value for m in at.markdown)
+        assert at.selectbox(key="past_g_dir").value == "—"  # cleared after Add
+        next(b for b in at.button if "Save past hunt" in b.label).click().run()
+        at.switch_page("app_pages/map.py"); at.run()
+        assert not at.exception, [e.value for e in at.exception]
+        assert any("1 logged sighting" in c.value for c in at.caption)
+    sg = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())[0]["sightings"][0]
+    assert sg["dir"] == "NE" and sg["dist_yd"] == 60 and sg["came_from"] == "N"
+    assert sg["lat"] > 37.30 and sg["lon"] > -86.06  # NE of the stand

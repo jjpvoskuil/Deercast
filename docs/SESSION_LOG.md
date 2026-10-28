@@ -16,9 +16,11 @@ John's first test sit (John's Stand, 3:17–7:49 PM, 74°F, wind SE 1 mph, score
 - **New Bow Setup page:** setups with IBO/rated speed, draw weight and length, arrow weight, and broadhead. Shows estimated fps, KE, momentum, a bone-penetration rating, and a flight-time vs. sound table. The active setup feeds the Shot page and sets the default answer to the bone question.
 - Switched from the deprecated `components.html` to `st.iframe` (`ui.html_frame`). Fixed a crash when saving a bow setup (the selectbox state was set after the widget was drawn).
 - v0.5.1: Past hunts — **deer seen together in one entry** (Bucks/Does/Fawns/Unknown counts + one Add, e.g. 1 doe + 2 fawns). Records share a `group` id; shown as one line everywhere (`huntlog.group_sightings`). Also available on the live sit under 'Several deer together'. After **Save past hunt** the form clears (keeps 'Where') and a confirmation shows.
-- Tests: 27 passing.
+- v0.5.2: Sightings record **where**: direction from stand (8-pt), distance (yd), came from, went toward (all optional). Map position is computed from the stand (`huntlog.locate`) and stored as `lat`/`lon`. New **Deer sightings** layer on the Map (orange = buck, yellow = doe, tan = fawn; dashed = approach, solid + arrowhead = departure).
+- Tests: 28 passing.
 
 **Open / next**
+- Later: sighting pattern stats per stand (common approach directions by time of day / wind), which would feed 'best stand for tomorrow'.
 - John to mark done on the punch list: past hunt save, past entry UI, arrow not recovered, score colors/fixed chart, time out, hunt timer, countdown, bow setup. (Also the old seed item "Hunt log: record sightings", which v0.4.0 delivered.)
 - Remaining backlog: state-agency rut dates (High), thermals on scent cones (High), calibrate weights (after ~30 logged hours), best stand for tomorrow, Google basemap, wind grid, PWA icon.
 

@@ -6,7 +6,7 @@ import streamlit as st
 from folium.plugins import LocateControl
 from streamlit_folium import st_folium
 
-from deercast import geo, scent, ui
+from deercast import geo, huntlog, scent, ui
 from deercast.compass import Compass
 from deercast.weather import CARDINALS_8, deg_to_cardinal
 
@@ -127,6 +127,34 @@ for f in features:
 feat_fg.add_to(m)
 bait_fg.add_to(m)
 
+# deer sightings from the hunt log (only those with a direction + distance from the stand)
+KIND_COLOR = {"Buck": "#ff6b1a", "Doe": "#ffd60a", "Fawn": "#f5deb3", "Unknown": "#c0c0c0"}
+seen_fg = folium.FeatureGroup(name="Deer sightings")
+n_seen = 0
+for hunt in ui.load("hunts", []):
+    for e in huntlog.group_sightings(hunt.get("sightings", [])):
+        if e.get("lat") is None:
+            continue
+        n_seen += 1
+        kinds = [k for k, _ in e["deer"]]
+        col = KIND_COLOR["Buck" if "Buck" in kinds else kinds[0]]
+        tip = (f"{pd.Timestamp(e['time']):%b %-d %-I:%M %p} — {huntlog.deer_text(e['deer'])}"
+               + (f" · {e['activity']}" if e.get("activity") else "")
+               + (f" · {huntlog.where_text(e)}" if huntlog.where_text(e) else ""))
+        pt = [e["lat"], e["lon"]]
+        for key, dash in (("came_from", "4 4"), ("went_to", None)):
+            if e.get(key) in CARDINALS_8:
+                end = scent.destination(e["lat"], e["lon"], CARDINALS_8.index(e[key]) * 45, 30 * 0.9144)
+                folium.PolyLine([end, pt] if key == "came_from" else [pt, end], color=col, weight=3, opacity=0.9,
+                                dash_array=dash, tooltip=tip).add_to(seen_fg)
+                if key == "went_to":
+                    folium.RegularPolygonMarker(end, number_of_sides=3, radius=6, rotation=CARDINALS_8.index(
+                        e[key]) * 45 - 90, color=col, fill=True, fill_color=col, fill_opacity=1,
+                        weight=1).add_to(seen_fg)
+        folium.CircleMarker(pt, radius=6, color="#111", weight=1, fill=True, fill_color=col, fill_opacity=0.95,
+                            tooltip=tip).add_to(seen_fg)
+seen_fg.add_to(m)
+
 clicked = st.session_state.get("last_click")
 if clicked:
     folium.CircleMarker(clicked, radius=7, color="#fff", fill=True, fill_color="#ff3b30", fill_opacity=1).add_to(m)
@@ -147,6 +175,9 @@ if out:
         st.rerun()
 
 st.toggle("Show scent cones on all stands", key="show_cones")
+if n_seen:
+    st.caption(f"🦌 {n_seen} logged sighting(s) shown — orange = buck, yellow = doe, tan = fawn. Dashed line = "
+               "where it came from, solid line + arrowhead = where it went. Toggle the layer in the map's layer menu.")
 st.caption(
     "Compass: map is always north-up; the orange arrow shows which way the wind (and your scent) is moving. "
     "Cones show where your scent drifts (downwind). Short & wide = light, swirly wind; long & narrow = steady wind. "

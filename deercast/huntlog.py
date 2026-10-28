@@ -67,6 +67,33 @@ def validation(hunts: list[dict]) -> dict:
             "frame": df}
 
 
+LOC_FIELDS = ("dir", "dist_yd", "came_from", "went_to", "lat", "lon")
+
+
+def locate(anchor_lat: float, anchor_lon: float, direction: str | None, dist_yd: float | None):
+    """Map position of a sighting from the stand: compass direction + distance."""
+    from .scent import destination
+    from .weather import CARDINALS
+
+    if not direction or not dist_yd or direction not in CARDINALS:
+        return None
+    lat, lon = destination(anchor_lat, anchor_lon, CARDINALS.index(direction) * 22.5, float(dist_yd) * 0.9144)
+    return round(lat, 6), round(lon, 6)
+
+
+def where_text(e: dict) -> str:
+    bits = []
+    if e.get("dist_yd") and e.get("dir"):
+        bits.append(f"{int(e['dist_yd'])} yd {e['dir']} of stand")
+    elif e.get("dir"):
+        bits.append(f"{e['dir']} of stand")
+    if e.get("came_from"):
+        bits.append(f"came from {e['came_from']}")
+    if e.get("went_to"):
+        bits.append(f"went {e['went_to']}")
+    return " · ".join(bits)
+
+
 def group_sightings(sightings: list[dict]) -> list[dict]:
     """Merge records entered together (same `group` id) into one display entry, in time order."""
     out, by_group = [], {}
@@ -74,7 +101,8 @@ def group_sightings(sightings: list[dict]) -> list[dict]:
         g = s.get("group") or f"_{i}"
         if g not in by_group:
             by_group[g] = {"group": g, "time": s["time"], "deer": [], "activity": s.get("activity", ""),
-                           "bait": s.get("bait", ""), "notes": s.get("notes", ""), "idx": []}
+                           "bait": s.get("bait", ""), "notes": s.get("notes", ""), "idx": [],
+                           **{k: s.get(k) for k in LOC_FIELDS}}
             out.append(by_group[g])
         by_group[g]["deer"].append((s["kind"], int(s.get("count", 1))))
         by_group[g]["idx"].append(i)
