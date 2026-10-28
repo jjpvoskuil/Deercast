@@ -58,6 +58,7 @@ pages = [
     st.Page("app_pages/map.py", title="Map & Wind", icon="🗺️"),
     st.Page("app_pages/log.py", title="Hunt Log", icon="🗒️"),
     st.Page("app_pages/track.py", title="Shot & Recovery", icon="🎯"),
+    st.Page("app_pages/gear.py", title="Bow Setup", icon="🏹"),
     st.Page("app_pages/regs.py", title="Regulations", icon="📜"),
     st.Page("app_pages/dev.py", title="Development", icon="🛠️"),
 ]

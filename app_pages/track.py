@@ -9,7 +9,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from streamlit_image_coordinates import streamlit_image_coordinates
 
-from deercast import recovery, shot, ui
+from deercast import archery, recovery, shot, ui
 from deercast import shot_render as R
 from deercast.compass import Compass
 from deercast.scent import destination
@@ -48,6 +48,17 @@ pitch = st.slider("Downward arrow angle (°)", 0, 70, value=int(round(auto)), ke
                   disabled=not manual) if manual else round(auto)
 if not manual:
     h2.metric("Downward angle", f"{pitch}°")
+is_bow = weapon in ("Bow", "Crossbow")
+gear = ui.load("gear", {"setups": [], "active": None})
+setup = next((g for g in gear.get("setups", []) if g["id"] == gear.get("active")), None) if is_bow else None
+setup_sum = archery.summary(setup) if setup else {}
+if is_bow:
+    if setup_sum:
+        st.caption(f"🏹 **{setup['name']}** — {setup_sum['fps']:.0f} fps, {setup_sum['ke']:.0f} ft·lb, momentum "
+                   f"{setup_sum['momentum']:.2f}, {setup.get('tip_type', '').lower()} · bone penetration "
+                   f"**{setup_sum['bone']}**")
+    else:
+        st.caption("🏹 Add your bow on the **Bow Setup** page to factor penetration into the estimate.")
 
 # ---------------------------------------------------------------- 3. crosshair
 st.subheader("3 · Tap where you hit")
@@ -94,6 +105,10 @@ e1, e2 = st.columns(2)
 evidence = e1.selectbox("What did you find? (arrow / impact site)", list(shot.EVIDENCE), key="shot_evidence")
 reaction = e2.selectbox("Deer's reaction", list(shot.REACTION), key="shot_reaction")
 sign = shot.EVIDENCE[evidence]
+ARROW = ["(not checked yet)", "Pass-through — arrow recovered", "Pass-through — arrow not found",
+         "Arrow stayed in deer / partial penetration", "Arrow not recovered — not sure if it passed through"]
+arrow = st.selectbox("Arrow", ARROW, key="shot_arrow") if is_bow else ARROW[0]
+partial = arrow.startswith("Arrow stayed")
 
 plan_key = primary
 if sign and sign != primary:
@@ -103,9 +118,20 @@ if sign and sign != primary:
                                          f"Shot placement: {shot.OUTCOMES[primary]['title']}"], key="shot_use")
     plan_key = sign if use.startswith("Sign") else primary
 if stopped:
+    bone = setup_sum.get("bone") if setup_sum else None
+    passed = arrow.startswith("Pass-through")
+    default_idx = 0 if passed else (1 if (partial or bone == "Low") else 0)
     use2 = st.radio("Did the arrow penetrate past the shoulder bone?",
                     [f"Yes / not sure — {shot.OUTCOMES[primary]['title']}",
-                     f"No, stopped at bone — {shot.OUTCOMES[stopped]['title']}"], key="shot_bone")
+                     f"No, stopped at bone — {shot.OUTCOMES[stopped]['title']}"], index=default_idx,
+                    key=f"shot_bone_{default_idx}",
+                    help=(f"Your setup's bone-penetration rating: {bone}." if bone else None))
+    if bone and not passed and not partial:
+        st.caption({"High": "Your setup has good odds of breaking through the shoulder blade.",
+                    "Moderate": "Your setup may or may not break through the shoulder blade — check arrow "
+                                "penetration (blood on the shaft, how far it went in).",
+                    "Low": "With your setup, heavy shoulder bone often stops the arrow — defaulted to 'stopped at "
+                           "bone'."}.get(bone, ""))
     if use2.startswith("No"):
         plan_key = stopped
 if reaction and shot.REACTION[reaction]:
@@ -113,6 +139,8 @@ if reaction and shot.REACTION[reaction]:
 
 O = shot.OUTCOMES[plan_key]
 wait = O["wait_min"]
+if partial and O["lethal"] and wait >= 120:
+    wait = int(wait * 1.5)  # one hole, poor blood — give a slow-death hit more time
 wait_txt = "Track now (carefully)" if wait == 0 else (f"{wait} min" if wait < 60 else f"{wait / 60:.0f}+ hours")
 lo, med, hi = O["yards"]
 
@@ -137,6 +165,18 @@ if not res.missed:
         st.caption(("• Exit is **low** on the body — usually a better blood trail."
                     if exit_z < -3 else "• Exit is high on the body — blood may be slow to hit the ground at first."))
     st.markdown(f"**Blood sign to expect:** {O['blood']}")
+ARROW_NOTES = {
+    "Pass-through — arrow not found": "Arrow passed through but wasn't found — search past where the deer stood, "
+    "along the line of the shot (a light helps). Without the arrow, use hair and blood at the impact site to "
+    "confirm the hit.",
+    "Arrow stayed in deer / partial penetration": "No exit hole → expect **much less blood**, and often high on "
+    "the body. The arrow may work out or break off in the first 50–150 yards — look for it on the trail. "
+    + ("Wait time increased by half for this hit." if O["lethal"] and O["wait_min"] >= 120 else ""),
+    "Arrow not recovered — not sure if it passed through": "Look for the arrow and sign at the impact site before "
+    "anything else; a pass-through gives a better blood trail than an arrow still in the deer.",
+}
+if arrow in ARROW_NOTES:
+    st.info(ARROW_NOTES[arrow])
 
 with st.expander("Arrow path diagram", expanded=False):
     st.image(R.path_diagram(res, mirror), width="stretch")
@@ -288,7 +328,8 @@ with st.expander("💾 Save this shot to your log"):
         log.append({
             "id": ui.new_id(), "time": ui.now_str(), "stand": src, "weapon": weapon, "angle": ANGLES[yaw],
             "side": side, "pitch_deg": pitch, "distance_yd": dist, "outcome": O["title"],
-            "organs": [h.label for h in res.hits], "evidence": evidence, "reaction": reaction, "ran": ran,
+            "organs": [h.label for h in res.hits], "evidence": evidence, "arrow": arrow,
+            "setup": setup["name"] if setup else None, "reaction": reaction, "ran": ran,
             "hit_lat": round(hit_lat, 6), "hit_lon": round(hit_lon, 6), "notes": note,
         })
         if ui.save("shots", log, "Log shot"):

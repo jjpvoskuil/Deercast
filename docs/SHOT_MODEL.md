@@ -32,6 +32,21 @@ from typical cases, so the hunter's physical sign (blood, hair, arrow) should ta
 - **Evidence overrides geometry.** The hunter can enter what they found on the arrow or at the impact site
   (frothy blood, dark blood, gut matter, and so on) and choose to plan the recovery from that sign instead.
 
+## Arrow outcome & bow setup (v0.5)
+- **Arrow** input (bow and crossbow only). The options are: pass-through and recovered, pass-through but not found,
+  stayed in the deer / partial penetration, or not sure.
+  - **Stayed in the deer:** the "stopped at bone" answer is selected by default when the path hits bone.
+    Expect less blood, since there's no exit hole. Waits of 2 hours or more for lethal hits are increased by half.
+  - **Pass-through:** the "broke through the bone" answer is selected by default.
+- **Bow Setup page** (`deercast/archery.py`, stored in `gear.json`):
+  - **Speed:** estimated from the IBO/ATA rating using standard adjustments for draw length, arrow weight per pound
+    of draw weight, string accessories, and draw weight under 70 lb. For a crossbow, it's estimated from the rated
+    speed and bolt weight at constant energy. A chronograph reading overrides the estimate.
+  - **Kinetic energy** = gr·fps²/450,800. **Momentum** = gr·fps/225,218.
+  - **Bone penetration rating:** momentum × a tip factor (fixed blade 1.0, hybrid 0.85, mechanical 0.72).
+    0.52 or more is High, 0.40 or more is Moderate, anything lower is Low.
+  - A Low rating makes "stopped at bone" the default answer on shoulder hits.
+
 ## Recovery map (`deercast/recovery.py`)
 - **Hit site:** the stand location, moved by the shot distance along the bearing from the stand to the deer.
 - **Search grid:** a polar grid of 8 distance rings × 12 direction sectors.

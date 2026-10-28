@@ -40,7 +40,7 @@ def run(page_path):
 
 
 def test_pages_render():
-    for p in [None, "app_pages/map.py", "app_pages/log.py", "app_pages/track.py", "app_pages/regs.py", "app_pages/dev.py"]:
+    for p in [None, "app_pages/map.py", "app_pages/log.py", "app_pages/track.py", "app_pages/gear.py", "app_pages/regs.py", "app_pages/dev.py"]:
         at = run(p)
         assert not at.exception, (p, [e.value for e in at.exception])
 
@@ -200,3 +200,40 @@ def test_login_persists_via_url_token():
         at3.query_params["k"] = "nope"
         at3.run()
         assert any(t.label == "Password" for t in at3.text_input)
+
+
+def test_gear_page_and_shot_integration():
+    import contextlib, json, pathlib
+    pathlib.Path(".deercast_data").mkdir(exist_ok=True)
+    pathlib.Path(".deercast_data/gear.json").write_text(json.dumps({"active": "g1", "setups": [
+        {"id": "g1", "name": "Light bow", "bow_type": "Compound", "rated_fps": 300, "draw_weight": 45,
+         "draw_length": 27, "arrow_gr": 300, "tip_type": "Mechanical / expandable broadhead", "string_gr": 10}]}))
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        stack.enter_context(mock.patch("deercast.recovery.fetch_elevations", lambda pts: None))
+        stack.enter_context(mock.patch("deercast.recovery.fetch_osm_features", lambda lat, lon, r: None))
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/gear.py"); at.run()
+        assert not at.exception, [e.value for e in at.exception]
+        assert any("Low" in m.delta for m in at.metric if m.delta)
+        at.switch_page("app_pages/track.py")
+        at.session_state["shot_cross"] = (-13.5, 0.0)  # on the shoulder, broadside
+        at.run()
+        assert not at.exception, [e.value for e in at.exception]
+        radio = next(r for r in at.radio if "shoulder bone" in r.label)
+        assert radio.value.startswith("No, stopped")  # low bone rating → defaults to stopped
+        at.selectbox(key="shot_arrow").set_value("Arrow stayed in deer / partial penetration").run()
+        assert any("No exit hole" in i.value for i in at.info)
+
+
+def test_gear_save_new_setup():
+    with mock.patch("deercast.weather.fetch_hourly", fake_hourly):
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/gear.py"); at.run()
+        at.text_input[0].input("Hoyt")
+        next(b for b in at.button if "Save setup" in b.label).click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        assert at.selectbox(key="gear_pick").value == "Hoyt"
+        assert any(m.label == "Arrow speed" for m in at.metric)
+        assert any("Active setup" in s.value for s in at.success)

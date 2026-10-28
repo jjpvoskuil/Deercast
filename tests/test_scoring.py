@@ -108,3 +108,19 @@ def test_habitat_pulls_search_toward_water():
     w3 = w * recovery.habitat_multiplier(recovery.feature_distances(cells, lat, lon, None, marks), 1.5, 1.5)
     b3 = cells[int(np.argmax(w3))]
     assert b3["bearing"] < 30 or b3["bearing"] > 330
+
+
+def test_archery_math():
+    from deercast import archery
+    comp = {"bow_type": "Compound", "rated_fps": 340, "draw_weight": 65, "draw_length": 28.5, "arrow_gr": 420,
+            "string_gr": 15, "tip_type": "Fixed-blade broadhead"}
+    v = archery.estimate_speed(comp)
+    assert 270 < v < 290  # 340 − 15 − 31.7 − 5 − 8.5 ≈ 280
+    s = archery.summary(comp)
+    assert 65 < s["ke"] < 80 and 0.48 < s["momentum"] < 0.56 and s["bone"] == "High"
+    assert archery.estimate_speed({**comp, "chrono_fps": 301}) == 301
+    xb = {"bow_type": "Crossbow", "rated_fps": 400, "rated_bolt_gr": 400, "arrow_gr": 425,
+          "tip_type": "Mechanical / expandable broadhead"}
+    assert 385 < archery.estimate_speed(xb) < 392
+    light = {**comp, "draw_weight": 45, "arrow_gr": 300, "tip_type": "Mechanical / expandable broadhead"}
+    assert archery.bone_rating(light)[0] == "Low"

@@ -4,6 +4,25 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-10-27 — Session 1b: field-test fixes (v0.4.1 → v0.5.0)
+
+John's first test sit (John's Stand, 3:17–7:49 PM, 74°F, wind SE 1 mph, scores 1.5–6.3, no deer) logged cleanly. Fixed his punch-list items:
+- **Past hunt save crash** (High bug): `int(NaN)` from an empty count cell in the old data_editor. The past-hunt and live sighting entry was rebuilt with no spreadsheet editor: a "How many" button row (1–10), optional activity and bait, then tap +Buck/+Doe/+Fawn/+Unknown. Sightings are listed with ✖ to delete.
+- **Rut date for past seasons:** `scoring.rut_peak_for()` uses the rut of the date's own season. A 2025 hunt is scored against the 2025 rut, and January uses the previous November. This was also a latent bug on the Forecast page.
+- **Live hunt clock:** a client-side JS clock (`deercast/clock.py`) counts up time on stand every second. It also counts down to legal light and sunrise for a morning hunt, or sunset and the end of legal light for an evening hunt. Morning vs. evening comes from the start time relative to mid-day. The clock also shows before a hunt starts. The forecast for this hour and the next 2 hours is shown while hunting.
+- **Stays logged in:** a signed token in the URL (`?k=`) survives Safari reconnects. There's a Log out button. John needs to log in and then re-add the home-screen icon once.
+- **Score colors** are now red = poor → green = best, on both the heatmap and the day bars. All charts are locked: no zoom, pan or rescale.
+- **Shot page:** a new "Arrow" input (pass-through recovered / not found / stayed in the deer / not sure) changes the bone default, blood expectations and wait time.
+- **New Bow Setup page:** setups with IBO/rated speed, draw weight and length, arrow weight, and broadhead. Shows estimated fps, KE, momentum, a bone-penetration rating, and a flight-time vs. sound table. The active setup feeds the Shot page and sets the default answer to the bone question.
+- Switched from the deprecated `components.html` to `st.iframe` (`ui.html_frame`). Fixed a crash when saving a bow setup (the selectbox state was set after the widget was drawn).
+- Tests: 27 passing.
+
+**Open / next**
+- John to mark done on the punch list: past hunt save, past entry UI, arrow not recovered, score colors/fixed chart, time out, hunt timer, countdown, bow setup. (Also the old seed item "Hunt log: record sightings", which v0.4.0 delivered.)
+- Remaining backlog: state-agency rut dates (High), thermals on scent cones (High), calibrate weights (after ~30 logged hours), best stand for tomorrow, Google basemap, wind grid, PWA icon.
+
+---
+
 ## 2026-10-27 — Session 1: v0.1 scaffold
 
 **Built**
