@@ -22,7 +22,7 @@ ADMIN_EMAIL = "your-gmail@gmail.com"
 
 [auth]
 redirect_uri = "https://YOUR-APP.streamlit.app/oauth2callback"
-cookie_secret = "any-long-random-string"   # e.g. Dp-x0l337bL0opcwpEuakoisLsBWpwVFq1Q9L3Ju4NE
+cookie_secret = "any-long-random-string"   # make your own — never reuse one from a public page
 client_id = "....apps.googleusercontent.com"
 client_secret = "GOCSPX-...."
 server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
