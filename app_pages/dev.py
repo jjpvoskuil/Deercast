@@ -6,6 +6,9 @@ import streamlit as st
 from deercast import __version__, ui
 
 st.title("🛠️ Development")
+if not ui.is_admin():
+    st.warning("Admins only.")
+    st.stop()
 st.caption(f"Deercast v{__version__} · storage: **{ui.get_store().kind}**")
 if ui.get_store().kind == "local":
     st.warning(

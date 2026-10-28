@@ -8,7 +8,8 @@ Whitetail deer activity forecasting for hunters — an iPhone-friendly Streamlit
 - **Shot & Recovery** — rotate a deer to how it stood, tap where you hit it, set the shot angle: estimates organs hit, survival time, how long to wait, likely distance, a search-probability map from the hit site (run direction + terrain), weather alerts and tracking tips. Details: [`docs/SHOT_MODEL.md`](docs/SHOT_MODEL.md).
 - **Bow Setup** — your bow/crossbow, arrow and broadhead: estimated arrow speed, kinetic energy, momentum and a bone-penetration rating used by Shot & Recovery.
 - **Regulations** — deer regs for the chosen location: county & zone detection, season dates with open/closed status, today's legal shooting hours, bag limits, CWD rules (Kentucky built in; other states link to the official agency).
-- **Development** — punch list for tracking features, bugs and model changes.
+- **Grounds** — sign in with Google; each hunting ground (property) has its own home location and members. Stands, bait and sightings are shared on a ground; hunt logs, bow setups and shots are personal. Setup: [`docs/GOOGLE_SIGNIN.md`](docs/GOOGLE_SIGNIN.md).
+- **Development** (admin) — punch list for tracking features, bugs and model changes.
 
 Model details: [`docs/MODEL.md`](docs/MODEL.md). Session history: [`docs/SESSION_LOG.md`](docs/SESSION_LOG.md).
 

@@ -163,7 +163,7 @@ bait_fg.add_to(m)
 KIND_COLOR = {"Buck": "#ff6b1a", "Doe": "#ffd60a", "Fawn": "#f5deb3", "Unknown": "#c0c0c0"}
 seen_fg = folium.FeatureGroup(name="Deer sightings")
 n_seen = 0
-for hunt in ui.load("hunts", []):
+for hunt in ui.ground_hunts():
     for e in huntlog.group_sightings(hunt.get("sightings", [])):
         if e.get("lat") is None:
             continue

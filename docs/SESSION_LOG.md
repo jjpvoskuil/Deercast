@@ -4,6 +4,32 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-10-27 — Session 1d: multi-user + hunting grounds (v0.7.0)
+
+John asked for multiple users with Google sign-in, plus the ability for each user to use their own grounds or shared grounds, each with its own ZIP/location.
+- **Sign-in:** Streamlit `st.login` (Google OIDC; `[auth]` secrets; `Authlib` added). Access is an allow-list in `users.json`. `ADMIN_EMAIL(S)` from secrets are always admins. Non-listed Google accounts see a "not set up" screen. Password mode remains as a fallback until `[auth]` is configured.
+- **Grounds (`deercast/accounts.py`, `app_pages/grounds.py`):**
+  - A ground = name, owner, members, and a home location (lat/lon/label/state/zip).
+  - Stands and features are per ground. Hunts, active hunt, gear and shots are per user, with hunts and shots tagged `ground_id`.
+  - The picker popover sits at the top of every page. Switching grounds jumps the forecast, map and regs to that ground's home.
+  - The Grounds page covers switch, create (ZIP or current location), rename, set home (ZIP or current location), add/remove members, leave, and delete. Admins also manage App users.
+- **Sharing semantics:** the map's sightings and Best stand history use all members' hunts on the ground (`ui.ground_hunts`). Each person's Hunt Log and validation show only their own hunts on the current ground.
+- **Migration:**
+  - On the first admin sign-in, the single-user files become ground **"Lewis/Klein Property"**, owned by the admin, with home at the stand centroid.
+  - Personal files go to the admin's user folder. The legacy files are kept as a backup.
+  - If this first happened in password mode under the placeholder `local`, the first Google admin sign-in **claims** it (`accounts.claim_local`).
+- `ui.load/save` resolve paths by scope. Shared files re-read every 90 s so members see each other's edits. A rare lost update is possible if two people edit the same ground file within seconds (GitHub sha retry = last write wins).
+- **Fixed:** recursion (grounds → current ground → grounds). The ground picker radio is keyed per ground.
+- `docs/GOOGLE_SIGNIN.md` = John's setup steps (Google Auth Platform: Branding, Audience/test users, Clients → Web app, redirect `https://<app>.streamlit.app/oauth2callback`; secrets).
+- Tests: 39 passing (incl. migration, claim, and member-visibility tests). The Google flow itself can't be exercised in the sandbox.
+
+**Open / next**
+- John: set up Google sign-in per docs/GOOGLE_SIGNIN.md, sign in, and add Matt Klein (App users + Lewis/Klein member). Confirm on the iPhone, especially Google sign-in from the home-screen (standalone) app.
+- Watch for: the Google redirect inside Streamlit Cloud, and the iOS standalone-mode cookie.
+- Calibrate factor weights (needs ~30+ logged hours).
+
+---
+
 ## 2026-10-27 — Session 1c: backlog round (v0.6.0)
 
 Cleared John's open punch-list items plus two he reopened:

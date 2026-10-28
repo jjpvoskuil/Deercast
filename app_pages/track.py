@@ -339,7 +339,7 @@ with st.expander("💾 Save this shot to your log"):
             "side": side, "pitch_deg": pitch, "distance_yd": dist, "outcome": O["title"],
             "organs": [h.label for h in res.hits], "evidence": evidence, "arrow": arrow,
             "setup": setup["name"] if setup else None, "reaction": reaction, "ran": ran,
-            "hit_lat": round(hit_lat, 6), "hit_lon": round(hit_lon, 6), "notes": note,
+            "hit_lat": round(hit_lat, 6), "hit_lon": round(hit_lon, 6), "ground_id": ui.ground_id(), "notes": note,
         })
         if ui.save("shots", log, "Log shot"):
             st.success("Saved.")

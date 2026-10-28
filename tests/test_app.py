@@ -13,6 +13,13 @@ from synthetic import synthetic_weather
 TZ = "America/Chicago"
 
 
+def user_file(name, email="local"):
+    """Where a personal data file lives after the multi-user change."""
+    import pathlib
+    from deercast import accounts
+    return pathlib.Path(".deercast_data") / f"{accounts.path_for(name, email, None)}.json"
+
+
 def fake_hourly(lat, lon, days=15):
     return synthetic_weather(TZ), TZ
 
@@ -120,7 +127,7 @@ def test_hunt_log_flow():
         assert at.text_area(key="live_notes").value == ""
         assert at.checkbox(key="live_harvest").value is False
         import json, pathlib
-        hunts = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())
+        hunts = json.loads(user_file("hunts").read_text())
         assert len(hunts) == 1 and len(hunts[0]["sightings"]) == 2
         assert hunts[0]["notes"] == "windy, nothing moving" and hunts[0]["harvest"] is True
         assert hunts[0]["hours"] and hunts[0]["hours"][0]["score"] is not None
@@ -180,7 +187,7 @@ def test_past_hunt_entry_last_season():
         assert at.text_area(key="past_notes").value == ""
         assert at.date_input(key="past_date").value != date(2025, 11, 8)
         assert at.session_state["past_sightings"] == []
-    hunts = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())
+    hunts = json.loads(user_file("hunts").read_text())
     sg = hunts[0]["sightings"]
     assert hunts[0]["date"] == "2025-11-08" and len(sg) == 2 and sg[0]["group"] == sg[1]["group"]
     assert {(x["kind"], x["count"]) for x in sg} == {("Doe", 1), ("Fawn", 2)}
@@ -285,7 +292,7 @@ def test_sighting_location_recorded_and_mapped():
         assert any("1 logged sighting" in c.value for c in at.caption)
         assert any("Map key" in e.label for e in at.expander)
         assert any("Wind from" in m.value and "Ridge" in m.value for m in at.markdown)
-    sg = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())[0]["sightings"][0]
+    sg = json.loads(user_file("hunts").read_text())[0]["sightings"][0]
     assert sg["dir"] == "NE" and sg["dist_yd"] == 60 and sg["came_from"] == "N"
     assert sg["lat"] > 37.30 and sg["lon"] > -86.06  # NE of the stand
 
@@ -325,7 +332,7 @@ def test_edit_logged_hunt():
         assert not at.exception, [e.value for e in at.exception]
         assert any("Updated the Nov 9 hunt" in s.value for s in at.success)
         assert "ed_id" not in at.session_state
-    h = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())[0]
+    h = json.loads(user_file("hunts").read_text())[0]
     assert h["id"] == "h1" and h["start"].startswith("2025-11-09T06:00") and h["end"].startswith("2025-11-09T10:15")
     kinds = sorted((x["kind"], x["time"][:16]) for x in h["sightings"])
     assert kinds == [("Buck", "2025-11-09T08:05"), ("Doe", "2025-11-09T07:10"), ("Fawn", "2025-11-09T07:10")]
@@ -401,3 +408,104 @@ def test_forecast_cache_keyed_on_schema():
         with mock.patch.object(weather, "SCHEMA", weather.SCHEMA + 1):
             ui.cached_hourly(37.3, -86.06)
         assert len(calls) == 2  # new data format → refetched
+
+
+def _seed_legacy():
+    import json, pathlib
+    d = pathlib.Path(".deercast_data"); d.mkdir(exist_ok=True)
+    (d / "stands.json").write_text(json.dumps([{"id": "s1", "name": "John's Stand", "lat": 37.34, "lon": -86.13,
+                                                "good_winds": ["N"]}]))
+    (d / "features.json").write_text(json.dumps([{"id": "f1", "type": "feeder", "name": "Back feeder",
+                                                  "lat": 37.341, "lon": -86.131}]))
+    (d / "hunts.json").write_text(json.dumps([{"id": "h1", "stand": "Stand: John's Stand", "start":
+                                               "2026-10-27T15:17:00-05:00", "end": "2026-10-27T19:49:00-05:00",
+                                               "sightings": [], "hours": []}]))
+    (d / "gear.json").write_text(json.dumps({"setups": [{"id": "g", "name": "My bow"}], "active": "g"}))
+
+
+def _run(page=None, secrets=None, pre=None):
+    import contextlib
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        for k, v in (secrets or {}).items():
+            at.secrets[k] = v
+        for k, v in (pre or {}).items():
+            at.session_state[k] = v
+        at.run()
+        if page:
+            at.switch_page(page); at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    return at
+
+
+def test_migration_to_first_ground():
+    import json, pathlib
+    from deercast import accounts
+    _seed_legacy()
+    at = _run(secrets={"ADMIN_EMAIL": "john@example.com"})
+    d = pathlib.Path(".deercast_data")
+    grounds = json.loads((d / "grounds.json").read_text())
+    assert len(grounds) == 1 and grounds[0]["name"] == "Lewis/Klein Property"
+    g = grounds[0]
+    assert g["owner"] == "john@example.com" and g["members"] == ["john@example.com"]
+    assert abs(g["home"]["lat"] - 37.34) < 0.01  # home = centroid of the stands
+    assert json.loads((d / f"grounds/{g['id']}/stands.json").read_text())[0]["name"] == "John's Stand"
+    hunts = json.loads(user_file("hunts", "john@example.com").read_text())
+    assert hunts[0]["ground_id"] == g["id"]
+    assert json.loads(user_file("gear", "john@example.com").read_text())["active"] == "g"
+    assert (d / "stands.json").exists()  # legacy kept as backup
+    users = json.loads((d / "users.json").read_text())
+    assert users["john@example.com"]["role"] == "admin"
+    assert any("Lewis/Klein Property" in b.proto.popover.label for b in at.get("popover"))
+
+
+def test_password_mode_data_is_claimed_by_admin_email():
+    import json, pathlib
+    _seed_legacy()
+    _run()  # no ADMIN_EMAIL yet → migrated under placeholder 'local'
+    _run(secrets={"ADMIN_EMAIL": "john@example.com"})
+    d = pathlib.Path(".deercast_data")
+    g = json.loads((d / "grounds.json").read_text())[0]
+    assert g["owner"] == "john@example.com" and "local" not in g["members"]
+    assert json.loads(user_file("hunts", "john@example.com").read_text())[0]["id"] == "h1"
+    assert "local" not in json.loads((d / "users.json").read_text())
+
+
+def test_member_sees_shared_ground_but_not_owner_logs():
+    import json, pathlib
+    _seed_legacy()
+    _run(secrets={"ADMIN_EMAIL": "john@example.com"})
+    d = pathlib.Path(".deercast_data")
+    grounds = json.loads((d / "grounds.json").read_text())
+    gid = grounds[0]["id"]
+    grounds[0]["members"].append("matt@example.com")
+    grounds.append({"id": "zz", "name": "John private", "owner": "john@example.com",
+                    "members": ["john@example.com"], "home": {"lat": 38.0, "lon": -85.0, "label": "x"}})
+    (d / "grounds.json").write_text(json.dumps(grounds))
+    users = json.loads((d / "users.json").read_text())
+    users["matt@example.com"] = {"name": "Matt Klein", "role": "user", "last_ground": None}
+    (d / "users.json").write_text(json.dumps(users))
+    matt = {"identity": {"email": "matt@example.com", "name": "Matt Klein", "role": "user"},
+            "_acct_for": "john@example.com"}  # simulate Matt's signed-in session
+    at = _run("app_pages/map.py", secrets={"ADMIN_EMAIL": "john@example.com"}, pre=matt)
+    assert any("John's Stand" in e.label for e in at.expander)          # shared stand visible
+    labels = [b.proto.popover.label for b in at.get("popover")]
+    assert any("Lewis/Klein Property" in x for x in labels)
+    at = _run("app_pages/log.py", secrets={"ADMIN_EMAIL": "john@example.com"}, pre=matt)
+    assert any(s.value == "Log (0)" for s in at.subheader)              # John's hunt not in Matt's log
+    at = _run("app_pages/grounds.py", secrets={"ADMIN_EMAIL": "john@example.com"}, pre=matt)
+    md = " ".join(m.value for m in at.markdown)
+    assert "Lewis/Klein Property" in md and "John private" not in md   # private ground hidden
+    assert not any(s.value.startswith("👥") for s in at.subheader)       # no admin user management
+    # Matt saves a sighting-hunt → appears on the shared map for John
+    from deercast import accounts
+    p = d / f"{accounts.path_for('hunts', 'matt@example.com', None)}.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps([{"id": "m1", "ground_id": gid, "stand": "Stand: John's Stand",
+                              "start": "2026-10-28T06:00:00-05:00", "end": "2026-10-28T08:00:00-05:00",
+                              "hours": [], "sightings": [{"time": "2026-10-28T07:00:00-05:00", "kind": "Buck",
+                                                          "count": 1, "lat": 37.342, "lon": -86.13}]}]))
+    at = _run("app_pages/map.py", secrets={"ADMIN_EMAIL": "john@example.com"})
+    assert any("1 logged sighting" in c.value for c in at.caption)

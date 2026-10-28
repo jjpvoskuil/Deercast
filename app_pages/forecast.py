@@ -64,7 +64,7 @@ else:
         elev = ui.cached_elevations(tuple((round(a, 5), round(b, 5)) for a, b in pts5))
         slopes = ({s_["id"]: terrain.slope_from(elev[5 * i:5 * i + 5]) for i, s_ in enumerate(stands)}
                   if elev and len(elev) == len(pts5) else {})
-        hunts_all = ui.load("hunts", [])
+        hunts_all = ui.ground_hunts()
         day_df = s_scored[s_scored["date"] == bday]
         cols = st.columns(2)
         for col, sess in zip(cols, ["Morning", "Evening"]):

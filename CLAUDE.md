@@ -19,7 +19,8 @@ doesn't need to run anything locally. Design for phone screens first.
 - Hunt Log page: live sit (start/stop, quick +Buck/+Doe/+Fawn/+Unknown, activity, bait site) + past-hunt entry (deer seen together = one entry with per-type counts, `group` id; optional direction/distance from stand, came from, went toward → `lat`/`lon`; form clears after save; sightings drawn on the Map; logged hunts editable inline incl. start/end, re-scored on save); each hour saved with forecast score → validation (deer/hour by score band, Spearman ρ).
 - Map: bait/food marks — broadcast corn feeder, shelled corn pile, ear corn pile, other food — with last-filled date + 'Filled today'.
 - Bow Setup page (`app_pages/gear.py`, `deercast/archery.py`, `gear.json`): setups with IBO/rated speed, draw weight/length, arrow weight, tip → est. fps, KE, momentum, bone-penetration rating; active setup feeds the Shot page.
-- Login persists via signed token in URL query param `k` (HMAC of APP_PASSWORD) so Safari reconnects don't force re-login; sidebar Log out.
+- **Multi-user (v0.7):** Google sign-in (`st.login`, `[auth]` secrets; Authlib). Allow-list = `users.json` (admin adds on Grounds page); `ADMIN_EMAIL(S)` secret always admin. Falls back to APP_PASSWORD (single owner; URL token `k`) until `[auth]` exists.
+- **Hunting grounds:** a property with its own home location (forecast/map/regs open there), shared with members. Ground picker popover at top of every page; 🏞️ Grounds page (switch, create, rename, home from ZIP/current location, members, delete; admin: App users). Development page admin-only. First ground "Lewis/Klein Property" migrated from single-user data (owner John; Matt Klein to be added).
 - Peak rut date by state/region (`deercast/rut.py`, agency sources); sidebar override + reset (`ui.rut_for`).
 - Thermals bend scent cones (terrain slope + sun phase, `deercast/terrain.py`); optional drift-field grid of arrows on the Map.
 - Best stand: Forecast page ranks stands for morning/evening of a chosen day (`deercast/beststand.py`): top forecast hours × scent fit (wind+thermals vs good winds) × logged-sightings history.
@@ -29,7 +30,7 @@ doesn't need to run anything locally. Design for phone screens first.
 ## Architecture
 - `deercast/scoring.py` — the model; tunable constants in `MODEL`, `SEASON_KNOTS`, `HOT_THRESHOLD_F`. Documented in `docs/MODEL.md` — keep that doc in sync.
 - `deercast/weather.py` — Open-Meteo (no key). `astro.py` — PyEphem. `geo.py` — zippopotam.us ZIP lookup.
-- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON files in private repo `jjpvoskuil/deercast-data` (`data/stands.json`, `data/punchlist.json`, `data/shots.json`, `data/features.json` = hunter-marked water/cover/bedding + bait/food sites, `data/hunts.json`, `data/active_hunt.json`, `data/gear.json`) via GitHub Contents API; Supabase and local fallbacks.
+- `deercast/scent.py` — downwind cone geometry. `storage.py` — JSON files in private repo `jjpvoskuil/deercast-data` via GitHub Contents API (Supabase/local fallbacks). **Layout (v0.7, `deercast/accounts.py`):** `data/users.json`, `data/grounds.json`, `data/punchlist.json` (app-wide); `data/grounds/<gid>/stands.json|features.json` (shared per ground); `data/users/<sha256(email)[:12]>/hunts.json|active_hunt.json|gear.json|shots.json` (personal; hunts/shots carry `ground_id`). Old top-level `data/stands.json` etc. = pre-v0.7 backup. `ui.load/save(name)` resolve the path automatically; `ui.ground_hunts()` gathers all members' hunts on the current ground (shared sightings map, Best stand history); shared data re-read every 90 s.
 - `app_pages/` — forecast, map (folium + streamlit-folium, Esri satellite, compass), regs, dev punch list.
 - `deercast/shot.py` (anatomy ellipsoids, ray-cast, outcomes), `shot_render.py` (matplotlib views; fixed frame so taps map linearly), `recovery.py` (polar search grid, log-normal distance × run direction × downhill bias × water/cover proximity; Open-Meteo elevation, OSM Overpass water/woods, hunter marks). Documented in `docs/SHOT_MODEL.md` — keep in sync. `app_pages/track.py` uses `streamlit-image-coordinates` for taps.
 - `deercast/clock.py` — client-side JS hunt clock (time on stand + legal light/sunrise or sunset/legal-end countdowns), embedded via `ui.html_frame` (st.iframe). `ui.SCORE_COLORSCALE` (red=poor → green=best), `ui.lock_figure` + `ui.PLOTLY_CONFIG` for all charts (no zoom). `scoring.rut_peak_for(date, lat)` picks the rut for that date's season.
@@ -40,6 +41,7 @@ doesn't need to run anything locally. Design for phone screens first.
 
 ## Conventions
 - Cached weather is keyed on `weather.SCHEMA` — **bump it whenever fetched columns/meaning change**, or Streamlit keeps serving old cached data (cache keys only see the cached function's own source).
+- Every new data file must be classified in `accounts.GROUND_SCOPED` / `USER_SCOPED` (or stays app-wide).
 - Never let `st.cache_data` cache a failed network lookup: raise inside the cached function and catch outside (see `ui.cached_elevations`, `ui.state_for`).
 - Don't assign `st.session_state[widget_key]` after that widget is drawn — set a pending key and apply it before the widget on the next run (see gear.py `_gear_next`).
 - Use `width="stretch"` not `use_container_width` (removed in newer Streamlit; st_folium still takes its own `use_container_width`).

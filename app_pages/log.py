@@ -15,7 +15,9 @@ stands = ui.load("stands", [])
 BAIT_TYPES = ("feeder", "corn_shelled", "corn_ear", "food_other")
 baits = [f for f in ui.load("features", []) if f["type"] in BAIT_TYPES]
 BAIT_NAMES = ["—"] + [b.get("name") or b["type"].replace("_", " ") for b in baits]
-hunts = ui.load("hunts", [])
+hunts = ui.load("hunts", [])  # all of my hunts (every ground) — save this full list
+GID = ui.ground_id()
+hunts_here = [h for h in hunts if h.get("ground_id") in (None, GID)]  # shown/validated for the current ground
 loc = ui.get_location()
 TZ_DEFAULT = "America/Chicago"
 KIND_ICON = {"Buck": "🦌", "Doe": "🫎", "Fawn": "🐾", "Unknown": "❔"}
@@ -62,7 +64,7 @@ def build_hunt(where, start, end, sightings, notes, harvest):
     lat, lon = where_coords(where)
     rec = {"id": ui.new_id(), "date": start.date().isoformat(), "stand": where, "lat": lat, "lon": lon,
            "start": start.isoformat(), "end": end.isoformat(), "sightings": sightings, "notes": notes,
-           "harvest": harvest, "hours": [], "model": __version__}
+           "harvest": harvest, "hours": [], "model": __version__, "ground_id": GID}
     try:
         sc, _ = scored_day(lat, lon, start.date().isoformat(), pd.Timestamp(rut_for(start, lat, lon)).isoformat())
         rec["hours"] = huntlog.session_hours(start, end, sc, sightings)
@@ -301,7 +303,7 @@ with st.expander("➕ Add a past hunt"):
 
 # ---------------------------------------------------------------- forecast check
 st.subheader("Does the forecast work?")
-v = huntlog.validation(hunts)
+v = huntlog.validation(hunts_here)
 if not v.get("n_hours"):
     st.info("Log a few sits and this section will compare the forecast score for each hour you hunted with how many "
             "deer you actually saw.")
@@ -323,7 +325,7 @@ else:
     st.plotly_chart(fig, width="stretch", config=ui.PLOTLY_CONFIG)
     st.caption("Bars = deer seen per hour hunted in each forecast-score band; labels = hours hunted in that band. "
                "If the forecast works, bars should rise left to right.")
-    missing = [h for h in hunts if not h.get("hours")]
+    missing = [h for h in hunts_here if not h.get("hours")]
     if missing and st.button(f"Re-score {len(missing)} hunt(s) missing forecast scores"):
         for h in missing:
             rec = build_hunt(h["stand"], pd.Timestamp(h["start"]), pd.Timestamp(h["end"]), h["sightings"],
@@ -407,6 +409,7 @@ def edit_form(h):
                 fixed.append(with_position(x, (alat, alon)))
             rec = build_hunt(where, s_ts, e_ts, fixed, notes, harv)
             rec["id"] = h["id"]
+            rec["ground_id"] = h.get("ground_id") or GID
             rec["edited"] = ui.now_str()
             if ui.save("hunts", [rec if x["id"] == h["id"] else x for x in hunts], f"Edit hunt {rec['date']}"):
                 st.session_state._ed_saved_msg = f"Updated the {day:%b %-d} hunt."
@@ -417,9 +420,9 @@ def edit_form(h):
             st.rerun()
 
 
-st.subheader(f"Log ({len(hunts)})")
+st.subheader(f"Log ({len(hunts_here)})")
 editing = st.session_state.get("ed_id")
-for h in sorted(hunts, key=lambda x: x["start"], reverse=True):
+for h in sorted(hunts_here, key=lambda x: x["start"], reverse=True):
     s, e = pd.Timestamp(h["start"]), pd.Timestamp(h["end"])
     seen = sum(int(x.get("count", 1)) for x in h.get("sightings", []))
     bucks = sum(int(x.get("count", 1)) for x in h.get("sightings", []) if x.get("kind") == "Buck")

@@ -8,7 +8,9 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from . import geo, scoring, weather
+import time
+
+from . import accounts, geo, scoring, weather
 from .storage import make_store
 
 # Home area: Cub Run, Hart County, KY (town center — not a stand location).
@@ -24,25 +26,128 @@ def get_store():
         return make_store(None)
 
 
+# ---------------------------------------------------------------- identity & grounds
+def identity() -> dict:
+    """{'email', 'name', 'role'} of whoever is using the app (set at login in streamlit_app.py)."""
+    return st.session_state.get("identity") or {"email": accounts.LOCAL_EMAIL, "name": "Owner", "role": "admin"}
+
+
+def current_email() -> str:
+    return identity()["email"]
+
+
+def is_admin() -> bool:
+    return identity().get("role") == "admin"
+
+
+def grounds() -> list:
+    return load("grounds", []) or []
+
+
+def my_grounds() -> list:
+    return accounts.my_grounds(grounds(), current_email())
+
+
+def current_ground() -> dict | None:
+    gid = st.session_state.get("ground_id")
+    mine = my_grounds()
+    g = next((x for x in mine if x["id"] == gid), None)
+    return g or (mine[0] if mine else None)
+
+
+def ground_id() -> str | None:
+    g = current_ground()
+    return g["id"] if g else None
+
+
+def ground_location(g: dict) -> geo.Location:
+    h = g.get("home") or {}
+    if "lat" not in h:
+        return DEFAULT_LOCATION
+    return geo.Location(lat=h["lat"], lon=h["lon"], label=h.get("label") or g["name"], state=h.get("state"),
+                        zip_code=h.get("zip"))
+
+
+def set_ground(gid: str, remember: bool = True) -> None:
+    """Switch hunting ground: location jumps to its home, map recenters, choice remembered for next time."""
+    st.session_state.ground_id = gid
+    g = current_ground()
+    if g:
+        set_location(ground_location(g))
+    st.session_state.pop("map_center", None)
+    st.session_state.pop("last_click", None)
+    if remember and current_email() != accounts.LOCAL_EMAIL:
+        users = load("users", {}) or {}
+        u = users.get(current_email())
+        if u is not None and u.get("last_ground") != gid:
+            u["last_ground"] = gid
+            save("users", users, "Remember last ground")
+
+
+def _path(name: str) -> str:
+    if name in accounts.GROUND_SCOPED:
+        return accounts.path_for(name, None, ground_id())
+    if name in accounts.USER_SCOPED:
+        return accounts.path_for(name, current_email(), None)
+    return name  # app-wide files (users, grounds, punchlist) — no ground lookup (avoids recursion)
+
+
+SHARED_REFRESH_S = 90  # re-read shared (ground) data this often so members see each other's changes
+
+
 def load(name: str, default):
-    key = f"_data_{name}"
-    if key not in st.session_state:
+    """Read a data file. Stands/features resolve to the current ground; hunts/gear/shots to the current user."""
+    if name in accounts.GROUND_SCOPED and not ground_id():
+        return default
+    path = _path(name)
+    key = f"_data_{path}"
+    stale = (name in accounts.GROUND_SCOPED or name == "grounds") and \
+        time.time() - st.session_state.get(f"_t_{path}", 0) > SHARED_REFRESH_S
+    if key not in st.session_state or stale:
         try:
-            st.session_state[key] = get_store().get(name, default)
+            st.session_state[key] = get_store().get(path, default)
+            st.session_state[f"_t_{path}"] = time.time()
         except Exception as e:  # network / auth problems shouldn't kill the page
             st.error(f"Couldn't load {name}: {e}")
-            st.session_state[key] = default
+            st.session_state.setdefault(key, default)
     return st.session_state[key]
 
 
 def save(name: str, obj, message: str = "") -> bool:
     try:
-        get_store().put(name, obj, message)
-        st.session_state[f"_data_{name}"] = obj
+        path = _path(name)
+        who = identity().get("name") or current_email()
+        get_store().put(path, obj, f"{message} ({who})" if message else "")
+        st.session_state[f"_data_{path}"] = obj
+        st.session_state[f"_t_{path}"] = time.time()
         return True
     except Exception as e:
         st.error(f"Couldn't save {name}: {e}")
         return False
+
+
+def load_path(path: str, default):
+    """Raw read of any stored file (used to gather other members' hunts on a shared ground)."""
+    key = f"_data_{path}"
+    if key not in st.session_state or time.time() - st.session_state.get(f"_t_{path}", 0) > SHARED_REFRESH_S:
+        try:
+            st.session_state[key] = get_store().get(path, default)
+            st.session_state[f"_t_{path}"] = time.time()
+        except Exception:
+            st.session_state.setdefault(key, default)
+    return st.session_state[key]
+
+
+def ground_hunts() -> list:
+    """Every member's logged hunts on the current ground (for the shared sightings map and Best stand history)."""
+    g = current_ground()
+    if not g:
+        return []
+    out = []
+    for m in g.get("members", []):
+        hs = load("hunts", []) if m == current_email() else load_path(accounts.path_for("hunts", m, None), [])
+        out += [h for h in (hs or []) if h.get("ground_id") == g["id"]]
+    return out
 
 
 def new_id() -> str:
@@ -55,7 +160,8 @@ def now_str() -> str:
 
 def get_location() -> geo.Location:
     if "location" not in st.session_state:
-        st.session_state.location = DEFAULT_LOCATION
+        g = current_ground()
+        st.session_state.location = ground_location(g) if g else DEFAULT_LOCATION
     return st.session_state.location
 
 
@@ -110,9 +216,11 @@ def location_picker(container=st.sidebar) -> geo.Location:
                 s = next(s for s in stands if s["name"] == pick)
                 set_location(geo.Location(s["lat"], s["lon"], f"Stand: {s['name']}"))
                 st.rerun()
-        if (loc.lat, loc.lon) != (DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon):
-            if st.button(f"🏠 Back to home ({DEFAULT_COUNTY} Co.)", width="stretch"):
-                set_location(DEFAULT_LOCATION)
+        g = current_ground()
+        home = ground_location(g) if g else DEFAULT_LOCATION
+        if (loc.lat, loc.lon) != (home.lat, home.lon):
+            if st.button(f"🏠 Back to {g['name'] if g else 'home'}", width="stretch"):
+                set_location(home)
                 st.session_state.pop("map_center", None)
                 st.rerun()
         st.caption("Tip: tap the map on the 🗺️ Map page to forecast any pin.")
