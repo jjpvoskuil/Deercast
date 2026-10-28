@@ -172,6 +172,14 @@ def sighting_list(sightings: list, prefix: str) -> bool:
 
 
 # ---------------------------------------------------------------- active hunt
+LIVE_KEYS = ["live_notes", "live_harvest", "live_n", "live_act", "live_bait"]
+if st.session_state.pop("_live_reset", False):  # fresh form after a hunt is saved or discarded
+    for k in LIVE_KEYS + [k for k in list(st.session_state.keys()) if str(k).startswith(("live_q_", "live_c_",
+                                                                                         "live_g"))]:
+        st.session_state.pop(k, None)
+if msg := st.session_state.pop("_live_saved_msg", None):
+    st.success(msg)
+
 active = ui.load("active_hunt", None)
 st.subheader("In the stand")
 if not active:
@@ -232,10 +240,12 @@ else:
         rec = build_hunt(active["where"], start, end, active["sightings"], notes, harvest)
         if ui.save("hunts", hunts + [rec], f"Log hunt {rec['date']}"):
             ui.save("active_hunt", None, "End hunt")
-            st.success("Hunt saved.")
+            st.session_state._live_reset = True
+            st.session_state._live_saved_msg = "Hunt saved — ready for the next one."
             st.rerun()
     if e2.button("Discard", width="stretch"):
         ui.save("active_hunt", None, "Discard hunt")
+        st.session_state._live_reset = True
         st.rerun()
 
 # ---------------------------------------------------------------- past hunt entry

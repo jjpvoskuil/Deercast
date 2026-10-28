@@ -110,12 +110,19 @@ def test_hunt_log_flow():
         next(b for b in at.button if b.label == "+ Doe").click().run()
         next(b for b in at.button if b.label == "+ Buck").click().run()
         assert any("since" in m.value for m in at.markdown)
-        # end & save
+        # end & save — notes/harvest must not carry over to the next hunt
+        at.text_area(key="live_notes").input("windy, nothing moving")
+        at.checkbox(key="live_harvest").check()
         next(b for b in at.button if "End & save" in b.label).click().run()
         assert not at.exception, [e.value for e in at.exception]
+        assert any("ready for the next one" in s.value for s in at.success)
+        next(b for b in at.button if "Start hunt" in b.label).click().run()
+        assert at.text_area(key="live_notes").value == ""
+        assert at.checkbox(key="live_harvest").value is False
         import json, pathlib
         hunts = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())
         assert len(hunts) == 1 and len(hunts[0]["sightings"]) == 2
+        assert hunts[0]["notes"] == "windy, nothing moving" and hunts[0]["harvest"] is True
         assert hunts[0]["hours"] and hunts[0]["hours"][0]["score"] is not None
         assert any("2 deer" in e.label for e in at.expander)
 
