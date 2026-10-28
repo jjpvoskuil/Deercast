@@ -114,17 +114,64 @@ def location_picker(container=st.sidebar) -> geo.Location:
     return get_location()
 
 
-def rut_peak_setting(lat: float, container=st.sidebar):
-    default = scoring.rut_peak_for(pd.Timestamp.now(), lat)
+@st.cache_data(ttl=30 * 86400, show_spinner=False)
+def state_for(lat: float, lon: float) -> str | None:
+    """Two-letter state for a point (FCC census lookup), cached."""
+    from . import regs
+
+    try:
+        return regs.county_for_point(round(lat, 3), round(lon, 3)).get("state")
+    except Exception:
+        return None
+
+
+def rut_info(lat: float, lon: float, state: str | None = None):
+    from . import rut
+
+    return rut.peak_for(state or state_for(lat, lon), lat, lon)
+
+
+def rut_override():
+    """User-chosen peak-rut date (month/day applied to any season), or None."""
+    return st.session_state.get("rut_override")
+
+
+def rut_for(d, lat: float, lon: float, state: str | None = None):
+    """Peak-rut date for the season containing d at a location, honoring the user's override."""
+    st_code = state or state_for(lat, lon)
+    return scoring.rut_peak_for(d, lat, rut_override(), lon=lon, state=st_code)
+
+
+def rut_peak_setting(lat: float, lon: float | None = None, state: str | None = None, container=st.sidebar):
+    """Sidebar rut-date control: agency/regional date by default; changing it sets an override."""
+    loc = get_location()
+    lon = loc.lon if lon is None else lon
+    st_code = state or loc.state or state_for(lat, lon)
+    info = rut_info(lat, lon, st_code)
+    default = scoring.rut_peak_for(pd.Timestamp.now(), lat, None, lon=lon, state=st_code)
+    current = rut_for(pd.Timestamp.now(), lat, lon, st_code)
+
+    def _changed():
+        v = st.session_state.get("rut_input")
+        st.session_state.rut_override = None if v == default else v
+
+    if st.session_state.get("rut_input_default") != default or "rut_input" not in st.session_state:
+        st.session_state.rut_input = current  # location changed → show that place's date
+        st.session_state.rut_input_default = default
     with container:
-        override = st.date_input(
-            "Peak breeding (rut) date",
-            value=st.session_state.get("rut_peak", default),
-            help="Defaults by latitude. Use your state wildlife agency's peak breeding date for best results "
-            "(southern states vary widely).",
-        )
-    st.session_state.rut_peak = override
-    return override
+        st.date_input("Peak breeding (rut) date", key="rut_input", on_change=_changed,
+                      help="Defaults to your state wildlife agency's peak breeding date for this area (or a regional "
+                           "average). Change it if you know your local peak.")
+        src = f"[{info.source}]({info.url})" if info.url else info.source
+        if rut_override():
+            st.caption(f"✏️ Your date (default: {default:%b %-d} — {src})")
+            if st.button("Reset to default rut date", width="stretch"):
+                st.session_state.rut_override = None
+                st.session_state.pop("rut_input_default", None)
+                st.rerun()
+        else:
+            st.caption(("✅ " if info.confidence == "agency" else "≈ ") + src)
+    return current
 
 
 # ---------------------------------------------------------------- charts

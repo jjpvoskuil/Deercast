@@ -24,8 +24,19 @@ October-lull sunrise ≈ 5; midday outside the rut ≈ 1–2. All constants are 
 | **Moon (daily phase)** | Near full: dawn peak −8%, midday +10%. Near new: twilight +5% | ±10% | **Weak / mixed** — controlled studies find little effect; kept small on purpose |
 | **Solunar** | Moon overhead/underfoot ±60 min up to +6%; moonrise/set ±30 min up to +3% | 1.0–1.09 | Weak |
 
-**Rut peak default by latitude:** ≥40° Nov 10 · 36–40° Nov 14 · 33–36° Nov 22 · <33° Dec 15.
-Southern states vary enormously (some peak in January) — override with the state agency's date.
+**Peak rut date (v0.6):** the date is looked up by state and region in `deercast/rut.py`. The state comes from the
+ZIP code, or from the FCC census lookup for a map pin or stand.
+- **Agency-sourced:**
+  - KY: Nov 15, mid-November per UK Forestry Extension.
+  - TX: TPWD ecological regions, which run from Oct 31 on the Gulf Prairies to Dec 20 in South Texas.
+  - AL: north ~Dec 30; most of the state ~Jan 28 (WFF).
+  - MS: Delta ~Dec 10, central ~Jan 5, southeast ~Feb 1 (MDWFP conception map).
+  - GA: DNR rut map. Most of the state ~Nov 8, mountains ~Nov 20, southwest ~Dec 12.
+- **Approximate:** FL, LA and SC follow the general pattern of their agency maps. Other states use a regional
+  average for the state.
+- **Season handling:** Jan–Jun dates belong to the following calendar year (`season_year`).
+- **Override:** changing the sidebar date sets an override. Reset returns to the agency date. The Forecast page
+  and Hunt Log scoring both use `ui.rut_for()`.
 
 **Legal hours:** 30 min before sunrise to 30 min after sunset (Kentucky; configurable in `Settings`).
 
@@ -49,4 +60,4 @@ Southern states vary enormously (some peak in January) — override with the sta
 - **Next step:** use the logged hours to fit the factor weights (`MODEL`, `SEASON_KNOTS`) once there's enough data.
 
 ## Next model steps
-State rut table, hunt-log feedback loop for calibration, thermals from elevation.
+Hunt-log feedback loop for calibration, thermals from elevation.

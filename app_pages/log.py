@@ -54,8 +54,8 @@ def scored_day(lat, lon, day_iso, rut_iso):
                                   start=day.tz_localize(tz)), tz
 
 
-def rut_for(day, lat):
-    return scoring.rut_peak_for(day, lat, st.session_state.get("rut_peak"))
+def rut_for(day, lat, lon):
+    return ui.rut_for(day, lat, lon)
 
 
 def build_hunt(where, start, end, sightings, notes, harvest):
@@ -64,7 +64,7 @@ def build_hunt(where, start, end, sightings, notes, harvest):
            "start": start.isoformat(), "end": end.isoformat(), "sightings": sightings, "notes": notes,
            "harvest": harvest, "hours": [], "model": __version__}
     try:
-        sc, _ = scored_day(lat, lon, start.date().isoformat(), pd.Timestamp(rut_for(start, lat)).isoformat())
+        sc, _ = scored_day(lat, lon, start.date().isoformat(), pd.Timestamp(rut_for(start, lat, lon)).isoformat())
         rec["hours"] = huntlog.session_hours(start, end, sc, sightings)
         h0 = start.floor("h")
         if h0 in sc.index:
@@ -207,7 +207,7 @@ else:
     except Exception:
         pass
     try:
-        sc, _ = scored_day(lat, lon, now.date().isoformat(), pd.Timestamp(rut_for(now, lat)).isoformat())
+        sc, _ = scored_day(lat, lon, now.date().isoformat(), pd.Timestamp(rut_for(now, lat, lon)).isoformat())
         h = now.floor("h")
         if h in sc.index:
             nxt = sc.loc[(sc.index > h) & (sc.index <= h + pd.Timedelta(hours=2)), "score"]

@@ -13,7 +13,7 @@ st.title("🦌 Deer Activity Forecast")
 loc = ui.location_picker()
 with st.sidebar:
     st.divider()
-    rut_peak = ui.rut_peak_setting(loc.lat)
+    rut_peak = ui.rut_peak_setting(loc.lat, loc.lon, loc.state)
     legal_only = st.toggle("Legal shooting hours only", value=True)
 
 st.caption(f"📍 **{loc.label}** · peak rut set to **{rut_peak:%b %d}** · change location/rut date in the sidebar (›)")

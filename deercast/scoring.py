@@ -88,13 +88,24 @@ def season_year(d) -> int:
     return d.year if d.month >= 7 else d.year - 1
 
 
-def rut_peak_for(d, lat: float, override=None) -> date:
-    """Peak-rut date for the season containing date d. An override keeps its month/day, moved to that season."""
+def rut_peak_for(d, lat: float, override=None, lon: float | None = None, state: str | None = None) -> date:
+    """Peak-breeding date for the season containing date d.
+
+    Uses the state/region table in `rut.py` (agency data where available). An override keeps its month/day,
+    moved into that season (Jan–Jun dates belong to the following calendar year)."""
+    from . import rut
+
     yr = season_year(d)
     if override is not None:
         o = pd.Timestamp(override)
-        return date(yr if o.month >= 7 else yr + 1, o.month, o.day)
-    return default_rut_peak(lat, yr)
+        m, dd = o.month, o.day
+    elif lon is not None or state:
+        info = rut.peak_for(state, lat, lon if lon is not None else 0.0)
+        m, dd = info.month, info.day
+    else:
+        r = default_rut_peak(lat, yr)
+        m, dd = r.month, r.day
+    return date(yr if m >= 7 else yr + 1, m, dd)
 
 
 @dataclass

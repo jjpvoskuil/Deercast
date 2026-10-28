@@ -124,3 +124,14 @@ def test_archery_math():
     assert 385 < archery.estimate_speed(xb) < 392
     light = {**comp, "draw_weight": 45, "arrow_gr": 300, "tip_type": "Mechanical / expandable broadhead"}
     assert archery.bone_rating(light)[0] == "Low"
+
+
+def test_state_rut_table():
+    from deercast import rut, scoring
+    ky = rut.peak_for("KY", 37.3, -86.06)
+    assert (ky.month, ky.day, ky.confidence) == (11, 15, "agency")
+    assert rut.peak_for("AL", 31.5, -87.9).month == 1  # south/central Alabama: late January
+    assert str(scoring.rut_peak_for("2026-11-01", 31.5, lon=-87.9, state="AL")) == "2027-01-28"
+    assert str(scoring.rut_peak_for("2027-01-10", 31.5, lon=-87.9, state="AL")) == "2027-01-28"
+    assert rut.peak_for("TX", 27.8, -98.0).month == 12
+    assert str(scoring.rut_peak_for("2026-10-27", 37.3, override="2026-11-20", lon=-86.06, state="KY")) == "2026-11-20"
