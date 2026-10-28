@@ -384,3 +384,20 @@ def test_day_chart_weather_rows():
     assert fig.layout.dragmode is False and fig.layout.yaxis.fixedrange
     assert "inHg" in fig.data[0].customdata[0] and "overcast" in fig.data[0].customdata[0]
     assert len(daychart.day_figure(dd, False).data) == 1
+
+
+def test_forecast_cache_keyed_on_schema():
+    from deercast import ui, weather
+    calls = []
+
+    def fake(lat, lon, days=15):
+        calls.append(1)
+        return synthetic_weather(TZ), TZ
+
+    with mock.patch("deercast.weather.fetch_hourly", fake):
+        ui._hourly.clear()
+        ui.cached_hourly(37.3, -86.06); ui.cached_hourly(37.3, -86.06)
+        assert len(calls) == 1  # cached
+        with mock.patch.object(weather, "SCHEMA", weather.SCHEMA + 1):
+            ui.cached_hourly(37.3, -86.06)
+        assert len(calls) == 2  # new data format → refetched

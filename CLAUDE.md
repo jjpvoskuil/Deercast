@@ -39,6 +39,7 @@ doesn't need to run anything locally. Design for phone screens first.
 - Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network; `conftest.py` gives each test an empty temp data dir). Run before every push.
 
 ## Conventions
+- Cached weather is keyed on `weather.SCHEMA` — **bump it whenever fetched columns/meaning change**, or Streamlit keeps serving old cached data (cache keys only see the cached function's own source).
 - Never let `st.cache_data` cache a failed network lookup: raise inside the cached function and catch outside (see `ui.cached_elevations`, `ui.state_for`).
 - Don't assign `st.session_state[widget_key]` after that widget is drawn — set a pending key and apply it before the widget on the next run (see gear.py `_gear_next`).
 - Use `width="stretch"` not `use_container_width` (removed in newer Streamlit; st_folium still takes its own `use_container_width`).

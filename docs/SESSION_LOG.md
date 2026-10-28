@@ -30,9 +30,11 @@ Cleared John's open punch-list items plus two he reopened:
 - v0.6.1: The **Day detail** chart has an aligned hourly weather strip under the score bars (`deercast/daychart.py`): temp line (°F labels every 3 h), wind arrows pointing where the wind blows (size ∝ speed, mph labels), rain-chance bars over a cloud-cover band, and a pressure line (inHg) with the 3-hour trend. Tapping a score bar shows all values for that hour. There's a "Show hourly weather" toggle. Checked visually at phone width (rendered with Chromium from npm `@sparticuz/chromium`, since kaleido's Chrome download is blocked in the sandbox).
 - v0.6.2: Home-screen icon fix. John re-added the app, but the icon and name were unchanged: Streamlit Community Cloud wraps the app in an outer page, and iOS reads the icon only from that **top** page. `ui.add_home_screen_tags()` now writes into `window.top.document` (same origin), removes Streamlit's default apple-touch-icon, and probes for where the static icon is actually served (`/~/+/app/static/…` on Cloud, `/app/static/…` locally), falling back to an embedded data URI. Verified in headless Chromium with a simulated Cloud nesting. The Development page has a **📱 Home-screen icon check** that prints what was set.
 - v0.6.3: Cloud fix. John saw ~100% cloud at night that didn't match the sky. Open-Meteo **total** cloud cover counts thin high cirrus (stars show through). The app now also fetches low/mid/high cloud. `sky_pct` = low+mid combined (1−(1−L)(1−M)) is the overcast measure, used in the chart's solid band and in the model's cloud factor. High cloud is a faint band above it. The Rain/overcast row has a 0/50/100% scale, and hover shows 'overcast X% (+high Y%)'.
-- Tests: 35 passing.
+- v0.6.4: John still saw '100% overcast, no faint band' at 9:30 PM under partly cloudy, starry skies. Cause: `ui.cached_hourly` kept serving the pre-v0.6.3 forecast (total cloud only). `st.cache_data` keys on the cached function's own source, which hadn't changed. Fix: forecast caches are now keyed on `weather.SCHEMA` (=2), and this must be bumped whenever weather columns change (convention added to CLAUDE.md).
+- Tests: 36 passing.
 
 **Open / next**
+- John to confirm the cloud row now splits overcast vs high cloud.
 - John to confirm the icon on the phone (Development → Home-screen icon check should show 'top page: icon + name set ✓').
 - Calibrate factor weights: stays open until there are ~30+ logged hours.
 - The Google Maps basemap punch-list item was deleted at John's request.

@@ -41,7 +41,7 @@ def tz_for(lat, lon):
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner="Scoring the hunt…")
-def scored_day(lat, lon, day_iso, rut_iso):
+def scored_day(lat, lon, day_iso, rut_iso, schema=weather.SCHEMA):
     """Model scores for one hunt day (fetches the prior day too, for 24 h trends)."""
     day = pd.Timestamp(day_iso)
     tz = tz_for(lat, lon)

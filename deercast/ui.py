@@ -64,8 +64,13 @@ def set_location(loc: geo.Location) -> None:
 
 
 @st.cache_data(ttl=3600, show_spinner="Fetching 14-day weather forecast…")
+def _hourly(lat: float, lon: float, schema: int):
+    return weather.fetch_hourly(lat, lon, days=15)
+
+
 def cached_hourly(lat: float, lon: float):
-    return weather.fetch_hourly(round(lat, 3), round(lon, 3), days=15)
+    """14-day hourly forecast, cached 1 h. Keyed on weather.SCHEMA so data-format changes force a refetch."""
+    return _hourly(round(lat, 3), round(lon, 3), weather.SCHEMA)
 
 
 @st.cache_data(ttl=600, show_spinner=False)

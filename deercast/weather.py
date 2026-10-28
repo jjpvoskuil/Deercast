@@ -6,6 +6,8 @@ import pandas as pd
 import requests
 
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+# Bump whenever the columns/meaning of fetched weather change — cached forecasts keyed on it are refetched.
+SCHEMA = 2  # 2 = low/mid/high cloud + sky_pct (v0.6.3)
 TIMEOUT = 15
 HPA_TO_INHG = 0.0295300
 
