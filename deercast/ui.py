@@ -115,12 +115,19 @@ def location_picker(container=st.sidebar) -> geo.Location:
 
 
 @st.cache_data(ttl=30 * 86400, show_spinner=False)
-def state_for(lat: float, lon: float) -> str | None:
-    """Two-letter state for a point (FCC census lookup), cached."""
+def _state_for(lat: float, lon: float) -> str:
     from . import regs
 
+    code = regs.county_for_point(lat, lon).get("state")
+    if not code:
+        raise RuntimeError("no state")  # failures stay out of the cache
+    return code
+
+
+def state_for(lat: float, lon: float) -> str | None:
+    """Two-letter state for a point (FCC census lookup), cached on success."""
     try:
-        return regs.county_for_point(round(lat, 3), round(lon, 3)).get("state")
+        return _state_for(round(lat, 3), round(lon, 3))
     except Exception:
         return None
 
@@ -203,3 +210,21 @@ def html_frame(html: str, height: int):
     import streamlit.components.v1 as components  # pragma: no cover
 
     return components.html(html, height=height)
+
+
+@st.cache_data(ttl=30 * 86400, show_spinner=False)
+def _elevations(points: tuple) -> list:
+    from . import recovery
+
+    out = recovery.fetch_elevations([(round(a, 5), round(b, 5)) for a, b in points])
+    if not out:
+        raise RuntimeError("elevation lookup failed")  # raising keeps a failure out of the cache
+    return out
+
+
+def cached_elevations(points: tuple) -> list | None:
+    """Elevations (m) for (lat, lon) points — cached a month on success, retried next time on failure."""
+    try:
+        return _elevations(points)
+    except Exception:
+        return None

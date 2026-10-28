@@ -47,6 +47,19 @@ ZIP code, or from the FCC census lookup for a map pin or stand.
 - Sun/moon: PyEphem, computed locally.
 - ZIP → lat/lon: zippopotam.us, fallback Open-Meteo geocoding.
 
+## Thermals & scent drift (Map, v0.6) — `deercast/terrain.py`
+- **Slope at a point:** finite differences on Open-Meteo elevations sampled 40 m N/S/E/W. For the drift-field grid,
+  the slope comes from the 8×8 grid itself, with 120 m spacing.
+- **Thermal phase from sun altitude:**
+  - Morning: below 5° is downhill (cool air still draining), 5–15° is switching, above 15° is uphill.
+  - Afternoon and evening: above 15° is uphill, 8–15° is switching, below 8° is downhill.
+- **Thermal speed** = strength × min(3, 0.45 × slope°) mph, and zero on slopes under 1.5°.
+- **Drift** = downwind vector + thermal vector. Cones point along the drift and widen with thermal influence,
+  plus 12° more while thermals are switching.
+- **Drift field:** 6×6 arrows over roughly 0.5 mile around the map center. Orange is wind-driven, purple is
+  thermal-driven, yellow is switching. Wind is a single value because forecast models (~2–3 km grid) don't
+  resolve wind variation inside a property; the terrain thermals are what vary.
+
 ## Validation (Hunt Log, v0.4)
 - Each saved sit stores, for every clock hour hunted: the model score, the minutes hunted, and the deer seen.
   It also records the app version. Scores for past dates use Open-Meteo forecast data from the last ~3 months,

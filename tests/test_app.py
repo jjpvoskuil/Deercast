@@ -331,3 +331,24 @@ def test_edit_logged_hunt():
     assert kinds == [("Buck", "2025-11-09T08:05"), ("Doe", "2025-11-09T07:10"), ("Fawn", "2025-11-09T07:10")]
     doe = next(x for x in h["sightings"] if x["kind"] == "Doe")
     assert doe["lon"] > -86.06  # re-placed east of the stand
+
+
+def test_map_thermals_and_drift_field():
+    import contextlib, json, pathlib
+    pathlib.Path(".deercast_data").mkdir(exist_ok=True)
+    pathlib.Path(".deercast_data/stands.json").write_text(json.dumps([
+        {"id": "s1", "name": "Ridge", "lat": 37.30, "lon": -86.06, "good_winds": ["N"]}]))
+
+    def slope_east(pts):  # ground rises to the east, ~10 m per 100 m
+        return [200 + (lon + 86.06) * 111320 * 0.79 * 0.1 for _, lon in pts]
+
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        stack.enter_context(mock.patch("deercast.recovery.fetch_elevations", slope_east))
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/map.py"); at.run()
+        at.toggle(key="show_field").set_value(True).run()
+        assert not at.exception, [e.value for e in at.exception]
+        line = next(m.value for m in at.markdown if "Wind from" in m.value)
+        assert "slope" in line and "thermals" in line

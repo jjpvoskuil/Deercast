@@ -6,7 +6,12 @@ import streamlit as st
 from folium.plugins import LocateControl
 from streamlit_folium import st_folium
 
-from deercast import geo, huntlog, scent, ui
+import math
+from datetime import datetime, timezone
+
+import numpy as np
+
+from deercast import geo, huntlog, scent, terrain, ui
 from deercast.compass import Compass
 from deercast.weather import CARDINALS_8, deg_to_cardinal
 
@@ -28,12 +33,14 @@ wind = None
 try:
     if mode == "Live now":
         w = ui.cached_current_wind(center_lat, center_lon)
-        wind = {"mph": w["wind_mph"], "dir": w["wind_dir"], "gust": w["gust_mph"], "label": "Live (updates every 10 min)"}
+        wind = {"mph": w["wind_mph"], "dir": w["wind_dir"], "gust": w["gust_mph"], "label": "Live (updates every 10 min)",
+                "when": datetime.now(timezone.utc)}
     else:
         hw = ui.cached_hourly_wind(center_lat, center_lon)
         when = st.select_slider("Hour", options=list(hw.index), format_func=lambda t: t.strftime("%a %-I %p"))
         row = hw.loc[when]
-        wind = {"mph": row.wind_mph, "dir": row.wind_dir, "gust": row.gust_mph, "label": when.strftime("Forecast %a %-I %p")}
+        wind = {"mph": row.wind_mph, "dir": row.wind_dir, "gust": row.gust_mph, "label": when.strftime("Forecast %a %-I %p"),
+                "when": when.tz_convert("UTC").to_pydatetime()}
 except Exception as e:
     st.warning(f"Wind data unavailable: {e}")
 
@@ -73,20 +80,45 @@ Compass(
 ).add_to(m)
 
 scent_fg = folium.FeatureGroup(name="Scent cones")
+st.session_state.setdefault("use_thermals", True)
+use_thermals = st.session_state.use_thermals
 
 
-def draw_cone(lat, lon, color="#ff8c1a"):
+def drift_at(points):
+    """Wind + thermal drift for each (lat, lon). Falls back to wind-only if terrain is unavailable."""
+    if not wind:
+        return [None] * len(points)
+    if not use_thermals or not points:
+        return [None] * len(points)
+    pts5 = [p for lat_, lon_ in points for p in terrain.slope_points(lat_, lon_)]
+    elev = ui.cached_elevations(tuple((round(a, 5), round(b, 5)) for a, b in pts5))
+    if not elev or len(elev) != len(pts5):
+        return [None] * len(points)
+    phase, strength = terrain.thermal_phase(points[0][0], points[0][1], wind["when"])
+    out = []
+    for i in range(len(points)):
+        slope, up = terrain.slope_from(elev[5 * i:5 * i + 5])
+        out.append(terrain.combine(wind["dir"], wind["mph"], slope, up, phase, strength))
+    return out
+
+
+def draw_cone(lat, lon, color="#ff8c1a", drift=None):
     if not wind:
         return
     for frac, op in ((1.0, 0.12), (0.66, 0.18), (0.33, 0.28)):
-        folium.Polygon(
-            scent.scent_cone(lat, lon, wind["dir"], wind["mph"], frac=frac),
-            color=color, weight=1, fill=True, fill_color=color, fill_opacity=op, opacity=0.5,
-        ).add_to(scent_fg)
+        poly = (scent.drift_cone(lat, lon, drift["to_bearing"], drift["mph"], drift["extra_half"], frac=frac)
+                if drift else scent.scent_cone(lat, lon, wind["dir"], wind["mph"], frac=frac))
+        folium.Polygon(poly, color=color, weight=1, fill=True, fill_color=color, fill_opacity=op,
+                       opacity=0.5).add_to(scent_fg)
 
 
 st.session_state.setdefault("show_cones", True)
 show_cones = st.session_state.show_cones
+clicked = st.session_state.get("last_click")
+_pts = [(s_["lat"], s_["lon"]) for s_ in stands] + ([tuple(clicked)] if clicked else [])
+_drifts = drift_at(_pts)
+stand_drift = {s_["id"]: d for s_, d in zip(stands, _drifts)}
+click_drift = _drifts[-1] if clicked else None
 for s in stands:
     ok = scent.wind_ok_for_stand(wind["dir"], s.get("good_winds", [])) if wind else None
     color = "green" if ok else ("red" if ok is False else "blue")
@@ -102,7 +134,7 @@ for s in stands:
         icon=folium.Icon(color=color, icon="tree-conifer", prefix="glyphicon"),
     ).add_to(m)
     if show_cones:
-        draw_cone(s["lat"], s["lon"])
+        draw_cone(s["lat"], s["lon"], drift=stand_drift.get(s["id"]))
 
 features = ui.load("features", [])
 FEATURE_STYLE = {"water": ("#3a86ff", "💧 Water"), "cover": ("#2d6a4f", "🌲 Thick cover"),
@@ -155,10 +187,40 @@ for hunt in ui.load("hunts", []):
                             tooltip=tip).add_to(seen_fg)
 seen_fg.add_to(m)
 
-clicked = st.session_state.get("last_click")
 if clicked:
     folium.CircleMarker(clicked, radius=7, color="#fff", fill=True, fill_color="#ff3b30", fill_opacity=1).add_to(m)
-    draw_cone(*clicked, color="#ffd60a")
+    draw_cone(*clicked, color="#ffd60a", drift=click_drift)
+
+# ---------------------------------------------------------------- drift field over the property
+st.session_state.setdefault("show_field", False)
+if st.session_state.show_field and wind:
+    N, SP = 8, 120.0  # 8×8 samples, 120 m apart (~840 m square); arrows on the inner 6×6
+    clat, clon = st.session_state.map_center
+    half = (N - 1) / 2
+    grid = [[scent.destination(*scent.destination(clat, clon, 0, (half - r) * SP), 90, (c - half) * SP)
+             for c in range(N)] for r in range(N)]
+    flat = [p for row in grid for p in row]
+    elev = ui.cached_elevations(tuple((round(a, 5), round(b, 5)) for a, b in flat))
+    field_fg = folium.FeatureGroup(name="Scent drift field")
+    if elev and len(elev) == len(flat):
+        E = np.array(elev, float).reshape(N, N)
+        slopes, ups = terrain.grid_slopes(E, SP)
+        phase, strength = terrain.thermal_phase(clat, clon, wind["when"])
+        for r in range(1, N - 1):
+            for c in range(1, N - 1):
+                lat_, lon_ = grid[r][c]
+                d = terrain.combine(wind["dir"], wind["mph"], float(slopes[r, c]), float(ups[r, c]), phase,
+                                    strength)
+                L = 25 + 8 * min(d["mph"], 10)  # meters
+                tail = scent.destination(lat_, lon_, (d["to_bearing"] + 180) % 360, L / 2)
+                head = scent.destination(lat_, lon_, d["to_bearing"], L / 2)
+                col = "#b388ff" if d["influence"] > 0.35 else ("#ff8c1a" if not d["switching"] else "#ffd60a")
+                tip = f"Scent drifts to {deg_to_cardinal(d['to_bearing'])} · {terrain.describe(d)}"
+                folium.PolyLine([tail, head], color=col, weight=3, opacity=0.9, tooltip=tip).add_to(field_fg)
+                folium.RegularPolygonMarker(head, number_of_sides=3, radius=5, rotation=d["to_bearing"] - 90,
+                                            color=col, fill=True, fill_color=col, fill_opacity=1, weight=1,
+                                            tooltip=tip).add_to(field_fg)
+    field_fg.add_to(m)
 scent_fg.add_to(m)
 folium.LayerControl(collapsed=True).add_to(m)
 
@@ -181,11 +243,18 @@ if wind and stands:
         ok = scent.wind_ok_for_stand(wind["dir"], s_.get("good_winds", []))
         mark = "⚪" if ok is None else ("✅" if ok else "❌")
         good = ", ".join(s_.get("good_winds", [])) or "none set"
-        parts.append(f"{mark} **{s_['name']}** <small>(good: {good})</small>")
+        dr = stand_drift.get(s_["id"])
+        therm = f" · {terrain.describe(dr)}" if dr and dr["slope"] >= 1.5 else ""
+        parts.append(f"{mark} **{s_['name']}** <small>(good: {good}{therm})</small>")
     st.markdown(f"**Wind from {deg_to_cardinal(wind['dir'])} {wind['mph']:.0f} mph** — " + " · ".join(parts),
                 unsafe_allow_html=True)
 
-st.toggle("Show scent cones on all stands", key="show_cones")
+t1, t2, t3 = st.columns(3)
+t1.toggle("Scent cones", key="show_cones")
+t2.toggle("Thermals", key="use_thermals", help="Bend scent cones with terrain thermals: uphill as the sun warms "
+          "slopes in the morning, downhill as they cool in the evening.")
+t3.toggle("Drift field", key="show_field", help="Arrows across ~half a mile around the map center showing where "
+          "scent drifts (wind + thermals).")
 with st.expander("🗝️ Map key"):
     st.markdown(
         "**Stands**\n"
@@ -197,7 +266,12 @@ with st.expander("🗝️ Map key"):
         "- 🧭 Compass (top right): map is always north-up. The **orange arrow** points the way the wind — and your "
         "scent — is moving.\n"
         "- 🟧 **Orange cones**: where scent drifts from each stand. Short & wide = light, swirly wind; long & narrow = "
-        "steady wind. 🟨 Yellow cone = the spot you tapped.\n\n"
+        "steady wind. 🟨 Yellow cone = the spot you tapped.\n"
+        "- 🌄 **Thermals** (toggle): on slopes, cones bend **uphill** once the sun warms the ground in the morning and "
+        "**downhill** as it cools toward evening and overnight. Around sunrise and the hour before sunset thermals "
+        "switch, so cones widen — expect swirling scent. In light wind thermals rule; in steady wind the wind does.\n"
+        "- ➤ **Drift field** (toggle): arrows over ~half a mile showing where scent moves. Orange = wind-driven, "
+        "purple = thermal-driven, yellow = thermals switching.\n\n"
         "**Your marks**\n"
         "- 🛢️ feeder · 🌽 shelled / ear corn · 🍎 other food\n"
         "- 🔵 water · 🟢 thick cover · 🟡 bedding (circles)\n\n"

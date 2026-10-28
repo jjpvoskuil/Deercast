@@ -61,3 +61,16 @@ def wind_ok_for_stand(wind_from_deg: float, good_winds: list[str]) -> bool | Non
         return None
     dirs = {"N": 0, "NE": 45, "E": 90, "SE": 135, "S": 180, "SW": 225, "W": 270, "NW": 315}
     return any(angle_diff(wind_from_deg, dirs[w]) <= 22.5 for w in good_winds if w in dirs)
+
+
+def drift_cone(lat: float, lon: float, to_bearing: float, mph: float, extra_half: float = 0.0, frac: float = 1.0,
+               steps: int = 16):
+    """Cone toward an arbitrary drift bearing (wind + thermals). Wider when thermals swirl things."""
+    length_yd, half = cone_params(mph)
+    half = min(75.0, half + extra_half)
+    dist = length_yd * YD * frac
+    pts = [(lat, lon)]
+    for i in range(steps + 1):
+        pts.append(destination(lat, lon, to_bearing - half + 2 * half * i / steps, dist))
+    pts.append((lat, lon))
+    return pts

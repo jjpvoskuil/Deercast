@@ -135,3 +135,18 @@ def test_state_rut_table():
     assert str(scoring.rut_peak_for("2027-01-10", 31.5, lon=-87.9, state="AL")) == "2027-01-28"
     assert rut.peak_for("TX", 27.8, -98.0).month == 12
     assert str(scoring.rut_peak_for("2026-10-27", 37.3, override="2026-11-20", lon=-86.06, state="KY")) == "2026-11-20"
+
+
+def test_thermals():
+    from datetime import datetime, timezone
+    from deercast import terrain
+    slope, up = terrain.slope_from([100, 100, 100, 104, 96])  # rises to the east
+    assert 5 < slope < 6.5 and abs(up - 90) < 1
+    morning = terrain.thermal_phase(37.3, -86.06, datetime(2026, 10, 28, 16, 0, tzinfo=timezone.utc))  # 11 AM CDT
+    evening = terrain.thermal_phase(37.3, -86.06, datetime(2026, 10, 28, 23, 30, tzinfo=timezone.utc))  # 6:30 PM
+    assert morning[0] == "up" and evening[0] == "down"
+    light = terrain.combine(0, 2, slope, up, "down", 1.0)   # N wind 2 mph, thermals drain west
+    strong = terrain.combine(0, 12, slope, up, "down", 1.0)
+    assert 200 < light["to_bearing"] < 260 and light["influence"] > 0.5
+    assert 175 < strong["to_bearing"] < 200 and strong["influence"] < 0.25
+    assert terrain.combine(0, 5, 0.5, 0, "up", 1.0)["thermal_mph"] == 0  # flat ground

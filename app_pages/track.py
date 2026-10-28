@@ -206,14 +206,23 @@ run_dir = None if ran == "Unknown" else DIRS[ran]
 yards = (max(lo, seen), max(med, int(seen * 1.4)), max(hi, int(seen * 2.2)))
 
 
-@st.cache_data(ttl=86400, show_spinner="Reading terrain…")
 def elevations(points):
-    return recovery.fetch_elevations(list(points))
+    return ui.cached_elevations(tuple(points))
 
 
 @st.cache_data(ttl=7 * 86400, show_spinner="Finding water and cover…")
+def _osm_features(lat, lon, radius_m):
+    out = recovery.fetch_osm_features(lat, lon, radius_m)
+    if out is None:
+        raise RuntimeError("OSM lookup failed")  # don't cache failures
+    return out
+
+
 def osm_features(lat, lon, radius_m):
-    return recovery.fetch_osm_features(lat, lon, radius_m)
+    try:
+        return _osm_features(lat, lon, radius_m)
+    except Exception:
+        return None
 
 
 cells = recovery.search_grid(hit_lat, hit_lon, yards, run_dir)
