@@ -4,7 +4,11 @@ Deercast uses Streamlit's built-in Google sign-in (`st.login`). Google only conf
 user list (**Grounds → 👥 App users**) decides who gets in.
 
 ## 1. Google side (console.cloud.google.com, on a Mac or PC)
-1. Open **Google Auth Platform** (search for it in the console) and create a project, for example *Deercast*.
+1. Create a project, for example *Deercast*, and make sure it's **selected** in the project picker at the top left.
+   Then open **☰ → APIs & Services → OAuth consent screen** (or search "Google Auth Platform"). On a new project it
+   says *"Google Auth Platform not configured yet"*. Click **Get started** and fill in the wizard: app name
+   *Deercast*, your Gmail as support email, Audience **External**, your email as contact, agree, **Create**. Only
+   after that does the left menu show **Branding, Audience, Clients**.
 2. **Branding:** set the app name to *Deercast* and use your Gmail as the support email. Save.
 3. **Audience:** while the app is in *Testing*, add the Google emails that will sign in (yours and Matt's) under
    **Test users**. Later you can click **Publish app**, so anyone you add in Deercast can sign in without also being
