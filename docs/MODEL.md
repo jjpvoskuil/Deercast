@@ -20,7 +20,7 @@ October-lull sunrise ≈ 5; midday outside the rut ≈ 1–2. All constants are 
 | **Pressure** | Level ≥30.0 inHg +4%, <29.8 −8%; rising ≥0.03 inHg/3h +8%; sharp fall (pre-front) +4% | ~0.89–1.12 | Moderate; partly a proxy for frontal passage |
 | **Wind** | Best 3–10 mph; 15 mph −12%, 20 mph −26%; gusts >25 −10% | 0.54–1.0 | Moderate |
 | **Precipitation** | Heavy rain −35%, moderate −15%; first dry hours after ≥0.05" rain +12% | 0.65–1.12 | Moderate |
-| **Cloud** | Overcast daylight +4% | 1.0–1.04 | Weak–moderate |
+| **Cloud** | Overcast (low+mid cloud ≥70%) in daylight +4%; high cirrus ignored (v0.6.3) | 1.0–1.04 | Weak–moderate |
 | **Moon (daily phase)** | Near full: dawn peak −8%, midday +10%. Near new: twilight +5% | ±10% | **Weak / mixed** — controlled studies find little effect; kept small on purpose |
 | **Solunar** | Moon overhead/underfoot ±60 min up to +6%; moonrise/set ±30 min up to +3% | 1.0–1.09 | Weak |
 

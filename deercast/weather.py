@@ -14,6 +14,9 @@ HOURLY_VARS = [
     "precipitation",
     "precipitation_probability",
     "cloud_cover",
+    "cloud_cover_low",
+    "cloud_cover_mid",
+    "cloud_cover_high",
     "pressure_msl",
     "wind_speed_10m",
     "wind_direction_10m",
@@ -60,6 +63,9 @@ def fetch_hourly(lat: float, lon: float, days: int = 15) -> tuple[pd.DataFrame, 
             "precipitation": "precip_in",
             "precipitation_probability": "precip_prob",
             "cloud_cover": "cloud_pct",
+            "cloud_cover_low": "cloud_low_pct",
+            "cloud_cover_mid": "cloud_mid_pct",
+            "cloud_cover_high": "cloud_high_pct",
             "pressure_msl": "pressure_hpa",
             "wind_speed_10m": "wind_mph",
             "wind_direction_10m": "wind_dir",
@@ -67,7 +73,21 @@ def fetch_hourly(lat: float, lon: float, days: int = 15) -> tuple[pd.DataFrame, 
         }
     )
     df["pressure_inhg"] = df["pressure_hpa"] * HPA_TO_INHG
-    return df, tz
+    return add_sky(df), tz
+
+
+def add_sky(df: pd.DataFrame) -> pd.DataFrame:
+    """sky_pct = low + mid cloud combined (what actually darkens the woods). High cirrus is excluded — it pushes
+    'total cloud cover' to 100% while stars still show through at night."""
+    if "cloud_low_pct" in df and "cloud_mid_pct" in df:
+        lo = df["cloud_low_pct"].fillna(0).clip(0, 100) / 100
+        mid = df["cloud_mid_pct"].fillna(0).clip(0, 100) / 100
+        df["sky_pct"] = (100 * (1 - (1 - lo) * (1 - mid))).round(0)
+    else:
+        df["sky_pct"] = df.get("cloud_pct")
+    if "cloud_high_pct" not in df:
+        df["cloud_high_pct"] = float("nan")
+    return df
 
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
@@ -80,14 +100,15 @@ def _frame(data: dict) -> tuple[pd.DataFrame, str]:
     df = pd.DataFrame(h, index=idx).rename(
         columns={
             "temperature_2m": "temp_f", "precipitation": "precip_in", "precipitation_probability": "precip_prob",
-            "cloud_cover": "cloud_pct", "pressure_msl": "pressure_hpa", "wind_speed_10m": "wind_mph",
+            "cloud_cover": "cloud_pct", "cloud_cover_low": "cloud_low_pct", "cloud_cover_mid": "cloud_mid_pct",
+            "cloud_cover_high": "cloud_high_pct", "pressure_msl": "pressure_hpa", "wind_speed_10m": "wind_mph",
             "wind_direction_10m": "wind_dir", "wind_gusts_10m": "gust_mph",
         }
     )
     if "precip_prob" not in df:
         df["precip_prob"] = (df["precip_in"] > 0.01) * 100.0
     df["pressure_inhg"] = df["pressure_hpa"] * HPA_TO_INHG
-    return df, tz
+    return add_sky(df), tz
 
 
 def fetch_hourly_range(lat: float, lon: float, start_date, end_date) -> tuple[pd.DataFrame, str]:

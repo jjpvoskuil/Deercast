@@ -2,6 +2,8 @@
 import numpy as np
 import pandas as pd
 
+from deercast.weather import add_sky
+
 
 def synthetic_weather(tz="America/Chicago", days=15, front_day=5, seed=1):
     rng = np.random.default_rng(seed)
@@ -23,7 +25,9 @@ def synthetic_weather(tz="America/Chicago", days=15, front_day=5, seed=1):
     precip[i0 - 6:i0] = 0.12
     return pd.DataFrame({
         "temp_f": temp, "precip_in": precip, "precip_prob": precip * 500,
-        "cloud_pct": np.where(precip > 0, 100, 30), "pressure_hpa": pres / 0.02953,
+        "cloud_pct": np.where(precip > 0, 100, np.where((hour < 6) | (hour > 19), 100, 30)),
+        "cloud_low_pct": np.where(precip > 0, 90, 10), "cloud_mid_pct": np.where(precip > 0, 60, 15),
+        "cloud_high_pct": np.where((hour < 6) | (hour > 19), 100, 20),  # thin cirrus overnight "pressure_hpa": pres / 0.02953,
         "pressure_inhg": pres, "wind_mph": 6 + 3 * rng.random(n), "wind_dir": 270.0,
         "gust_mph": 12.0, "weather_code": 0,
-    }, index=idx)
+    }, index=idx).pipe(add_sky)

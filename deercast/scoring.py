@@ -257,7 +257,8 @@ def score_forecast(weather: pd.DataFrame, lat: float, lon: float, tz: str, setti
     df["f_pressure"] = pressure_factor(df["pressure_inhg"], df["p_tend_3h"])
     df["f_wind"] = wind_factor(df["wind_mph"], df["gust_mph"])
     df["f_precip"] = precip_factor(df["precip_in"], df["rain_prev_6h"])
-    df["f_cloud"] = cloud_factor(df["cloud_pct"], df["daylight"])
+    sky = df["sky_pct"] if "sky_pct" in df else df["cloud_pct"]  # low+mid cloud; cirrus doesn't dim the woods
+    df["f_cloud"] = cloud_factor(sky, df["daylight"])
     df["f_weather"] = df[["f_temp", "f_pressure", "f_wind", "f_precip", "f_cloud"]].prod(axis=1)
 
     raw = df["f_diel"] * df["f_season"] * df["f_weather"] * df["f_solunar"]

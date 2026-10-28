@@ -377,7 +377,10 @@ def test_day_chart_weather_rows():
                                                                                state="KY")))
     dd = sc[sc["date"] == sc["date"].iloc[30]]
     fig = daychart.day_figure(dd, True)
-    assert len(fig.data) == 6  # score, temp, wind, cloud, rain, pressure
+    assert len(fig.data) == 7  # score, temp, wind, high-cloud band, overcast band, rain, pressure
+    night = dd[dd.index.hour == 2]
+    assert night["cloud_pct"].iloc[0] == 100 and night["sky_pct"].iloc[0] < 30  # cirrus isn't "overcast"
+    assert fig.layout.yaxis4.ticktext == ("0%", "50%", "100%")
     assert fig.layout.dragmode is False and fig.layout.yaxis.fixedrange
-    assert "inHg" in fig.data[0].customdata[0] and "wind" in fig.data[0].customdata[0]
+    assert "inHg" in fig.data[0].customdata[0] and "overcast" in fig.data[0].customdata[0]
     assert len(daychart.day_figure(dd, False).data) == 1
