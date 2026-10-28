@@ -15,6 +15,7 @@ John's first test sit (John's Stand, 3:17–7:49 PM, 74°F, wind SE 1 mph, score
 - **Shot page:** a new "Arrow" input (pass-through recovered / not found / stayed in the deer / not sure) changes the bone default, blood expectations and wait time.
 - **New Bow Setup page:** setups with IBO/rated speed, draw weight and length, arrow weight, and broadhead. Shows estimated fps, KE, momentum, a bone-penetration rating, and a flight-time vs. sound table. The active setup feeds the Shot page and sets the default answer to the bone question.
 - Switched from the deprecated `components.html` to `st.iframe` (`ui.html_frame`). Fixed a crash when saving a bow setup (the selectbox state was set after the widget was drawn).
+- v0.5.1: Past hunts — **deer seen together in one entry** (Bucks/Does/Fawns/Unknown counts + one Add, e.g. 1 doe + 2 fawns). Records share a `group` id; shown as one line everywhere (`huntlog.group_sightings`). Also available on the live sit under 'Several deer together'. After **Save past hunt** the form clears (keeps 'Where') and a confirmation shows.
 - Tests: 27 passing.
 
 **Open / next**

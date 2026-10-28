@@ -148,7 +148,7 @@ def test_bait_marks_on_map():
 
 
 def test_past_hunt_entry_last_season():
-    """Past hunt from last season: multi-deer sighting via buttons, saves without error, rut uses that season."""
+    """Past hunt: 1 doe + 2 fawns as ONE entry, saves, then the form clears for the next hunt."""
     import contextlib, json, pathlib
     from datetime import date, time as dtime
     with contextlib.ExitStack() as stack:
@@ -158,17 +158,25 @@ def test_past_hunt_entry_last_season():
                                        lambda lat, lon, s, e: (synthetic_weather(TZ), TZ)))
         at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
         at.run(); at.switch_page("app_pages/log.py"); at.run()
-        at.date_input(key="past_date").set_value(date(2025, 11, 8)).run()
-        at.time_input(key="past_stime").set_value(dtime(7, 10)).run()
-        at.session_state["past_n"] = 3
-        at.run()
-        next(b for b in at.button if b.key == "past_Doe").click().run()
+        at.date_input(key="past_date").set_value(date(2025, 11, 8))
+        at.time_input(key="past_stime").set_value(dtime(7, 10))
+        at.number_input(key="past_c_Doe").set_value(1)
+        at.number_input(key="past_c_Fawn").set_value(2)
+        at.button(key="past_gadd").click().run()
         assert not at.exception, [e.value for e in at.exception]
-        next(b for b in at.button if b.label == "Save past hunt").click().run()
+        assert at.number_input(key="past_c_Fawn").value == 0  # counts reset after Add
+        assert any("1 Doe, 2 Fawns" in m.value for m in at.markdown)
+        at.text_area(key="past_notes").input("cold & calm")
+        next(b for b in at.button if "Save past hunt" in b.label).click().run()
         assert not at.exception, [e.value for e in at.exception]
+        assert any("form is clear" in s.value for s in at.success)
+        assert at.text_area(key="past_notes").value == ""
+        assert at.date_input(key="past_date").value != date(2025, 11, 8)
+        assert at.session_state["past_sightings"] == []
     hunts = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())
-    assert hunts[0]["date"] == "2025-11-08"
-    assert hunts[0]["sightings"][0]["count"] == 3 and hunts[0]["sightings"][0]["kind"] == "Doe"
+    sg = hunts[0]["sightings"]
+    assert hunts[0]["date"] == "2025-11-08" and len(sg) == 2 and sg[0]["group"] == sg[1]["group"]
+    assert {(x["kind"], x["count"]) for x in sg} == {("Doe", 1), ("Fawn", 2)}
 
 
 def test_rut_peak_follows_season():

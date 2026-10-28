@@ -92,16 +92,42 @@ def sighting_picker(prefix: str, when_fn):
     return None
 
 
+def group_picker(prefix: str, when_fn):
+    """Deer seen together: counts per type + one Add. Returns a list of records sharing a group id, or None."""
+    keys = [f"{prefix}_c_{k}" for k in huntlog.KINDS] + [f"{prefix}_gact", f"{prefix}_gbait"]
+    if st.session_state.pop(f"_{prefix}_greset", False):  # clear after the previous Add
+        for k in keys:
+            st.session_state.pop(k, None)
+    cols = st.columns(4)
+    counts = {kind: col.number_input(kind + ("s" if kind != "Unknown" else ""), 0, 30, 0, step=1,
+                                     key=f"{prefix}_c_{kind}")
+              for col, kind in zip(cols, huntlog.KINDS)}
+    c1, c2 = st.columns(2)
+    act = c1.selectbox("Doing (optional)", ["—"] + huntlog.ACTIVITIES, key=f"{prefix}_gact")
+    bait = c2.selectbox("At bait (optional)", BAIT_NAMES, key=f"{prefix}_gbait")
+    if st.button("➕ Add these deer", width="stretch", key=f"{prefix}_gadd"):
+        if not any(counts.values()):
+            st.error("Set at least one count above.")
+            return None
+        t, g = when_fn().isoformat(), ui.new_id()
+        st.session_state[f"_{prefix}_greset"] = True
+        return [{"time": t, "kind": k, "count": int(n), "activity": "" if act == "—" else act,
+                 "bait": "" if bait == "—" else bait, "notes": "", "group": g}
+                for k, n in counts.items() if n]
+    return None
+
+
 def sighting_list(sightings: list, prefix: str) -> bool:
-    """Show sightings with delete buttons. Returns True if one was removed."""
-    for i, x in enumerate(sightings):
+    """Show sightings (deer seen together on one line) with delete buttons. Returns True if one was removed."""
+    for e in huntlog.group_sightings(sightings):
         c1, c2 = st.columns([6, 1])
-        c1.markdown(f"{KIND_ICON.get(x['kind'], '')} **{pd.Timestamp(x['time']):%-I:%M %p}** — {x.get('count', 1)} "
-                    f"{x['kind']}{'s' if x.get('count', 1) > 1 and x['kind'] != 'Unknown' else ''}"
-                    + (f" · {x['activity']}" if x.get("activity") else "")
-                    + (f" · at {x['bait']}" if x.get("bait") else ""))
-        if c2.button("✖", key=f"{prefix}_del_{i}"):
-            sightings.pop(i)
+        icon = KIND_ICON.get(e["deer"][0][0], "") if len(e["deer"]) == 1 else "🦌"
+        c1.markdown(f"{icon} **{pd.Timestamp(e['time']):%-I:%M %p}** — {huntlog.deer_text(e['deer'])}"
+                    + (f" · {e['activity']}" if e.get("activity") else "")
+                    + (f" · at {e['bait']}" if e.get("bait") else ""))
+        if c2.button("✖", key=f"{prefix}_del_{e['group']}"):
+            for i in sorted(e["idx"], reverse=True):
+                sightings.pop(i)
             return True
     return False
 
@@ -149,6 +175,12 @@ else:
         active["sightings"].append(new)
         ui.save("active_hunt", active, f"Sighting: {new['count']} {new['kind']}")
         st.rerun()
+    with st.expander("Several deer together (e.g. doe + fawns)"):
+        grp = group_picker("live", lambda: pd.Timestamp.now(tz=start.tz).floor("min"))
+    if grp:
+        active["sightings"].extend(grp)
+        ui.save("active_hunt", active, "Sighting group")
+        st.rerun()
     if sighting_list(active["sightings"], "live"):
         ui.save("active_hunt", active, "Remove sighting")
         st.rerun()
@@ -168,45 +200,53 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------------- past hunt entry
+PAST_KEYS = ["past_date", "past_start", "past_end", "past_stime", "past_notes", "past_harv"]
+if st.session_state.pop("_past_reset", False):  # clear the form after a save (keeps 'Where')
+    for k in PAST_KEYS:
+        st.session_state.pop(k, None)
+    st.session_state["_past_greset"] = True
+    st.session_state.past_sightings = []
+if msg := st.session_state.pop("_past_saved_msg", None):
+    st.success(msg)
+
 with st.expander("➕ Add a past hunt"):
     st.session_state.setdefault("past_sightings", [])
+    today_local = pd.Timestamp.now(tz=TZ_DEFAULT).date()
     p1, p2 = st.columns(2)
     pwhere = p1.selectbox("Where", where_options(), key="past_where")
-    pdate = p2.date_input("Date", value=pd.Timestamp.now(tz=TZ_DEFAULT).date(), key="past_date",
-                          max_value=pd.Timestamp.now(tz=TZ_DEFAULT).date())
+    pdate = p2.date_input("Date", value=today_local, key="past_date", max_value=today_local)
     t1, t2 = st.columns(2)
     pstart = t1.time_input("Start", value=time(6, 15), step=300, key="past_start")
     pend = t2.time_input("End", value=time(9, 30), step=300, key="past_end")
 
-    st.markdown("**Deer seen** — set the time and how many, then tap the deer type")
+    st.markdown("**Deer seen** — set the time and how many of each, then **Add**. Deer seen together go in one "
+                "entry (e.g. 1 doe + 2 fawns).")
     stime = st.time_input("Time seen", value=time(7, 0), step=300, key="past_stime")
     plat, plon = where_coords(pwhere)
     ptz = tz_for(plat, plon)
-    new = sighting_picker("past", lambda: pd.Timestamp(datetime.combine(pdate, stime)).tz_localize(ptz))
-    if new:
-        st.session_state.past_sightings.append(new)
+    grp = group_picker("past", lambda: pd.Timestamp(datetime.combine(pdate, stime)).tz_localize(ptz))
+    if grp:
+        st.session_state.past_sightings.extend(grp)
         st.rerun()
     if sighting_list(st.session_state.past_sightings, "past"):
         st.rerun()
     if not st.session_state.past_sightings:
-        st.caption("No deer added — that's fine for a sit where you saw nothing.")
+        st.caption("No deer added yet — that's fine for a sit where you saw nothing.")
 
     pnotes = st.text_area("Notes", height=60, key="past_notes")
     pharv = st.checkbox("Harvested a deer", key="past_harv")
-    if st.button("Save past hunt", type="primary", width="stretch"):
+    if st.button("💾 Save past hunt", type="primary", width="stretch"):
         s_ts = pd.Timestamp(datetime.combine(pdate, pstart)).tz_localize(ptz)
         e_ts = pd.Timestamp(datetime.combine(pdate, pend)).tz_localize(ptz)
         if e_ts <= s_ts:
             st.error("End time must be after start time.")
         else:
-            outside = [x for x in st.session_state.past_sightings
-                       if not s_ts <= pd.Timestamp(x["time"]) <= e_ts + pd.Timedelta(minutes=1)]
-            if outside:
-                st.warning(f"{len(outside)} sighting(s) are outside the hunt's start–end time; saved anyway.")
             rec = build_hunt(pwhere, s_ts, e_ts, list(st.session_state.past_sightings), pnotes, pharv)
             if ui.save("hunts", hunts + [rec], f"Log hunt {rec['date']}"):
-                st.session_state.past_sightings = []
-                st.success(f"Saved hunt for {pdate:%b %-d, %Y}.")
+                n = sum(x["count"] for x in rec["sightings"])
+                st.session_state._past_reset = True
+                st.session_state._past_saved_msg = (f"Saved {pdate:%b %-d, %Y} hunt ({n} deer). The form is clear "
+                                                    "for the next one.")
                 st.rerun()
 
 # ---------------------------------------------------------------- forecast check
@@ -262,11 +302,11 @@ for h in sorted(hunts, key=lambda x: x["start"], reverse=True):
             st.dataframe(pd.DataFrame([{"Hour": pd.Timestamp(x["hour"]).strftime("%-I %p"), "Score": x["score"],
                                         "Minutes": x["minutes"], "Deer seen": x["seen"]} for x in h["hours"]]),
                          hide_index=True, width="stretch")
-        for x in h.get("sightings", []):
-            st.markdown(f"- {pd.Timestamp(x['time']):%-I:%M %p} — {x.get('count', 1)} {x['kind']}"
-                        + (f", {x['activity']}" if x.get("activity") else "")
-                        + (f", at {x['bait']}" if x.get("bait") else "")
-                        + (f" — {x['notes']}" if x.get("notes") else ""))
+        for e in huntlog.group_sightings(h.get("sightings", [])):
+            st.markdown(f"- {pd.Timestamp(e['time']):%-I:%M %p} — {huntlog.deer_text(e['deer'])}"
+                        + (f", {e['activity']}" if e.get("activity") else "")
+                        + (f", at {e['bait']}" if e.get("bait") else "")
+                        + (f" — {e['notes']}" if e.get("notes") else ""))
         if h.get("notes"):
             st.markdown(f"_{h['notes']}_")
         if st.button("Delete this hunt", key=f"del_{h['id']}"):

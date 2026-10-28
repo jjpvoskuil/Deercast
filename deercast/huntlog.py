@@ -65,3 +65,26 @@ def validation(hunts: list[dict]) -> dict:
         verdict = "Scores are running opposite to your sightings — the model needs tuning for your property."
     return {"n_hours": n, "n_hunts": df["hunt"].nunique(), "bands": g.reset_index(), "rho": rho, "verdict": verdict,
             "frame": df}
+
+
+def group_sightings(sightings: list[dict]) -> list[dict]:
+    """Merge records entered together (same `group` id) into one display entry, in time order."""
+    out, by_group = [], {}
+    for i, s in enumerate(sightings):
+        g = s.get("group") or f"_{i}"
+        if g not in by_group:
+            by_group[g] = {"group": g, "time": s["time"], "deer": [], "activity": s.get("activity", ""),
+                           "bait": s.get("bait", ""), "notes": s.get("notes", ""), "idx": []}
+            out.append(by_group[g])
+        by_group[g]["deer"].append((s["kind"], int(s.get("count", 1))))
+        by_group[g]["idx"].append(i)
+    return sorted(out, key=lambda e: e["time"])
+
+
+def deer_text(deer: list[tuple[str, int]]) -> str:
+    order = {k: i for i, k in enumerate(KINDS)}
+    parts = []
+    for kind, n in sorted(deer, key=lambda d: order.get(d[0], 9)):
+        label = kind if n == 1 or kind == "Unknown" else kind + "s"
+        parts.append(f"{n} {label}" if kind != "Unknown" else f"{n} unknown")
+    return ", ".join(parts)
