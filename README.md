@@ -2,8 +2,8 @@
 
 Whitetail deer activity forecasting for hunters — an iPhone-friendly Streamlit web app.
 
-- **Forecast** — hourly activity score (0–10) for the next 14 days for any ZIP code, map pin, or saved stand. Built from weather (temperature & 24 h change, pressure & trend, wind, rain, cloud), daily moon phase + solunar times, and season/rut timing. Factor breakdown shown for every hour.
-- **Map & Wind** — satellite/topo map, saved stand pins (with "good wind" directions), live or forecast wind, scent-drift cones from every stand or any point you tap, bait/food sites (broadcast feeder, shelled & ear corn piles) with last-filled dates, and water/cover/bedding marks.
+- **Forecast** — hourly activity score (0–10) for the next 14 days for any ZIP code, map pin, or saved stand. Built from weather (temperature & 24 h change, pressure & trend, wind, rain, cloud), daily moon phase + solunar times, and season/rut timing. Factor breakdown shown for every hour. **Best stand** ranks your stands for each morning and evening sit (forecast × scent fit with wind + thermals × your logged sightings). Peak rut date comes from your state agency's data for your area.
+- **Map & Wind** — satellite/topo map, saved stand pins (with "good wind" directions), live or forecast wind, scent-drift cones from every stand or any point you tap (bent by terrain **thermals** — uphill in the morning, downhill in the evening), an optional scent **drift field** over the property, bait/food sites (broadcast feeder, shelled & ear corn piles) with last-filled dates, and water/cover/bedding marks.
 - **Hunt Log** — start/stop a sit from the stand, tap +Buck/+Doe/+Fawn as deer show up (with activity and bait site), add past hunts; every hour is stored with its forecast score so the app shows whether high scores really produce more deer.
 - **Shot & Recovery** — rotate a deer to how it stood, tap where you hit it, set the shot angle: estimates organs hit, survival time, how long to wait, likely distance, a search-probability map from the hit site (run direction + terrain), weather alerts and tracking tips. Details: [`docs/SHOT_MODEL.md`](docs/SHOT_MODEL.md).
 - **Bow Setup** — your bow/crossbow, arrow and broadhead: estimated arrow speed, kinetic energy, momentum and a bone-penetration rating used by Shot & Recovery.
@@ -13,7 +13,7 @@ Whitetail deer activity forecasting for hunters — an iPhone-friendly Streamlit
 Model details: [`docs/MODEL.md`](docs/MODEL.md). Session history: [`docs/SESSION_LOG.md`](docs/SESSION_LOG.md).
 
 ## Use on iPhone
-Open the Streamlit app URL in Safari, **log in first**, then Share → **Add to Home Screen** (the saved link keeps you logged in).
+Open the Streamlit app URL in Safari, **log in first**, then Share → **Add to Home Screen**. You get the Deercast icon, it opens full-screen, and the saved link keeps you logged in.
 
 ## Deploy (Streamlit Community Cloud)
 1. share.streamlit.io → **Create app** → repo `jjpvoskuil/Deercast`, branch `main`, main file `streamlit_app.py`.

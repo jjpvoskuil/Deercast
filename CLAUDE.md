@@ -20,6 +20,10 @@ doesn't need to run anything locally. Design for phone screens first.
 - Map: bait/food marks — broadcast corn feeder, shelled corn pile, ear corn pile, other food — with last-filled date + 'Filled today'.
 - Bow Setup page (`app_pages/gear.py`, `deercast/archery.py`, `gear.json`): setups with IBO/rated speed, draw weight/length, arrow weight, tip → est. fps, KE, momentum, bone-penetration rating; active setup feeds the Shot page.
 - Login persists via signed token in URL query param `k` (HMAC of APP_PASSWORD) so Safari reconnects don't force re-login; sidebar Log out.
+- Peak rut date by state/region (`deercast/rut.py`, agency sources); sidebar override + reset (`ui.rut_for`).
+- Thermals bend scent cones (terrain slope + sun phase, `deercast/terrain.py`); optional drift-field grid of arrows on the Map.
+- Best stand: Forecast page ranks stands for morning/evening of a chosen day (`deercast/beststand.py`): top forecast hours × scent fit (wind+thermals vs good winds) × logged-sightings history.
+- Home-screen: Deercast icon/name, full-screen (`static/`, `ui.add_home_screen_tags`; `server.enableStaticServing`). Icon generator `tools/make_icon.py`.
 - Shot & Recovery page: rotate deer (angle + side), tap crosshair on entry spot, shot angle from stand height/distance → organs hit, survival time, wait time, travel distance, probability search map, weather alerts, tracking tips, save to log.
 
 ## Architecture

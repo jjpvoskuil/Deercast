@@ -228,3 +228,31 @@ def cached_elevations(points: tuple) -> list | None:
         return _elevations(points)
     except Exception:
         return None
+
+
+
+HOME_SCREEN_TAGS = """
+<script>
+(function () {
+  try {
+    const doc = window.parent.document;
+    if (doc.getElementById("deercast-pwa")) return;
+    const add = (tag, attrs) => { const el = doc.createElement(tag); for (const k in attrs) el.setAttribute(k, attrs[k]);
+                                 doc.head.appendChild(el); return el; };
+    add("meta", {id: "deercast-pwa", name: "apple-mobile-web-app-title", content: "Deercast"});
+    add("meta", {name: "application-name", content: "Deercast"});
+    add("meta", {name: "apple-mobile-web-app-capable", content: "yes"});
+    add("meta", {name: "mobile-web-app-capable", content: "yes"});
+    add("meta", {name: "apple-mobile-web-app-status-bar-style", content: "black"});
+    add("meta", {name: "theme-color", content: "#14191a"});
+    add("link", {rel: "apple-touch-icon", sizes: "180x180", href: "/app/static/apple-touch-icon.png"});
+    add("link", {rel: "icon", type: "image/png", sizes: "512x512", href: "/app/static/icon-512.png"});
+  } catch (e) { /* not same-origin — nothing to do */ }
+})();
+</script>
+"""
+
+
+def add_home_screen_tags():
+    """iPhone 'Add to Home Screen': Deercast icon + name, full-screen (no Safari bars), dark status bar."""
+    html_frame(HOME_SCREEN_TAGS, height=1)

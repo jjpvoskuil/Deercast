@@ -1,12 +1,13 @@
 """Deercast — whitetail deer activity forecast. Entry point for Streamlit."""
 
 import hmac
+from pathlib import Path
 
 import streamlit as st
 
-from deercast import __version__
+from deercast import __version__, ui
 
-st.set_page_config(page_title="Deercast", page_icon="🦌", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Deercast", page_icon=str(Path(__file__).parent / "static" / "favicon.png"), layout="wide", initial_sidebar_state="collapsed")
 
 
 import hashlib  # noqa: E402
@@ -50,6 +51,7 @@ def check_password() -> bool:
     return False
 
 
+ui.add_home_screen_tags()
 if not check_password():
     st.stop()
 

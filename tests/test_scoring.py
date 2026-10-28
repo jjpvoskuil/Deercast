@@ -150,3 +150,25 @@ def test_thermals():
     assert 200 < light["to_bearing"] < 260 and light["influence"] > 0.5
     assert 175 < strong["to_bearing"] < 200 and strong["influence"] < 0.25
     assert terrain.combine(0, 5, 0.5, 0, "up", 1.0)["thermal_mph"] == 0  # flat ground
+
+
+def test_best_stand_ranking():
+    import pandas as pd
+    from deercast import beststand, scoring
+    from synthetic import synthetic_weather  # wind from W (270) all day
+    lat, lon, tz = 37.3, -86.06, "America/Chicago"
+    sc = scoring.score_forecast(synthetic_weather(tz), lat, lon, tz,
+                                scoring.Settings(rut_peak=scoring.rut_peak_for("2026-10-27", lat, lon=lon, state="KY")))
+    day = sc[sc["date"] == sc["date"].iloc[30]]
+    stands = [{"id": "a", "name": "West wind stand", "lat": lat, "lon": lon, "good_winds": ["W"]},
+              {"id": "b", "name": "East wind stand", "lat": lat, "lon": lon, "good_winds": ["E"]},
+              {"id": "c", "name": "No winds set", "lat": lat, "lon": lon, "good_winds": []}]
+    r = beststand.rank(stands, day, "Evening", [])
+    assert [x["stand"]["id"] for x in r] == ["a", "c", "b"]
+    assert r[0]["fit"] == 1.0 and r[-1]["fit"] == 0.0
+    # history boosts a stand with lots of deer logged in the evening
+    hunts = [{"stand": "Stand: East wind stand", "hours": [
+        {"hour": "2026-10-20T17:00:00-05:00", "minutes": 60, "seen": 6}] * 5}]
+    r2 = beststand.rank(stands[1:2] + stands[:1], day, "Evening", hunts)
+    hist = {x["stand"]["id"]: x["history"] for x in r2}
+    assert hist["b"] > 1.2 and abs(hist["a"] - 1.0) < 1e-9

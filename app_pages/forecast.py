@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from deercast import scoring, ui
+from deercast import beststand, scoring, terrain, ui
 from deercast.weather import deg_to_cardinal
 
 st.title("🦌 Deer Activity Forecast")
@@ -37,6 +37,51 @@ for c, (d, r) in zip(cols, top.iterrows()):
         f"best ~{r.best_hour:%-I %p}",
         delta_color="off",
     )
+
+# ---------------------------------------------------------------- best stand
+stands = ui.load("stands", [])
+st.subheader("🏆 Best stand")
+if not stands:
+    st.info("Add your stands on the 🗺️ Map page and this will rank them for each morning and evening sit.")
+else:
+    slat = sum(s_["lat"] for s_ in stands) / len(stands)
+    slon = sum(s_["lon"] for s_ in stands) / len(stands)
+    try:
+        if abs(slat - loc.lat) + abs(slon - loc.lon) < 0.02:
+            s_scored = scored
+        else:  # forecast location is elsewhere — score at the stands
+            swx, stz = ui.cached_hourly(slat, slon)
+            s_scored = scoring.score_forecast(swx, slat, slon, stz, scoring.Settings(
+                rut_peak=ui.rut_for(pd.Timestamp.now(), slat, slon)))
+        days_s = sorted(set(s_scored["date"]))
+        now_local = pd.Timestamp.now(tz=s_scored.index.tz)
+        default_day = days_s[0] if now_local.hour < 17 else days_s[min(1, len(days_s) - 1)]
+        bday = st.selectbox("Day", days_s, index=days_s.index(default_day), key="best_day",
+                            format_func=lambda d: ("Today" if d == now_local.date() else
+                                                   "Tomorrow" if d == (now_local + pd.Timedelta(days=1)).date()
+                                                   else pd.Timestamp(d).strftime("%a %b %-d")))
+        pts5 = [p for s_ in stands for p in terrain.slope_points(s_["lat"], s_["lon"])]
+        elev = ui.cached_elevations(tuple((round(a, 5), round(b, 5)) for a, b in pts5))
+        slopes = ({s_["id"]: terrain.slope_from(elev[5 * i:5 * i + 5]) for i, s_ in enumerate(stands)}
+                  if elev and len(elev) == len(pts5) else {})
+        hunts_all = ui.load("hunts", [])
+        day_df = s_scored[s_scored["date"] == bday]
+        cols = st.columns(2)
+        for col, sess in zip(cols, ["Morning", "Evening"]):
+            ranked = beststand.rank(stands, day_df, sess, hunts_all, slopes)
+            with col:
+                st.markdown(f"**{'🌅' if sess == 'Morning' else '🌇'} {sess}**")
+                if not ranked:
+                    st.caption("No legal hours in this window.")
+                for i, r in enumerate(ranked):
+                    medal = ["🥇", "🥈", "🥉"][i] if i < 3 else "•"
+                    st.markdown(f"{medal} **{r['stand']['name']}** — {r['score']:.1f}  \n"
+                                f"<small>{' · '.join(r['reasons'])}</small>", unsafe_allow_html=True)
+        st.caption("Score = best forecast hours × how often your scent goes the right way for that stand (wind + "
+                   "thermals vs. its good wind directions) × your logged sightings there. Set good winds on each "
+                   "stand on the Map page.")
+    except Exception as e:
+        st.warning(f"Best-stand ranking unavailable: {e}")
 
 # ---------------------------------------------------------------- heatmap
 st.subheader("Hourly activity (0–10)")

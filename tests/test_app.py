@@ -352,3 +352,17 @@ def test_map_thermals_and_drift_field():
         assert not at.exception, [e.value for e in at.exception]
         line = next(m.value for m in at.markdown if "Wind from" in m.value)
         assert "slope" in line and "thermals" in line
+
+
+def test_forecast_best_stand_section():
+    import json, pathlib
+    pathlib.Path(".deercast_data").mkdir(exist_ok=True)
+    pathlib.Path(".deercast_data/stands.json").write_text(json.dumps([
+        {"id": "a", "name": "West stand", "lat": 37.3006, "lon": -86.0608, "good_winds": ["W"]},
+        {"id": "b", "name": "East stand", "lat": 37.3010, "lon": -86.0600, "good_winds": ["E"]}]))
+    with mock.patch("deercast.weather.fetch_hourly", fake_hourly):
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run()
+    assert not at.exception, [e.value for e in at.exception]
+    md = " ".join(m.value for m in at.markdown)
+    assert "🥇 **West stand**" in md and "Morning" in md and "Evening" in md

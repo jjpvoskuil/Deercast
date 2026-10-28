@@ -4,6 +4,42 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-10-27 — Session 1c: backlog round (v0.6.0)
+
+Cleared John's open punch-list items plus two he reopened:
+- **State-agency peak rut dates** (`deercast/rut.py`):
+  - KY = Nov 15, mid-November per UK Forestry Extension. Previously the latitude rule gave Nov 14.
+  - TX uses TPWD regions, AL uses WFF (north ~Dec 30, rest ~Jan 28), MS uses MDWFP (Delta Dec 10 → SE Feb 1), GA uses the DNR rut map.
+  - FL, LA and SC are approximate; other states use regional averages.
+  - The state comes from the ZIP or an FCC lookup. The sidebar shows the source with ✅ (agency) or ≈ (approximate). Changing the date is an override, with a Reset button.
+  - I didn't use an aggregator table (bigbuckregistry): it has no primary citations and contradicts UK Extension and TPWD.
+- **Thermals on scent cones** (`deercast/terrain.py`):
+  - Slope comes from Open-Meteo elevations at 5 points per stand. The phase comes from sun altitude: morning uphill once the sun is >15°, evening downhill below ~8°, switching in between.
+  - Thermal pull is 0–3 mph depending on slope, combined with the wind. Cones bend and widen, and the stand wind line describes the thermals.
+  - Map toggles: Scent cones / Thermals / Drift field.
+- **Wind field grid → scent drift field:** 6×6 arrows over ~0.5 mi around the map center (8×8 elevation grid). Orange is wind-driven, purple is thermal-driven, yellow is switching. Wind is a single value per map because forecast models don't resolve wind variation inside a property; terrain is what varies.
+- **Best stand for tomorrow** (`deercast/beststand.py`, on the Forecast page):
+  - Picks a day, defaulting to today, or tomorrow after 5 PM.
+  - Ranks stands for the Morning (legal light–11 AM) and Evening (2 PM–legal end) sits.
+  - Score = mean of the top-3 forecast hours × (0.35 + 0.65 × scent fit) × history.
+    - **Scent fit:** the share of legal hours where wind plus thermals send scent opposite the stand's good-wind direction.
+    - **History:** logged deer/hour at that stand for that session, shrunk toward a baseline pooled across stands and toward 1 deer/hour (K = 4 h).
+  - Each stand gets one-line reasons.
+- **Home-screen polish:** Deercast icon (`tools/make_icon.py` → `static/`), favicon, and tags for the iOS title, full-screen standalone mode and theme color, injected via `ui.add_home_screen_tags()`. `server.enableStaticServing = true`. John needs to re-add the home-screen icon once.
+- **Bug fixes:** `st.cache_data` was caching failed network lookups. A failed elevation, OSM or state lookup was stuck for 1–30 days. These now raise inside the cached function so failures retry (convention noted in CLAUDE.md).
+- Tests: 34 passing.
+
+**Open / next**
+- Calibrate factor weights: stays open until there are ~30+ logged hours.
+- The Google Maps basemap punch-list item was deleted at John's request.
+- Verify on the live app:
+  - static icon path `/app/static/apple-touch-icon.png`
+  - Open-Meteo elevation calls (sandbox can't reach them)
+  - drift-field appearance on the phone
+- Possible next: approach-direction stats per stand from sightings (by time of day and wind) to refine Best stand.
+
+---
+
 ## 2026-10-27 — Session 1b: field-test fixes (v0.4.1 → v0.5.0)
 
 John's first test sit (John's Stand, 3:17–7:49 PM, 74°F, wind SE 1 mph, scores 1.5–6.3, no deer) logged cleanly. Fixed his punch-list items:
