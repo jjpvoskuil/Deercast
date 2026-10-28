@@ -279,3 +279,46 @@ def test_sighting_location_recorded_and_mapped():
     sg = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())[0]["sightings"][0]
     assert sg["dir"] == "NE" and sg["dist_yd"] == 60 and sg["came_from"] == "N"
     assert sg["lat"] > 37.30 and sg["lon"] > -86.06  # NE of the stand
+
+
+def test_edit_logged_hunt():
+    import contextlib, json, pathlib
+    from datetime import date, time as dtime
+    pathlib.Path(".deercast_data").mkdir(exist_ok=True)
+    pathlib.Path(".deercast_data/stands.json").write_text(json.dumps([
+        {"id": "s1", "name": "Ridge", "lat": 37.30, "lon": -86.06}]))
+    pathlib.Path(".deercast_data/hunts.json").write_text(json.dumps([{
+        "id": "h1", "date": "2025-11-08", "stand": "Stand: Ridge", "lat": 37.30, "lon": -86.06,
+        "start": "2025-11-08T06:15:00-06:00", "end": "2025-11-08T09:30:00-06:00", "notes": "", "harvest": False,
+        "hours": [], "sightings": [
+            {"time": "2025-11-08T07:10:00-06:00", "kind": "Doe", "count": 1, "group": "g1", "dir": "E", "dist_yd": 40},
+            {"time": "2025-11-08T07:10:00-06:00", "kind": "Fawn", "count": 2, "group": "g1"}]}]))
+    with contextlib.ExitStack() as stack:
+        for p in _patched():
+            stack.enter_context(p)
+        stack.enter_context(mock.patch("deercast.weather.fetch_hourly_range",
+                                       lambda lat, lon, s, e: (synthetic_weather(TZ), TZ)))
+        at = AppTest.from_file(str(ROOT / "streamlit_app.py"), default_timeout=60)
+        at.run(); at.switch_page("app_pages/log.py"); at.run()
+        at.button(key="edit_h1").click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        assert at.time_input(key="ed_start").value == dtime(6, 15)
+        # fix times + date, add a buck, save
+        at.time_input(key="ed_start").set_value(dtime(6, 0))
+        at.time_input(key="ed_end").set_value(dtime(10, 15))
+        at.date_input(key="ed_date").set_value(date(2025, 11, 9))
+        at.run()
+        at.time_input(key="ed_stime").set_value(dtime(8, 5))
+        at.number_input(key="ed_c_Buck").set_value(1)
+        at.button(key="ed_gadd").click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        at.button(key="ed_save").click().run()
+        assert not at.exception, [e.value for e in at.exception]
+        assert any("Updated the Nov 9 hunt" in s.value for s in at.success)
+        assert "ed_id" not in at.session_state
+    h = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())[0]
+    assert h["id"] == "h1" and h["start"].startswith("2025-11-09T06:00") and h["end"].startswith("2025-11-09T10:15")
+    kinds = sorted((x["kind"], x["time"][:16]) for x in h["sightings"])
+    assert kinds == [("Buck", "2025-11-09T08:05"), ("Doe", "2025-11-09T07:10"), ("Fawn", "2025-11-09T07:10")]
+    doe = next(x for x in h["sightings"] if x["kind"] == "Doe")
+    assert doe["lon"] > -86.06  # re-placed east of the stand

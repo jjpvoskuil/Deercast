@@ -323,7 +323,92 @@ else:
         st.rerun()
 
 # ---------------------------------------------------------------- log list
+ED_KEYS = ["ed_where", "ed_date", "ed_start", "ed_end", "ed_notes", "ed_harv", "ed_stime"]
+
+
+def _close_editor():
+    st.session_state._ed_close = True
+
+
+# open / close the editor BEFORE any edit widgets are drawn (Streamlit won't let us change them afterwards)
+if st.session_state.pop("_ed_close", False):
+    for k in ED_KEYS + ["ed_id", "ed_sightings"]:
+        st.session_state.pop(k, None)
+    st.session_state["_ed_greset"] = True
+if (open_id := st.session_state.pop("_ed_open", None)):
+    h0 = next((x for x in hunts if x["id"] == open_id), None)
+    if h0:
+        s0, e0 = pd.Timestamp(h0["start"]), pd.Timestamp(h0["end"])
+        st.session_state.update({
+            "ed_id": open_id, "ed_where": h0["stand"], "ed_date": s0.date(), "ed_start": s0.time(),
+            "ed_end": e0.time(), "ed_notes": h0.get("notes", ""), "ed_harv": bool(h0.get("harvest")),
+            "ed_stime": s0.floor("h").time(), "ed_sightings": [dict(x) for x in h0.get("sightings", [])]})
+        st.session_state["_ed_greset"] = True
+if msg := st.session_state.pop("_ed_saved_msg", None):
+    st.success(msg)
+
+
+def edit_form(h):
+    """Inline editor for a logged hunt."""
+    tz = str(pd.Timestamp(h["start"]).tz)
+    opts = where_options()
+    if st.session_state.get("ed_where") not in opts:  # stand renamed/deleted since logging
+        opts = opts + [st.session_state["ed_where"]]
+    with st.container(border=True):
+        st.markdown("**✏️ Editing this hunt**")
+        c1, c2 = st.columns(2)
+        where = c1.selectbox("Where", opts, key="ed_where")
+        day = c2.date_input("Date", key="ed_date", max_value=pd.Timestamp.now(tz=tz).date())
+        t1, t2 = st.columns(2)
+        t_start = t1.time_input("Start", key="ed_start", step=300)
+        t_end = t2.time_input("End", key="ed_end", step=300)
+
+        st.markdown("**Deer seen**")
+        sights = st.session_state.ed_sightings
+        if sighting_list(sights, "ed"):
+            st.rerun()
+        if not sights:
+            st.caption("No deer logged for this hunt.")
+        with st.expander("➕ Add deer"):
+            stime = st.time_input("Time seen", key="ed_stime", step=300)
+            elat, elon = where_coords(where)
+            grp = group_picker("ed", lambda: pd.Timestamp(datetime.combine(day, stime)).tz_localize(tz),
+                               anchor=(elat, elon))
+            if grp:
+                sights.extend(grp)
+                st.rerun()
+        notes = st.text_area("Notes", key="ed_notes", height=60)
+        harv = st.checkbox("Harvested a deer", key="ed_harv")
+        b1, b2 = st.columns(2)
+        if b1.button("💾 Save changes", type="primary", width="stretch", key="ed_save"):
+            s_ts = pd.Timestamp(datetime.combine(day, t_start)).tz_localize(tz)
+            e_ts = pd.Timestamp(datetime.combine(day, t_end)).tz_localize(tz)
+            if e_ts <= s_ts:
+                st.error("End time must be after start time.")
+                return
+            # keep each sighting's clock time but move it to the (possibly new) date; re-place on the map
+            alat, alon = where_coords(where)
+            fixed = []
+            for x in sights:
+                x = dict(x)
+                t = pd.Timestamp(x["time"]).tz_convert(tz)
+                x["time"] = pd.Timestamp(datetime.combine(day, t.time())).tz_localize(tz).isoformat()
+                x.pop("lat", None), x.pop("lon", None)
+                fixed.append(with_position(x, (alat, alon)))
+            rec = build_hunt(where, s_ts, e_ts, fixed, notes, harv)
+            rec["id"] = h["id"]
+            rec["edited"] = ui.now_str()
+            if ui.save("hunts", [rec if x["id"] == h["id"] else x for x in hunts], f"Edit hunt {rec['date']}"):
+                st.session_state._ed_saved_msg = f"Updated the {day:%b %-d} hunt."
+                _close_editor()
+                st.rerun()
+        if b2.button("Cancel", width="stretch", key="ed_cancel"):
+            _close_editor()
+            st.rerun()
+
+
 st.subheader(f"Log ({len(hunts)})")
+editing = st.session_state.get("ed_id")
 for h in sorted(hunts, key=lambda x: x["start"], reverse=True):
     s, e = pd.Timestamp(h["start"]), pd.Timestamp(h["end"])
     seen = sum(int(x.get("count", 1)) for x in h.get("sightings", []))
@@ -331,7 +416,10 @@ for h in sorted(hunts, key=lambda x: x["start"], reverse=True):
     scores = [x["score"] for x in h.get("hours", []) if x.get("score") is not None]
     title = (f"{s:%a %b %-d, %Y} · {s:%-I:%M}–{e:%-I:%M %p} · {h['stand'].replace('Stand: ', '')} · "
              f"{seen} deer ({bucks} buck{'s' if bucks != 1 else ''})" + (" · 🦌 harvest" if h.get("harvest") else ""))
-    with st.expander(title):
+    with st.expander(title, expanded=editing == h["id"]):
+        if editing == h["id"]:
+            edit_form(h)
+            continue
         if scores:
             st.caption(f"Forecast during sit: avg {sum(scores) / len(scores):.1f}, best {max(scores):.1f}")
         if h.get("weather"):
@@ -342,14 +430,30 @@ for h in sorted(hunts, key=lambda x: x["start"], reverse=True):
             st.dataframe(pd.DataFrame([{"Hour": pd.Timestamp(x["hour"]).strftime("%-I %p"), "Score": x["score"],
                                         "Minutes": x["minutes"], "Deer seen": x["seen"]} for x in h["hours"]]),
                          hide_index=True, width="stretch")
-        for e in huntlog.group_sightings(h.get("sightings", [])):
-            st.markdown(f"- {pd.Timestamp(e['time']):%-I:%M %p} — {huntlog.deer_text(e['deer'])}"
-                        + (f", {e['activity']}" if e.get("activity") else "")
-                        + (f", at {e['bait']}" if e.get("bait") else "")
-                        + (f" ({huntlog.where_text(e)})" if huntlog.where_text(e) else "")
-                        + (f" — {e['notes']}" if e.get("notes") else ""))
+        for g in huntlog.group_sightings(h.get("sightings", [])):
+            st.markdown(f"- {pd.Timestamp(g['time']):%-I:%M %p} — {huntlog.deer_text(g['deer'])}"
+                        + (f", {g['activity']}" if g.get("activity") else "")
+                        + (f", at {g['bait']}" if g.get("bait") else "")
+                        + (f" ({huntlog.where_text(g)})" if huntlog.where_text(g) else "")
+                        + (f" — {g['notes']}" if g.get("notes") else ""))
         if h.get("notes"):
             st.markdown(f"_{h['notes']}_")
-        if st.button("Delete this hunt", key=f"del_{h['id']}"):
-            ui.save("hunts", [x for x in hunts if x["id"] != h["id"]], "Delete hunt")
+        if h.get("edited"):
+            st.caption(f"Edited {h['edited']}")
+        b1, b2 = st.columns(2)
+        if b1.button("✏️ Edit", key=f"edit_{h['id']}", width="stretch", disabled=bool(editing)):
+            st.session_state._ed_open = h["id"]
             st.rerun()
+        if b2.button("🗑 Delete", key=f"del_{h['id']}", width="stretch"):
+            st.session_state[f"_confirm_del_{h['id']}"] = True
+            st.rerun()
+        if st.session_state.get(f"_confirm_del_{h['id']}"):
+            st.warning("Delete this hunt permanently?")
+            c1, c2 = st.columns(2)
+            if c1.button("Yes, delete", key=f"delyes_{h['id']}", type="primary", width="stretch"):
+                ui.save("hunts", [x for x in hunts if x["id"] != h["id"]], "Delete hunt")
+                st.session_state.pop(f"_confirm_del_{h['id']}", None)
+                st.rerun()
+            if c2.button("Keep it", key=f"delno_{h['id']}", width="stretch"):
+                st.session_state.pop(f"_confirm_del_{h['id']}", None)
+                st.rerun()
