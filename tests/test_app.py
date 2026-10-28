@@ -509,3 +509,11 @@ def test_member_sees_shared_ground_but_not_owner_logs():
                                                           "count": 1, "lat": 37.342, "lon": -86.13}]}]))
     at = _run("app_pages/map.py", secrets={"ADMIN_EMAIL": "john@example.com"})
     assert any("1 logged sighting" in c.value for c in at.caption)
+
+
+def test_google_signin_dependencies_import():
+    """st.login on Streamlit Cloud imports authlib's starlette client, which needs httpx (v0.7.1 crash)."""
+    from authlib.integrations import starlette_client  # noqa: F401
+
+    reqs = (Path(__file__).parent.parent / "requirements.txt").read_text().lower()
+    assert "authlib" in reqs and "httpx" in reqs
