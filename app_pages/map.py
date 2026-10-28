@@ -174,15 +174,41 @@ if out:
             st.session_state.map_zoom = out["zoom"]
         st.rerun()
 
+# stand wind check, in words
+if wind and stands:
+    parts = []
+    for s_ in stands:
+        ok = scent.wind_ok_for_stand(wind["dir"], s_.get("good_winds", []))
+        mark = "⚪" if ok is None else ("✅" if ok else "❌")
+        good = ", ".join(s_.get("good_winds", [])) or "none set"
+        parts.append(f"{mark} **{s_['name']}** <small>(good: {good})</small>")
+    st.markdown(f"**Wind from {deg_to_cardinal(wind['dir'])} {wind['mph']:.0f} mph** — " + " · ".join(parts),
+                unsafe_allow_html=True)
+
 st.toggle("Show scent cones on all stands", key="show_cones")
+with st.expander("🗝️ Map key"):
+    st.markdown(
+        "**Stands**\n"
+        "- ✅ **Green stand** — the wind is blowing *from* one of that stand's good wind directions (±22°). Hunt it.\n"
+        "- ❌ **Red stand** — current wind isn't one of its good directions; your scent may reach where deer come from.\n"
+        "- 🔵 **Blue stand** — no good wind directions saved yet (edit the stand below).\n"
+        "- Colors follow the wind shown — switch to **Forecast hour** to check tomorrow.\n\n"
+        "**Wind & scent**\n"
+        "- 🧭 Compass (top right): map is always north-up. The **orange arrow** points the way the wind — and your "
+        "scent — is moving.\n"
+        "- 🟧 **Orange cones**: where scent drifts from each stand. Short & wide = light, swirly wind; long & narrow = "
+        "steady wind. 🟨 Yellow cone = the spot you tapped.\n\n"
+        "**Your marks**\n"
+        "- 🛢️ feeder · 🌽 shelled / ear corn · 🍎 other food\n"
+        "- 🔵 water · 🟢 thick cover · 🟡 bedding (circles)\n\n"
+        "**Deer sightings** (from the Hunt Log)\n"
+        "- Dots: 🟠 buck · 🟡 doe · tan = fawn · grey = unknown\n"
+        "- Dashed line = where it came from; solid line + arrowhead = where it went.\n\n"
+        "Use the layers button (top right) to hide/show cones, marks and sightings. Scent cones are a planning aid — "
+        "terrain and thermals bend real air flow."
+    )
 if n_seen:
-    st.caption(f"🦌 {n_seen} logged sighting(s) shown — orange = buck, yellow = doe, tan = fawn. Dashed line = "
-               "where it came from, solid line + arrowhead = where it went. Toggle the layer in the map's layer menu.")
-st.caption(
-    "Compass: map is always north-up; the orange arrow shows which way the wind (and your scent) is moving. "
-    "Cones show where your scent drifts (downwind). Short & wide = light, swirly wind; long & narrow = steady wind. "
-    "Tap anywhere to drop a yellow test cone. Planning aid only — terrain and thermals bend real air flow."
-)
+    st.caption(f"🦌 {n_seen} logged sighting(s) on the map.")
 
 # ---------------------------------------------------------------- actions on clicked point
 if clicked:

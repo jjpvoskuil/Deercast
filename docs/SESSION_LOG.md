@@ -19,6 +19,7 @@ John's first test sit (John's Stand, 3:17–7:49 PM, 74°F, wind SE 1 mph, score
 - v0.5.2: Sightings record **where**: direction from stand (8-pt), distance (yd), came from, went toward (all optional). Map position is computed from the stand (`huntlog.locate`) and stored as `lat`/`lon`. New **Deer sightings** layer on the Map (orange = buck, yellow = doe, tan = fawn; dashed = approach, solid + arrowhead = departure).
 - v0.5.3: **Edit logged hunts**. ✏️ Edit opens an inline form in the hunt's entry for where, date, start/end, notes and harvest. Deer can be removed or added (with where/came-from). Save re-scores the hunt, keeps its id, moves sighting times to the new date, and re-places sightings from the (possibly new) stand. Delete now asks for confirmation. The editor's widget state is opened and closed via pending flags (`_ed_open` / `_ed_close`).
 - v0.5.4: The live hunt form resets after **End & save** or **Discard**: notes, harvest and the sighting pickers clear (`_live_reset` pending flag), and the page shows "Hunt saved — ready for the next one." The past-hunt form already cleared its notes.
+- v0.5.5: Map page explains itself. Under the map, a one-line wind check per stand (e.g. "Wind from N 7 mph — ✅ John's Stand (good: NE, N) · ❌ Hunting Shack (good: NE)") and a **🗝️ Map key** expander covering stand colors, compass and scent cones, bait/water/cover/bedding marks, and sighting symbols.
 - Tests: 29 passing.
 
 **Open / next**

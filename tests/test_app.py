@@ -283,6 +283,8 @@ def test_sighting_location_recorded_and_mapped():
         at.switch_page("app_pages/map.py"); at.run()
         assert not at.exception, [e.value for e in at.exception]
         assert any("1 logged sighting" in c.value for c in at.caption)
+        assert any("Map key" in e.label for e in at.expander)
+        assert any("Wind from" in m.value and "Ridge" in m.value for m in at.markdown)
     sg = json.loads(pathlib.Path(".deercast_data/hunts.json").read_text())[0]["sightings"][0]
     assert sg["dir"] == "NE" and sg["dist_yd"] == 60 and sg["came_from"] == "N"
     assert sg["lat"] > 37.30 and sg["lon"] > -86.06  # NE of the stand
