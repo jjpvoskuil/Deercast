@@ -13,6 +13,12 @@ if ui.get_store().kind == "local":
         "Add the `[storage]` secrets (see README) to save to the private deercast-data repo."
     )
 
+with st.expander("📱 Home-screen icon check"):
+    st.caption("Shows whether the Deercast icon and name were set on the page your iPhone reads. If you see "
+               "'top page: icon + name set ✓', delete the home-screen icon, reopen the app in Safari and Add to "
+               "Home Screen again.")
+    ui.add_home_screen_tags(show_status=True)
+
 STATUSES = ["Open", "In progress", "Done", "Won't do"]
 PRIORITIES = ["High", "Medium", "Low"]
 CATEGORIES = ["Feature", "Bug", "Model", "UI", "Data", "Infra"]

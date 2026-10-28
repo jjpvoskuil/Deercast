@@ -28,9 +28,11 @@ Cleared John's open punch-list items plus two he reopened:
 - **Home-screen polish:** Deercast icon (`tools/make_icon.py` → `static/`), favicon, and tags for the iOS title, full-screen standalone mode and theme color, injected via `ui.add_home_screen_tags()`. `server.enableStaticServing = true`. John needs to re-add the home-screen icon once.
 - **Bug fixes:** `st.cache_data` was caching failed network lookups. A failed elevation, OSM or state lookup was stuck for 1–30 days. These now raise inside the cached function so failures retry (convention noted in CLAUDE.md).
 - v0.6.1: The **Day detail** chart has an aligned hourly weather strip under the score bars (`deercast/daychart.py`): temp line (°F labels every 3 h), wind arrows pointing where the wind blows (size ∝ speed, mph labels), rain-chance bars over a cloud-cover band, and a pressure line (inHg) with the 3-hour trend. Tapping a score bar shows all values for that hour. There's a "Show hourly weather" toggle. Checked visually at phone width (rendered with Chromium from npm `@sparticuz/chromium`, since kaleido's Chrome download is blocked in the sandbox).
+- v0.6.2: Home-screen icon fix. John re-added the app, but the icon and name were unchanged: Streamlit Community Cloud wraps the app in an outer page, and iOS reads the icon only from that **top** page. `ui.add_home_screen_tags()` now writes into `window.top.document` (same origin), removes Streamlit's default apple-touch-icon, and probes for where the static icon is actually served (`/~/+/app/static/…` on Cloud, `/app/static/…` locally), falling back to an embedded data URI. Verified in headless Chromium with a simulated Cloud nesting. The Development page has a **📱 Home-screen icon check** that prints what was set.
 - Tests: 35 passing.
 
 **Open / next**
+- John to confirm the icon on the phone (Development → Home-screen icon check should show 'top page: icon + name set ✓').
 - Calibrate factor weights: stays open until there are ~30+ logged hours.
 - The Google Maps basemap punch-list item was deleted at John's request.
 - Verify on the live app:

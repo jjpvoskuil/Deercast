@@ -231,28 +231,66 @@ def cached_elevations(points: tuple) -> list | None:
 
 
 
-HOME_SCREEN_TAGS = """
+HOME_SCREEN_JS = r"""
+<meta charset="utf-8">
+<div id="st" style="font:12px -apple-system,Helvetica,sans-serif;color:#e8e6df;white-space:pre-line"></div>
 <script>
-(function () {
-  try {
-    const doc = window.parent.document;
-    if (doc.getElementById("deercast-pwa")) return;
-    const add = (tag, attrs) => { const el = doc.createElement(tag); for (const k in attrs) el.setAttribute(k, attrs[k]);
-                                 doc.head.appendChild(el); return el; };
-    add("meta", {id: "deercast-pwa", name: "apple-mobile-web-app-title", content: "Deercast"});
-    add("meta", {name: "application-name", content: "Deercast"});
-    add("meta", {name: "apple-mobile-web-app-capable", content: "yes"});
-    add("meta", {name: "mobile-web-app-capable", content: "yes"});
-    add("meta", {name: "apple-mobile-web-app-status-bar-style", content: "black"});
-    add("meta", {name: "theme-color", content: "#14191a"});
-    add("link", {rel: "apple-touch-icon", sizes: "180x180", href: "/app/static/apple-touch-icon.png"});
-    add("link", {rel: "icon", type: "image/png", sizes: "512x512", href: "/app/static/icon-512.png"});
-  } catch (e) { /* not same-origin — nothing to do */ }
+(async function () {
+  const report = [];
+  const docs = [];
+  // Streamlit Community Cloud runs the app inside an outer page — iOS reads the icon/name from the TOP page.
+  try { if (window.top && window.top.document) docs.push(["top", window.top.document]); } catch (e) { report.push("top page: not reachable"); }
+  try { if (window.parent.document && (!docs.length || window.parent.document !== docs[0][1])) docs.push(["app", window.parent.document]); } catch (e) {}
+  // find where the icon file is actually served
+  const origin = window.parent.location.origin;
+  const appPath = window.parent.location.pathname;
+  const cands = [];
+  const m = appPath.match(/^(.*?\/~\/\+)/);
+  if (m) cands.push(origin + m[1] + "/app/static/apple-touch-icon.png");
+  cands.push(origin + "/app/static/apple-touch-icon.png");
+  cands.push(origin + "/~/+/app/static/apple-touch-icon.png");
+  let icon = null;
+  for (const u of cands) {
+    try { const r = await fetch(u, {method: "GET", cache: "no-store"});
+          const ct = r.headers.get("content-type") || "";
+          if (r.ok && ct.startsWith("image")) { icon = u; break; } } catch (e) {}
+  }
+  if (!icon) { icon = "data:image/png;base64,__DATA__"; report.push("icon file: not served — using embedded copy"); }
+  else report.push("icon file: " + icon);
+  for (const [name, doc] of docs) {
+    try {
+      doc.querySelectorAll('link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]').forEach(e => e.remove());
+      doc.querySelectorAll('meta[name="apple-mobile-web-app-title"]').forEach(e => e.remove());
+      const add = (tag, attrs) => { const el = doc.createElement(tag); for (const k in attrs) el.setAttribute(k, attrs[k]);
+                                   doc.head.appendChild(el); };
+      add("link", {rel: "apple-touch-icon", sizes: "180x180", href: icon});
+      add("meta", {name: "apple-mobile-web-app-title", content: "Deercast"});
+      add("meta", {name: "application-name", content: "Deercast"});
+      add("meta", {name: "apple-mobile-web-app-capable", content: "yes"});
+      add("meta", {name: "mobile-web-app-capable", content: "yes"});
+      add("meta", {name: "apple-mobile-web-app-status-bar-style", content: "black"});
+      add("meta", {name: "theme-color", content: "#14191a"});
+      report.push(name + " page: icon + name set ✓");
+    } catch (e) { report.push(name + " page: blocked (" + e.message + ")"); }
+  }
+  const el = document.getElementById("st"); if (el && __SHOW__) el.textContent = report.join("\n");
 })();
 </script>
 """
 
 
-def add_home_screen_tags():
-    """iPhone 'Add to Home Screen': Deercast icon + name, full-screen (no Safari bars), dark status bar."""
-    html_frame(HOME_SCREEN_TAGS, height=1)
+def _icon_b64() -> str:
+    import base64
+    from pathlib import Path
+
+    p = Path(__file__).resolve().parents[1] / "static" / "apple-touch-icon.png"
+    return base64.b64encode(p.read_bytes()).decode() if p.exists() else ""
+
+
+def add_home_screen_tags(show_status: bool = False):
+    """iPhone 'Add to Home Screen': Deercast icon + name, full-screen, dark status bar.
+
+    Writes the tags into the TOP page (Streamlit Cloud wraps the app in an outer page, and iOS only reads that one)
+    and the app page. With show_status=True the frame prints what it did (Development page)."""
+    js = HOME_SCREEN_JS.replace("__DATA__", _icon_b64()).replace("__SHOW__", "true" if show_status else "false")
+    html_frame(js, height=80 if show_status else 1)
