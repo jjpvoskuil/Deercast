@@ -1,0 +1,19 @@
+# Deercast web test (React app in web/). Netlify builds this on every push to main.
+[build]
+  base = "web"
+  command = "npm ci && npm test && npm run build"
+  publish = "dist"
+  # skip the build when nothing under web/ changed (Streamlit-only pushes)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(self), camera=(), microphone=()"

@@ -39,6 +39,15 @@ doesn't need to run anything locally. Design for phone screens first.
 - `deercast/regs/` — county lookup via FCC Census Block API; curated state data (`kentucky.py`: 2026-27 seasons, zones for all 120 counties, CWD counties, sources). **Update every season** and bump `SEASON`/`VERIFIED`. Other states show agency + search link.
 - Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network; `conftest.py` gives each test an empty temp data dir). Run before every push.
 
+## Web test (v0.8, started 2026-10-30)
+- `web/` = React (Vite) rebuild of the **Map** screen on Supabase Auth (Google) + RLS + Netlify — a pilot for moving
+  Deercast (and later John's FP1.0 app) off Streamlit. See `web/README.md`. Supabase project `deercast`
+  (`https://gzxobsvhzscouehlrxeg.supabase.co`, East US Ohio). Schema/RLS: `web/supabase/schema.sql`.
+- JS geometry (`web/src/lib/geo.js`, `terrain.js`) must match the Python: change both, regenerate fixtures
+  (`python web/supabase/make_fixtures.py`), run `cd web && npm test`.
+- `make_import.py` output contains stand coordinates — send it to John as a file, **never commit it**.
+- John has no coding background: setup instructions go one screen at a time.
+
 ## Conventions
 - Cached weather is keyed on `weather.SCHEMA` — **bump it whenever fetched columns/meaning change**, or Streamlit keeps serving old cached data (cache keys only see the cached function's own source).
 - Every new data file must be classified in `accounts.GROUND_SCOPED` / `USER_SCOPED` (or stays app-wide).

@@ -5,3 +5,5 @@ __pycache__/
 .streamlit/secrets.toml
 .pytest_cache/
 .DS_Store
+# web test: generated Supabase imports hold private data
+*_import.sql

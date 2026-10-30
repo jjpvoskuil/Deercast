@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# generated imports contain private stand coordinates / hunts — never commit
+*import*.sql
+!supabase/schema.sql
