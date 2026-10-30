@@ -4,6 +4,20 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-10-30 — Session 2: punch list (v0.7.1 → v0.7.2)
+
+John confirmed: Google sign-in is set up, works from the iPhone home-screen app, and Matt Klein is added (App users + Lewis/Klein member).
+- v0.7.1 (between sessions): added `httpx`, which Authlib's Starlette client needs for `st.login` on Streamlit Cloud.
+- **Map flicker with Thermals / Drift field** (bug): in Live mode the thermal phase used `datetime.now()` to the second. Sun altitude moves continuously, so cone and arrow geometry changed on every rerun. st_folium keys the component on a hash of the map JS, so it remounted, reported center/zoom, and that reran the script, in a loop. Fix: live `when` is snapped to the 10-minute step the live wind already refreshes on. Regression test `tests/test_map_stable.py` (moving sun, drift field + tap cone on, asserts an identical map hash across reruns). **Rule:** anything drawn on the map must be deterministic between reruns.
+- **Hunt Log "How many" defaults to 0** (live sit): 0 is now an option and the default. The +Buck/+Doe/+Fawn/+Unknown buttons are disabled until a number is picked, and the count resets to 0 after each sighting so nothing is logged by accident. The "Several deer together" counts already started at 0.
+- Tests: 41 passing.
+
+**Open / next**
+- Calibrate factor weights: waiting for ~30+ logged hours.
+- John to confirm on the phone that the map stays still with Thermals + Drift field on.
+
+---
+
 ## 2026-10-27 — Session 1d: multi-user + hunting grounds (v0.7.0)
 
 John asked for multiple users with Google sign-in, plus the ability for each user to use their own grounds or shared grounds, each with its own ZIP/location.

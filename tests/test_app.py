@@ -114,7 +114,15 @@ def test_hunt_log_flow():
         start = next(b for b in at.button if "Start hunt" in b.label)
         start.click().run()
         assert not at.exception, [e.value for e in at.exception]
+        # "How many" starts at 0: deer buttons are off and nothing can be logged by accident
+        assert at.session_state["live_n"] == 0
+        assert all(b.disabled for b in at.button if b.label.startswith("+ ") and b.key and b.key.startswith("live_"))
+        at.session_state["live_n"] = 2
+        at.run()
         next(b for b in at.button if b.label == "+ Doe").click().run()
+        assert at.session_state["live_n"] == 0  # back to 0 after each sighting
+        at.session_state["live_n"] = 1
+        at.run()
         next(b for b in at.button if b.label == "+ Buck").click().run()
         assert any("since" in m.value for m in at.markdown)
         # end & save — notes/harvest must not carry over to the next hunt
@@ -131,7 +139,8 @@ def test_hunt_log_flow():
         assert len(hunts) == 1 and len(hunts[0]["sightings"]) == 2
         assert hunts[0]["notes"] == "windy, nothing moving" and hunts[0]["harvest"] is True
         assert hunts[0]["hours"] and hunts[0]["hours"][0]["score"] is not None
-        assert any("2 deer" in e.label for e in at.expander)
+        assert any("3 deer" in e.label for e in at.expander)
+        assert sum(x["count"] for x in hunts[0]["sightings"]) == 3
 
 
 def test_validation_math():

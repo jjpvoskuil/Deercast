@@ -33,8 +33,11 @@ wind = None
 try:
     if mode == "Live now":
         w = ui.cached_current_wind(center_lat, center_lon)
+        # Thermals use 'when' — snap it to the same 10-minute step as the live wind. A to-the-second time changes
+        # the cones on every rerun, st_folium then remounts the map, which reruns the script → endless flicker.
+        _now = datetime.now(timezone.utc)
         wind = {"mph": w["wind_mph"], "dir": w["wind_dir"], "gust": w["gust_mph"], "label": "Live (updates every 10 min)",
-                "when": datetime.now(timezone.utc)}
+                "when": _now.replace(minute=_now.minute - _now.minute % 10, second=0, microsecond=0)}
     else:
         hw = ui.cached_hourly_wind(center_lat, center_lon)
         when = st.select_slider("Hour", options=list(hw.index), format_func=lambda t: t.strftime("%a %-I %p"))

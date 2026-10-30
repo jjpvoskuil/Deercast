@@ -111,17 +111,20 @@ def _loc_keys(prefix):
 def sighting_picker(prefix: str, when_fn, anchor=None):
     """How many → (optional) activity / bait / where → tap the deer type. Returns a new sighting dict or None."""
     if st.session_state.pop(f"_{prefix}_qreset", False):
-        for k in _loc_keys(f"{prefix}_q"):
+        for k in _loc_keys(f"{prefix}_q") + [f"{prefix}_n"]:
             st.session_state.pop(k, None)
-    count = st.segmented_control("How many", [1, 2, 3, 4, 5, 6, 8, 10], default=1, key=f"{prefix}_n") or 1
+    # Starts at 0 so nothing gets logged by accident; the deer buttons wake up once a number is picked.
+    count = st.segmented_control("How many", [0, 1, 2, 3, 4, 5, 6, 8, 10], default=0, key=f"{prefix}_n") or 0
     c1, c2 = st.columns(2)
     act = c1.selectbox("Doing (optional)", ["—"] + huntlog.ACTIVITIES, key=f"{prefix}_act")
     bait = c2.selectbox("At bait (optional)", BAIT_NAMES, key=f"{prefix}_bait")
     where = location_fields(f"{prefix}_q")
+    if not count:
+        st.caption("Pick how many deer, then tap the type.")
     cols = st.columns(4)
     for col, kind in zip(cols, huntlog.KINDS):
-        if col.button(f"+ {kind}", width="stretch", key=f"{prefix}_{kind}", type="primary" if kind == "Buck" else
-                      "secondary"):
+        if col.button(f"+ {kind}", width="stretch", key=f"{prefix}_{kind}", disabled=not count,
+                      type="primary" if kind == "Buck" else "secondary") and count:
             st.session_state[f"_{prefix}_qreset"] = True
             return with_position({"time": when_fn().isoformat(), "kind": kind, "count": int(count),
                                   "activity": "" if act == "—" else act, "bait": "" if bait == "—" else bait,
