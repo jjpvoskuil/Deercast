@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase, configured } from "./supabase.js";
 import MapScreen from "./MapScreen.jsx";
+import ForecastScreen from "./ForecastScreen.jsx";
+import { Menu, TabBar } from "./Shell.jsx";
 import { demoData } from "./demo.js";
 import { resolveTheme } from "./lib/theme.js";
 
@@ -35,6 +37,15 @@ export default function App() {
   const [gid, setGid] = useState(() => localStorage.getItem(LAST_GROUND));
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [tab, setTabState] = useState(() => (location.hash.slice(1) === "map" ? "map" : "forecast"));
+  const [menu, setMenu] = useState(false);
+  const [toast, setToast] = useState("");
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2400); return () => clearTimeout(t); }, [toast]);
+  const BUILT = ["forecast", "map"];
+  const setTab = (id, built) => {
+    if (!built) return setToast("Coming next — use the current app for now");
+    setTabState(id); history.replaceState(null, "", `#${id}`);
+  };
 
   // who is signed in
   useEffect(() => {
@@ -100,8 +111,17 @@ export default function App() {
     </Splash>
   );
   if (approved === undefined || (approved && !grounds.length && !error)) return <Splash><p className="muted">Loading your grounds…</p></Splash>;
-  return <MapScreen ground={ground} grounds={grounds} onGround={setGid} data={data} email={session.user.email}
-    onSignOut={signOut} demo={demo} theme={theme} />;
+  const common = { ground, data, demo, theme, onMenu: () => setMenu(true) };
+  return (
+    <>
+      <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground?.id}`} />
+      <MapScreen {...common} active={tab === "map"} />
+      <TabBar tab={tab} onTab={setTab} built={BUILT} />
+      <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
+        email={session.user.email} onSignOut={signOut} />
+      {toast && <div className="toast" role="status">{toast}</div>}
+    </>
+  );
 }
 
 function Splash({ children }) {

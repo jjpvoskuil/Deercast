@@ -43,8 +43,11 @@ doesn't need to run anything locally. Design for phone screens first.
 - `web/` = React (Vite) rebuild of the **Map** screen on Supabase Auth (Google) + RLS + Netlify — a pilot for moving
   Deercast (and later John's FP1.0 app) off Streamlit. See `web/README.md`. Supabase project `deercast`
   (`https://gzxobsvhzscouehlrxeg.supabase.co`, East US Ohio). Schema/RLS: `web/supabase/schema.sql`.
-- JS geometry (`web/src/lib/geo.js`, `terrain.js`) must match the Python: change both, regenerate fixtures
-  (`python web/supabase/make_fixtures.py`), run `cd web && npm test`.
+- JS geometry (`web/src/lib/geo.js`, `terrain.js`) and the **activity model** (`web/src/lib/model/`: scoring, astro,
+  rut, beststand) must match the Python: change both, regenerate fixtures (`python web/supabase/make_fixtures.py`
+  and `make_model_fixtures.py`), run `cd web && npm test` (parity: 359/360 hours identical, max diff 0.1 rounding).
+- Web screens built: Forecast, Map (tab bar in `Shell.jsx`; theme tokens in `styles.css`; Light/Soft auto by sun).
+  Still to port: Hunt Log, Shot, Bow Setup, Regulations, Grounds, Development (most need Supabase write policies).
 - `make_import.py` output contains stand coordinates — send it to John as a file, **never commit it**.
 - John has no coding background: setup instructions go one screen at a time.
 

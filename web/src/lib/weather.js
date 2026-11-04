@@ -50,3 +50,39 @@ export async function elevations(points) {
   }
   return points.map((p) => elevStore[ek(p)]);
 }
+
+/** 15-day hourly forecast + the previous day (for 24 h trends), same fields as deercast/weather.py fetch_hourly.
+ *  Returns {tz, rows: [{time, temp_f, precip_in, precip_prob, cloud_pct, sky_pct, cloud_high_pct, pressure_inhg,
+ *  wind_mph, wind_dir, gust_mph}]}. Cached 1 h in memory; the last result is kept on the phone for instant opening. */
+const HOURLY = ["temperature_2m", "precipitation", "precipitation_probability", "cloud_cover", "cloud_cover_low",
+  "cloud_cover_mid", "cloud_cover_high", "pressure_msl", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m"];
+const FC_KEY = "deercast.forecast.v1";
+const fcMem = new Map();
+const fcKey = (lat, lon) => `${lat.toFixed(3)},${lon.toFixed(3)}`;
+export function cachedForecast(lat, lon) {
+  const k = fcKey(lat, lon);
+  if (fcMem.has(k)) return fcMem.get(k);
+  try { const s = JSON.parse(localStorage.getItem(FC_KEY)); if (s && s.key === k) return s.v; } catch { /* none */ }
+  return null;
+}
+export async function fetchForecast(lat, lon, force = false) {
+  const k = fcKey(lat, lon);
+  const hit = fcMem.get(k);
+  if (!force && hit && Date.now() - hit.at < 3600e3) return hit;
+  const r = await fetch(`${FORECAST}?${qs({ latitude: lat, longitude: lon, hourly: HOURLY.join(","), forecast_days: 15,
+    past_days: 1, temperature_unit: "fahrenheit", wind_speed_unit: "mph", precipitation_unit: "inch",
+    timezone: "auto", timeformat: "unixtime" })}`);
+  if (!r.ok) throw new Error(`weather ${r.status}`);
+  const j = await r.json(), h = j.hourly;
+  const rows = h.time.map((t, i) => {
+    const lo = Math.min(100, Math.max(0, h.cloud_cover_low?.[i] ?? 0)) / 100, mid = Math.min(100, Math.max(0, h.cloud_cover_mid?.[i] ?? 0)) / 100;
+    return { time: t * 1000, temp_f: h.temperature_2m[i], precip_in: h.precipitation[i], precip_prob: h.precipitation_probability?.[i],
+      cloud_pct: h.cloud_cover[i], sky_pct: Math.round(100 * (1 - (1 - lo) * (1 - mid))), cloud_high_pct: h.cloud_cover_high?.[i],
+      pressure_inhg: h.pressure_msl[i] * 0.02953, wind_mph: h.wind_speed_10m[i], wind_dir: h.wind_direction_10m[i],
+      gust_mph: h.wind_gusts_10m[i] };
+  });
+  const v = { tz: j.timezone || "UTC", rows, at: Date.now() };
+  fcMem.set(k, v);
+  try { localStorage.setItem(FC_KEY, JSON.stringify({ key: k, v })); } catch { /* full */ }
+  return v;
+}

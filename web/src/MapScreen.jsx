@@ -4,6 +4,7 @@ import { CARDINALS_8, degToCardinal, destination, driftCone, scentCone, windOkFo
 import { combine, describe, gridSlopes, slopeFrom, slopePoints, thermalPhase } from "./lib/terrain.js";
 import { currentWind, elevations, hourlyWind } from "./lib/weather.js";
 import Icon from "./Icon.jsx";
+import { GroundChip, ThemeButton } from "./Shell.jsx";
 
 const KIND_COLOR = { Buck: "#ff6b1a", Doe: "#ffd60a", Fawn: "#f5deb3", Unknown: "#c0c0c0" };
 const FEATURE = {
@@ -37,9 +38,8 @@ function groupSightings(hunts) {
 }
 
 const TREE = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 7h-3l4 6H6l4-6H7l5-7z"/><path d="M12 16v5"/></svg>';
-const fmtTime = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-export default function MapScreen({ ground, grounds, onGround, data, email, onSignOut, demo, theme }) {
+export default function MapScreen({ ground, data, demo, theme, onMenu, active }) {
   const mapEl = useRef(null);
   const map = useRef(null);
   const layers = useRef({});
@@ -55,10 +55,9 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
   const [tapped, setTapped] = useState(null);
   const [drifts, setDrifts] = useState({});
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [menu, setMenu] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false);
-  const [toast, setToast] = useState("");
-  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2200); return () => clearTimeout(t); }, [toast]);
+  // Leaflet must re-measure when its tab becomes visible again
+  useEffect(() => { if (active && map.current) setTimeout(() => map.current.invalidateSize(), 0); }, [active]);
 
   const stands = data?.stands || [];
   const features = data?.features || [];
@@ -269,45 +268,14 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
   const tapDrift = tapped && drifts._tap;
 
   return (
-    <div className="screen">
+    <div className="screen" style={{ display: active ? undefined : "none" }}>
       <div ref={mapEl} className="map" />
 
       <header className="topbar">
-        <button className="chip" onClick={() => setMenu(!menu)}>
-          <Icon name="pin" className="icon pin" size={18} /><span>{ground?.name || "—"}</span><Icon name="chev" size={16} />
-        </button>
-        {demo && <span className="demo">DEMO</span>}
+        <GroundChip ground={ground} onClick={onMenu} demo={demo} />
         <span className="spacer" />
-        <button className="round" onClick={theme.flip} aria-label={theme.theme === "dark" ? "Switch to light" : "Switch to dark"}>
-          <Icon name={theme.theme === "dark" ? "sun" : "moon"} />
-        </button>
+        <ThemeButton theme={theme} />
       </header>
-      {menu && (
-        <div className="menu" onClick={() => setMenu(false)}>
-          <div className="menu-card" onClick={(e) => e.stopPropagation()}>
-            <div className="menu-h">Hunting ground</div>
-            {grounds.map((g) => (
-              <button key={g.id} className={`menu-row ${g.id === ground?.id ? "on" : ""}`} onClick={() => { onGround(g.id); setMenu(false); }}>
-                {g.id === ground?.id ? <Icon name="check" size={18} /> : <span style={{ width: 18 }} />}{g.name}
-              </button>
-            ))}
-            <div className="menu-h">Appearance</div>
-            <div className="seg">
-              {[["auto", "Automatic"], ["light", "Light"], ["dark", "Dark"]].map(([m, l]) => (
-                <button key={m} className={theme.mode === m ? "on" : ""} onClick={() => theme.choose(m)}>{l}</button>
-              ))}
-            </div>
-            <div className="menu-h" style={{ paddingTop: 0 }}>
-              {theme.mode === "auto" && `Dark from ${fmtTime(theme.darkStart)} to ${fmtTime(theme.lightStart)} (30 min around sunset/sunrise).`}
-              {theme.mode === "temp" && `${theme.theme === "dark" ? "Dark" : "Light"} until ${fmtTime(theme.next)}, then automatic.`}
-              {(theme.mode === "light" || theme.mode === "dark") && "Stays this way until you pick Automatic."}
-            </div>
-            <div className="menu-h">Signed in</div>
-            <div className="menu-row muted">{email}</div>
-            <button className="menu-row" onClick={onSignOut}>Sign out</button>
-          </div>
-        </div>
-      )}
 
       <Compass wind={wind} />
       <button className="fab" onClick={locate} aria-label="My location"><Icon name="locate" /></button>
@@ -388,15 +356,6 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
         </div>
       </section>
 
-      <nav className="tabbar">
-        {[["Forecast", "chart"], ["Map", "map"], ["Hunt Log", "log"], ["Shot", "target"]].map(([l, ic]) => (
-          <button key={l} className={l === "Map" ? "on" : ""} aria-current={l === "Map" ? "page" : undefined}
-            onClick={() => l !== "Map" && setToast(`${l} is coming next — use the current app for now`)}>
-            <Icon name={ic} /><span>{l}</span>
-          </button>
-        ))}
-      </nav>
-      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
 }

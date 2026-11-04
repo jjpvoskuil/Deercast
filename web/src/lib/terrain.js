@@ -1,7 +1,7 @@
 // Terrain slope + thermal drift — JavaScript port of deercast/terrain.py (keep in step; parity test in geo.test.js).
 // Morning sun warms slopes → scent pulled UPHILL; cooling slopes late day/night → scent drains DOWNHILL;
 // around sunrise and the hour before sunset it switches and swirls. Thermals are gentle (~0.5–3 mph).
-import { getPosition } from "suncalc";
+import { sunAltitudeDeg as geoAlt } from "./model/astro.js";
 import { destination, degToCardinal } from "./geo.js";
 
 export const SPACING_M = 40;
@@ -38,8 +38,8 @@ export function gridSlopes(E, d) {
   return out;
 }
 
-// suncalc ≥2 returns degrees (refraction-corrected), like PyEphem in astro.py.
-export const sunAltitudeDeg = (lat, lon, when) => getPosition(when, lat, lon).altitude;
+// Geometric altitude, same as astro.py (PyEphem, pressure=0).
+export const sunAltitudeDeg = geoAlt;
 
 /** ['up' | 'down' | 'switching', strength 0–1] from sun altitude and morning vs evening. */
 export function thermalPhase(lat, lon, when) {

@@ -31,6 +31,12 @@ John wants a more polished, real-app feel than Streamlit. If the pilot works he'
   - Fonts: Barlow + Barlow Condensed. Stroke icon set in `web/src/Icon.jsx`.
   - Bottom tab bar added (Forecast / Map / Hunt Log / Shot). The non-Map tabs say "coming next".
   - `?demo` URL shows the made-up demo data only.
+- **Forecast screen (11-04):**
+  - The model is ported to JS once (`web/src/lib/model/`), checked against Python on 15 days of synthetic weather: 359/360 hours identical, one 0.1 rounding difference. Sun, moon and solunar times agree within about 1 s.
+  - The screen has: day chips (best score per day), a hero card (best score + rating, AM/PM best windows, 24 h bars with legal hours colored, temp/wind strip, tap an hour for details), Best stand (Morning/Evening), Conditions (rut phase + editable peak date with the agency source, moon, pressure, temperature, wind), "Why this score?" factors, the 14-day list with confidence dots, and Refresh.
+  - The forecast is cached on the phone, so the app opens instantly.
+  - The tab bar now switches between Forecast and Map (the map stays loaded). Hunt Log and Shot say "coming next".
+  - John asked that **every** page come over: Hunt Log, Shot, Bow Setup, Regulations, Grounds, Development.
 - **Live:** https://deercast-john.netlify.app. John confirmed sign-in and that the map looks good on his iPhone.
 - **Data correction:** `data/users/25bf8e1a2393` is the pre-Google `local` placeholder backup (claim_local copies it), not Matt. Real log = 4 hunts, about 12 h. Matt has logged nothing yet.
 - The Supabase free plan pauses after 7 idle days (restore from the dashboard). There are 2 free projects per account.
