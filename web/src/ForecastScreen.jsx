@@ -41,8 +41,9 @@ const span = (w) => {
   return ap(w.from) === ap(w.to) ? `${f(w.from)}–${f(w.to)} ${ap(w.to)}` : `${f(w.from)} ${ap(w.from)}–${f(w.to)} ${ap(w.to)}`;
 };
 
-export default function ForecastScreen({ ground, data, theme, onMenu, demo, active }) {
-  const home = ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" };
+export default function ForecastScreen({ ground, data, theme, onMenu, demo, active, pin, clearPin }) {
+  const gHome = ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" };
+  const home = pin ? { ...gHome, ...pin } : gHome;
   const [fc, setFc] = useState(() => cachedForecast(home.lat, home.lon));
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,6 +110,7 @@ export default function ForecastScreen({ ground, data, theme, onMenu, demo, acti
         <ThemeButton theme={theme} />
       </header>
 
+      {pin && <div className="pin-bar"><span>Forecasting <b>{pin.label}</b></span><button className="btn sm" onClick={clearPin}>Back to {ground?.name || "home"}</button></div>}
       <div className="page-title">
         <span className="label">{sel ? longDate(sel) : " "}</span>
         <h1>Deer activity</h1>
@@ -190,6 +192,7 @@ export default function ForecastScreen({ ground, data, theme, onMenu, demo, acti
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="name">{r.stand.name}</div>
                   <div className="muted small">{r.reasons.join(" · ")}</div>
+                  <div className="muted small breakdown">Activity {r.activity.toFixed(1)} × wind fit {r.nHours ? `${Math.round(r.fit * 100)}%` : "unknown"} → ×{(0.35 + 0.65 * r.fit).toFixed(2)} × history ×{r.history.toFixed(2)}</div>
                 </div>
                 <span className="big" style={{ fontSize: 24, color: `var(--s${tone(r.score)}-text)` }}>{r.score.toFixed(1)}</span>
               </div>

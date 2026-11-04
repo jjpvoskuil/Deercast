@@ -5,6 +5,7 @@ import { combine, describe, gridSlopes, slopeFrom, slopePoints, thermalPhase } f
 import { currentWind, elevations, hourlyWind } from "./lib/weather.js";
 import Icon from "./Icon.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
+import { SiteLists, TapActions } from "./MapEdit.jsx";
 
 const KIND_COLOR = { Buck: "#ff6b1a", Doe: "#ffd60a", Fawn: "#f5deb3", Unknown: "#c0c0c0" };
 const FEATURE = {
@@ -39,7 +40,7 @@ function groupSightings(hunts) {
 
 const TREE = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 7h-3l4 6H6l4-6H7l5-7z"/><path d="M12 16v5"/></svg>';
 
-export default function MapScreen({ ground, data, demo, theme, onMenu, active }) {
+export default function MapScreen({ ground, data, demo, theme, onMenu, active, save, onForecastPin }) {
   const mapEl = useRef(null);
   const map = useRef(null);
   const layers = useRef({});
@@ -308,6 +309,8 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active })
             <div className="card tapcard">
               <div><b>Test point</b> — scent drifts to <b>{degToCardinal(tapDrift ? tapDrift.toBearing : ((wind?.dir ?? 0) + 180) % 360)}</b></div>
               {tapDrift && <div className="muted small">{describe(tapDrift)}</div>}
+              <TapActions tapped={tapped} ground={ground} save={save} onClear={() => setTapped(null)}
+                onForecast={() => onForecastPin({ lat: tapped[0], lon: tapped[1], label: `Pin ${tapped[0].toFixed(4)}, ${tapped[1].toFixed(4)}` })} />
               <button className="link" onClick={() => setTapped(null)}>Clear point</button>
             </div>
           )}
@@ -339,20 +342,22 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active })
             <Toggle label="Drift field" on={showField} set={setShowField} />
           </div>
           {fieldNote && <div className="muted small">{fieldNote}</div>}
+          <SiteLists features={features} stands={stands} wind={wind} ground={ground} save={save}
+            onCenter={(st) => { map.current?.setView([st.lat, st.lon], 17); setSheetOpen(false); }} />
 
           <button className="link" onClick={() => setKeyOpen(!keyOpen)}><Icon name="key" size={18} />Map key {keyOpen ? "▴" : "▾"}</button>
           {keyOpen && (
             <div className="card small key">
               <p>Stands: <span className="g">green</span> = wind is one of its good winds, <span className="r">red</span> = bad wind, blue = no good winds set.</p>
               <p>Orange cones: where scent drifts from each stand. Short &amp; wide = light, swirly wind; long &amp; narrow = steady wind. With Thermals on, cones bend uphill as the sun warms slopes and downhill as they cool; around sunrise and the hour before sunset they widen (switching).</p>
-              <p>Tap anywhere to test a spot (yellow cone). Tap the red dot to clear it.</p>
+              <p>Tap anywhere to test a spot (yellow cone) — then forecast it, or add a stand or mark there. Tap the red dot to clear it.</p>
               <p>Drift field arrows: orange = wind-driven, purple = thermal-driven, yellow = thermals switching.</p>
               <p>🛢️🌽🍎 bait &amp; food · 💧 water · 🌲 cover · 🛏️ bedding (circles).</p>
               <p>Deer: <span style={{ color: KIND_COLOR.Buck }}>●</span> buck <span style={{ color: KIND_COLOR.Doe }}>●</span> doe <span style={{ color: KIND_COLOR.Fawn }}>●</span> fawn — dashed = came from, solid arrow = went.</p>
               <p className="muted">Wind is one value for the area (forecast models don't resolve wind inside a property); terrain is what varies.</p>
             </div>
           )}
-          <div className="foot muted small">Deercast web test · read-only · {sightings.length} sightings on this ground</div>
+          <div className="foot muted small">{sightings.length} logged sightings on this ground</div>
         </div>
       </section>
 

@@ -44,6 +44,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [tab, setTabState] = useState(() => { const h = location.hash.slice(1).split("/")[0]; return TAB_IDS.includes(h) ? h : "forecast"; });
   const [menu, setMenu] = useState(false);
+  const [pin, setPin] = useState(null); // "Forecast this pin" from the map
   const [toast, setToast] = useState("");
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2600); return () => clearTimeout(t); }, [toast]);
   const go = (id) => { setTabState(id); history.replaceState(null, "", `#${id}`); };
@@ -86,7 +87,7 @@ export default function App() {
       setData({ stands, features, hunts });
     } catch (e) { setError(e.message); }
   }, [db, ground?.id]);
-  useEffect(() => { if (ground) localStorage.setItem(LAST_GROUND, ground.id); setData(null); loadData(); }, [ground?.id, loadData]);
+  useEffect(() => { if (ground) localStorage.setItem(LAST_GROUND, ground.id); setData(null); setPin(null); loadData(); }, [ground?.id, loadData]);
 
   /** Run a save, report failure, then reload what it touched. */
   const save = useCallback(async (fn, { reload = "data", ok } = {}) => {
@@ -124,8 +125,8 @@ export default function App() {
   return (
     <>
       {ground ? <>
-        <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground.id}`} />
-        <MapScreen {...common} active={tab === "map"} />
+        <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
+        <MapScreen {...common} active={tab === "map"} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
         <HuntLogScreen {...common} active={tab === "log"} key={`l-${ground.id}`} />
       </> : tab !== "more" && <NoGround go={go} />}
       <MoreScreen {...common} active={tab === "more"} />
