@@ -1,0 +1,443 @@
+{
+ "agencies": {
+  "AL": [
+   "Alabama",
+   "Alabama DCNR \u2013 Wildlife & Freshwater Fisheries"
+  ],
+  "AR": [
+   "Arkansas",
+   "Arkansas Game & Fish Commission"
+  ],
+  "AZ": [
+   "Arizona",
+   "Arizona Game & Fish Department"
+  ],
+  "CA": [
+   "California",
+   "California Dept. of Fish & Wildlife"
+  ],
+  "CO": [
+   "Colorado",
+   "Colorado Parks & Wildlife"
+  ],
+  "CT": [
+   "Connecticut",
+   "Connecticut DEEP Wildlife Division"
+  ],
+  "DE": [
+   "Delaware",
+   "Delaware Division of Fish & Wildlife"
+  ],
+  "FL": [
+   "Florida",
+   "Florida Fish & Wildlife Conservation Commission"
+  ],
+  "GA": [
+   "Georgia",
+   "Georgia DNR Wildlife Resources Division"
+  ],
+  "IA": [
+   "Iowa",
+   "Iowa DNR"
+  ],
+  "ID": [
+   "Idaho",
+   "Idaho Fish & Game"
+  ],
+  "IL": [
+   "Illinois",
+   "Illinois DNR"
+  ],
+  "IN": [
+   "Indiana",
+   "Indiana DNR Fish & Wildlife"
+  ],
+  "KS": [
+   "Kansas",
+   "Kansas Dept. of Wildlife & Parks"
+  ],
+  "KY": [
+   "Kentucky",
+   "Kentucky Dept. of Fish & Wildlife Resources"
+  ],
+  "LA": [
+   "Louisiana",
+   "Louisiana Dept. of Wildlife & Fisheries"
+  ],
+  "MA": [
+   "Massachusetts",
+   "MassWildlife"
+  ],
+  "MD": [
+   "Maryland",
+   "Maryland DNR Wildlife & Heritage Service"
+  ],
+  "ME": [
+   "Maine",
+   "Maine Dept. of Inland Fisheries & Wildlife"
+  ],
+  "MI": [
+   "Michigan",
+   "Michigan DNR"
+  ],
+  "MN": [
+   "Minnesota",
+   "Minnesota DNR"
+  ],
+  "MO": [
+   "Missouri",
+   "Missouri Dept. of Conservation"
+  ],
+  "MS": [
+   "Mississippi",
+   "Mississippi Dept. of Wildlife, Fisheries & Parks"
+  ],
+  "MT": [
+   "Montana",
+   "Montana Fish, Wildlife & Parks"
+  ],
+  "NC": [
+   "North Carolina",
+   "NC Wildlife Resources Commission"
+  ],
+  "ND": [
+   "North Dakota",
+   "North Dakota Game & Fish"
+  ],
+  "NE": [
+   "Nebraska",
+   "Nebraska Game & Parks"
+  ],
+  "NH": [
+   "New Hampshire",
+   "New Hampshire Fish & Game"
+  ],
+  "NJ": [
+   "New Jersey",
+   "NJ Division of Fish & Wildlife"
+  ],
+  "NM": [
+   "New Mexico",
+   "New Mexico Dept. of Game & Fish"
+  ],
+  "NV": [
+   "Nevada",
+   "Nevada Dept. of Wildlife"
+  ],
+  "NY": [
+   "New York",
+   "NY DEC"
+  ],
+  "OH": [
+   "Ohio",
+   "Ohio DNR Division of Wildlife"
+  ],
+  "OK": [
+   "Oklahoma",
+   "Oklahoma Dept. of Wildlife Conservation"
+  ],
+  "OR": [
+   "Oregon",
+   "Oregon Dept. of Fish & Wildlife"
+  ],
+  "PA": [
+   "Pennsylvania",
+   "Pennsylvania Game Commission"
+  ],
+  "RI": [
+   "Rhode Island",
+   "Rhode Island DEM Fish & Wildlife"
+  ],
+  "SC": [
+   "South Carolina",
+   "South Carolina DNR"
+  ],
+  "SD": [
+   "South Dakota",
+   "South Dakota Game, Fish & Parks"
+  ],
+  "TN": [
+   "Tennessee",
+   "Tennessee Wildlife Resources Agency"
+  ],
+  "TX": [
+   "Texas",
+   "Texas Parks & Wildlife"
+  ],
+  "UT": [
+   "Utah",
+   "Utah Division of Wildlife Resources"
+  ],
+  "VA": [
+   "Virginia",
+   "Virginia Dept. of Wildlife Resources"
+  ],
+  "VT": [
+   "Vermont",
+   "Vermont Fish & Wildlife"
+  ],
+  "WA": [
+   "Washington",
+   "Washington Dept. of Fish & Wildlife"
+  ],
+  "WI": [
+   "Wisconsin",
+   "Wisconsin DNR"
+  ],
+  "WV": [
+   "West Virginia",
+   "West Virginia DNR"
+  ],
+  "WY": [
+   "Wyoming",
+   "Wyoming Game & Fish"
+  ]
+ },
+ "curated": {
+  "KY": {
+   "state": "Kentucky",
+   "agency": "Kentucky Department of Fish & Wildlife Resources (KDFWR)",
+   "season": "2026-27",
+   "verified": "2026-10-27",
+   "links": {
+    "KDFWR deer hunting page": "https://fw.ky.gov/Hunt/Pages/Deer.aspx",
+    "Hunting & Trapping Guide (PDF)": "https://fw.ky.gov/Hunt/Documents/HuntingGuideEntire.pdf",
+    "Deer zone map": "https://fw.ky.gov/Hunt/PublishingImages/DeerZonesMap.png",
+    "CWD Surveillance Zone": "https://fw.ky.gov/Wildlife/Pages/CWD-SurveillanceZone.aspx",
+    "Season dates (all species)": "https://app.fw.ky.gov/SeasonDates/Default.aspx"
+   },
+   "seasons": [
+    [
+     "Archery",
+     "2026-09-05",
+     "2027-01-18",
+     "Statewide"
+    ],
+    [
+     "Crossbow",
+     "2026-09-19",
+     "2027-01-18",
+     "Statewide"
+    ],
+    [
+     "CWD antlerless (firearm)",
+     "2026-09-25",
+     "2026-09-28",
+     "CWD Surveillance Zone counties in Deer Zones 1\u20133 only"
+    ],
+    [
+     "Youth-only gun",
+     "2026-10-10",
+     "2026-10-18",
+     "Youth hunters"
+    ],
+    [
+     "Muzzleloader \u2013 early",
+     "2026-10-17",
+     "2026-10-18",
+     "Statewide"
+    ],
+    [
+     "Modern gun",
+     "2026-11-14",
+     "2026-11-29",
+     "All zones"
+    ],
+    [
+     "Muzzleloader \u2013 late",
+     "2026-12-12",
+     "2026-12-20",
+     "Statewide"
+    ],
+    [
+     "Free youth weekend",
+     "2026-12-26",
+     "2026-12-27",
+     "Youth hunters"
+    ]
+   ],
+   "zones": {
+    "Anderson": 1,
+    "Ballard": 1,
+    "Boone": 1,
+    "Bracken": 1,
+    "Bullitt": 1,
+    "Caldwell": 1,
+    "Calloway": 1,
+    "Campbell": 1,
+    "Carlisle": 1,
+    "Carroll": 1,
+    "Christian": 1,
+    "Crittenden": 1,
+    "Franklin": 1,
+    "Fulton": 1,
+    "Gallatin": 1,
+    "Grant": 1,
+    "Graves": 1,
+    "Green": 1,
+    "Hardin": 1,
+    "Harrison": 1,
+    "Hart": 1,
+    "Henderson": 1,
+    "Henry": 1,
+    "Hickman": 1,
+    "Hopkins": 1,
+    "Jefferson": 1,
+    "Kenton": 1,
+    "Larue": 1,
+    "Livingston": 1,
+    "Lyon": 1,
+    "Marshall": 1,
+    "Mason": 1,
+    "McLean": 1,
+    "McCracken": 1,
+    "Mercer": 1,
+    "Muhlenberg": 1,
+    "Nelson": 1,
+    "Oldham": 1,
+    "Owen": 1,
+    "Pendleton": 1,
+    "Robertson": 1,
+    "Scott": 1,
+    "Shelby": 1,
+    "Spencer": 1,
+    "Todd": 1,
+    "Trigg": 1,
+    "Trimble": 1,
+    "Union": 1,
+    "Washington": 1,
+    "Webster": 1,
+    "Woodford": 1,
+    "Adair": 1,
+    "Allen": 2,
+    "Barren": 2,
+    "Bath": 2,
+    "Bourbon": 2,
+    "Boyd": 1,
+    "Boyle": 2,
+    "Breckinridge": 1,
+    "Butler": 1,
+    "Carter": 1,
+    "Casey": 2,
+    "Clark": 2,
+    "Daviess": 1,
+    "Edmonson": 2,
+    "Fayette": 2,
+    "Fleming": 2,
+    "Grayson": 1,
+    "Greenup": 1,
+    "Hancock": 1,
+    "Jessamine": 2,
+    "Lawrence": 1,
+    "Lewis": 1,
+    "Lincoln": 2,
+    "Logan": 1,
+    "Madison": 2,
+    "Marion": 1,
+    "Meade": 1,
+    "Metcalfe": 1,
+    "Monroe": 2,
+    "Montgomery": 2,
+    "Nicholas": 2,
+    "Ohio": 1,
+    "Simpson": 2,
+    "Taylor": 1,
+    "Warren": 2,
+    "Cumberland": 2,
+    "Elliott": 2,
+    "Estill": 3,
+    "Garrard": 2,
+    "Johnson": 2,
+    "Laurel": 3,
+    "Morgan": 2,
+    "Powell": 3,
+    "Pulaski": 3,
+    "Rowan": 2,
+    "Wayne": 3,
+    "Wolfe": 3,
+    "Bell": 4,
+    "Breathitt": 4,
+    "Clay": 4,
+    "Clinton": 3,
+    "Floyd": 4,
+    "Harlan": 4,
+    "Jackson": 3,
+    "Knott": 4,
+    "Knox": 4,
+    "Lee": 4,
+    "Leslie": 4,
+    "Letcher": 4,
+    "Magoffin": 4,
+    "Martin": 3,
+    "McCreary": 4,
+    "Menifee": 3,
+    "Owsley": 4,
+    "Perry": 4,
+    "Pike": 3,
+    "Rockcastle": 3,
+    "Russell": 3,
+    "Whitley": 4
+   },
+   "zoneBag": {
+    "1": "Unlimited antlerless deer (statewide permit + additional deer permits).",
+    "2": "No more than 4 deer total.",
+    "3": "No more than 4 deer total; only 1 antlerless deer may be taken with a firearm or air gun.",
+    "4": "No more than 2 deer, only 1 of which may be antlerless. No antlerless deer during modern gun, early muzzleloader, or the first 6 days of late muzzleloader season."
+   },
+   "statewide": [
+    [
+     "Antlered limit",
+     "1 antlered deer per hunter statewide, regardless of zone, method or season."
+    ],
+    [
+     "Statewide / youth deer permit",
+     "4 deer: 1 antlered + 3 antlerless, or 4 antlerless. Additional deer permit: up to 2 more."
+    ],
+    [
+     "Legal shooting hours",
+     "30 minutes before sunrise to 30 minutes after sunset."
+    ],
+    [
+     "Hunter orange",
+     "Required during modern gun, muzzleloader and youth firearm deer seasons (and firearm elk/bear): solid, unbroken orange visible from all sides on head, back and chest. Archery/crossbow hunters must wear it during firearm deer seasons too (except WMAs closed to firearm deer/elk hunting)."
+    ],
+    [
+     "Telecheck",
+     "Fill out harvest log immediately; telecheck by midnight the day of harvest/recovery \u2014 1-800-245-4263 or online (My Profile). Carcass tag required if the deer leaves your possession."
+    ]
+   ],
+   "cwdCounties": [
+    "Ballard",
+    "Breckinridge",
+    "Calloway",
+    "Carlisle",
+    "Casey",
+    "Fulton",
+    "Graves",
+    "Hardin",
+    "Henderson",
+    "Hickman",
+    "Laurel",
+    "Lincoln",
+    "Marshall",
+    "McCracken",
+    "McCreary",
+    "Meade",
+    "Pulaski",
+    "Rockcastle",
+    "Russell",
+    "Union",
+    "Wayne",
+    "Webster",
+    "Whitley"
+   ],
+   "cwdRules": [
+    "Baiting allowed with restrictions for 2026-27; contact-style feeders (troughs, funnels, gravity feeders) prohibited. No baiting on WMAs/public land.",
+    "Mandatory CWD sampling applies to all hunters (including license-exempt). Telecheck first. Testing is free; results ~4\u20136 weeks.",
+    "Only deboned meat, antlers/clean skull cap, clean skull, teeth, hides and finished mounts may leave the zone.",
+    "CWD antlerless season Sept 25\u201328, 2026 (zone counties in Deer Zones 1\u20133): drop the head at a CWD drop-off site.",
+    "Nov 14\u201316, 2026: deer from Henderson, McCreary, Pulaski and Wayne counties must go to a staffed check station."
+   ]
+  }
+ }
+}

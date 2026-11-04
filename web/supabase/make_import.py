@@ -26,8 +26,8 @@ def main(root: str) -> None:
     by_hash = {hashlib.sha256(e.strip().lower().encode()).hexdigest()[:12]: e.strip().lower() for e in users}
 
     out = ["-- Deercast web import (generated). Contains private data — do not commit.", "begin;",
-           "delete from public.hunts; delete from public.features; delete from public.stands;",
-           "delete from public.grounds; delete from public.app_users;"]
+           "delete from public.hunts; delete from public.shots; delete from public.user_docs; delete from public.punchlist;",
+           "delete from public.features; delete from public.stands; delete from public.grounds; delete from public.app_users;"]
     for email, u in users.items():
         out.append(f"insert into public.app_users (email, name, role) values "
                    f"({q(email.strip().lower())}, {q(u.get('name') or '')}, {q(u.get('role') or 'member')});")
@@ -54,8 +54,27 @@ def main(root: str) -> None:
             n_hunts += 1
             out.append(f"insert into public.hunts (id, ground_id, owner, data) values "
                        f"({q(owner + ':' + h['id'])}, {q(h['ground_id'])}, {q(owner)}, {j(h)});")
+    n_docs = n_shots = 0
+    for d in glob.glob(os.path.join(root, "users", "*")):
+        owner = by_hash.get(os.path.basename(d))
+        if not owner:
+            continue  # e.g. the pre-Google 'local' placeholder backup
+        for name in ("gear", "active_hunt"):
+            p = os.path.join(d, f"{name}.json")
+            if os.path.exists(p) and (data := json.load(open(p))) is not None:
+                n_docs += 1
+                out.append(f"insert into public.user_docs (owner, name, data) values ({q(owner)}, {q(name)}, {j(data)});")
+        p = os.path.join(d, "shots.json")
+        for s in (json.load(open(p)) if os.path.exists(p) else []):
+            n_shots += 1
+            gid = s.get("ground_id") if s.get("ground_id") in gids else None
+            out.append(f"insert into public.shots (id, ground_id, owner, data) values "
+                       f"({q(owner + ':' + s['id'])}, {q(gid) if gid else 'null'}, {q(owner)}, {j(s)});")
+    p = os.path.join(root, "punchlist.json")
+    for item in (json.load(open(p)) if os.path.exists(p) else []):
+        out.append(f"insert into public.punchlist (id, data) values ({q(item['id'])}, {j(item)});")
     out.append("commit;")
-    out.append(f"select 'Imported {len(users)} users, {len(grounds)} grounds, {n_hunts} hunts' as result;")
+    out.append(f"select 'Imported {len(users)} users, {len(grounds)} grounds, {n_hunts} hunts, {n_docs} personal docs, {n_shots} shots' as result;")
     print("\n".join(out))
 
 

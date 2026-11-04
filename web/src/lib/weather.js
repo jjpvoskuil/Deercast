@@ -73,16 +73,33 @@ export async function fetchForecast(lat, lon, force = false) {
     past_days: 1, temperature_unit: "fahrenheit", wind_speed_unit: "mph", precipitation_unit: "inch",
     timezone: "auto", timeformat: "unixtime" })}`);
   if (!r.ok) throw new Error(`weather ${r.status}`);
-  const j = await r.json(), h = j.hourly;
-  const rows = h.time.map((t, i) => {
-    const lo = Math.min(100, Math.max(0, h.cloud_cover_low?.[i] ?? 0)) / 100, mid = Math.min(100, Math.max(0, h.cloud_cover_mid?.[i] ?? 0)) / 100;
-    return { time: t * 1000, temp_f: h.temperature_2m[i], precip_in: h.precipitation[i], precip_prob: h.precipitation_probability?.[i],
-      cloud_pct: h.cloud_cover[i], sky_pct: Math.round(100 * (1 - (1 - lo) * (1 - mid))), cloud_high_pct: h.cloud_cover_high?.[i],
-      pressure_inhg: h.pressure_msl[i] * 0.02953, wind_mph: h.wind_speed_10m[i], wind_dir: h.wind_direction_10m[i],
-      gust_mph: h.wind_gusts_10m[i] };
-  });
-  const v = { tz: j.timezone || "UTC", rows, at: Date.now() };
+  const v = { ...toRows(await r.json()), at: Date.now() };
   fcMem.set(k, v);
   try { localStorage.setItem(FC_KEY, JSON.stringify({ key: k, v })); } catch { /* full */ }
   return v;
+}
+
+function toRows(j) {
+  const h = j.hourly;
+  const rows = h.time.map((t, i) => {
+    const lo = Math.min(100, Math.max(0, h.cloud_cover_low?.[i] ?? 0)) / 100, mid = Math.min(100, Math.max(0, h.cloud_cover_mid?.[i] ?? 0)) / 100;
+    return { time: t * 1000, temp_f: h.temperature_2m[i] ?? NaN, precip_in: h.precipitation[i], precip_prob: h.precipitation_probability?.[i],
+      cloud_pct: h.cloud_cover[i], sky_pct: Math.round(100 * (1 - (1 - lo) * (1 - mid))), cloud_high_pct: h.cloud_cover_high?.[i],
+      pressure_inhg: h.pressure_msl[i] == null ? NaN : h.pressure_msl[i] * 0.02953, wind_mph: h.wind_speed_10m[i], wind_dir: h.wind_direction_10m[i],
+      gust_mph: h.wind_gusts_10m[i] };
+  });
+  return { tz: j.timezone || "UTC", rows };
+}
+
+/** Hourly weather for past dates ('YYYY-MM-DD'..'YYYY-MM-DD'), for scoring logged hunts: forecast API (~3 months
+ *  back), else the historical archive. Like weather.fetch_hourly_range. */
+export async function fetchRange(lat, lon, startKey, endKey) {
+  const base = { latitude: lat, longitude: lon, start_date: startKey, end_date: endKey, temperature_unit: "fahrenheit",
+    wind_speed_unit: "mph", precipitation_unit: "inch", timezone: "auto", timeformat: "unixtime" };
+  let r = await fetch(`${FORECAST}?${qs({ ...base, hourly: HOURLY.join(",") })}`).catch(() => null);
+  if (!r || !r.ok) {
+    r = await fetch(`https://archive-api.open-meteo.com/v1/archive?${qs({ ...base, hourly: HOURLY.filter((x) => x !== "precipitation_probability").join(",") })}`);
+    if (!r.ok) throw new Error(`weather archive ${r.status}`);
+  }
+  return toRows(await r.json());
 }

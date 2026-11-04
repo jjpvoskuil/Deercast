@@ -39,6 +39,25 @@ ruts = [[st, la, lo, list(rut.peak_for(st, la, lo).__dict__.values())[:2]] for s
          ("GA", 31, -84.5), ("FL", 26, -81), ("LA", 30.5, -90.5), ("OH", 40, -83), ("ZZ", 41, -100), ("ZZ", 30, -90)]]
 peaks = [[d, st, scoring.rut_peak_for(pd.Timestamp(d), 37.3, None, lon=-86, state=st).isoformat()] for d, st in
          [("2026-11-04", "KY"), ("2027-01-10", "KY"), ("2026-12-20", "AL"), ("2027-01-03", "AL")]]
+from deercast import huntlog
+d1 = sorted(set(sc["date"]))[1]
+st_ = pd.Timestamp(f"{d1} 15:17").tz_localize(TZ); en_ = pd.Timestamp(f"{d1} 18:49").tz_localize(TZ)
+sights = [{"time": pd.Timestamp(f"{d1} 16:40").tz_localize(TZ).isoformat(), "kind": "Doe", "count": 2, "group": "g1"},
+          {"time": pd.Timestamp(f"{d1} 16:40").tz_localize(TZ).isoformat(), "kind": "Fawn", "count": 1, "group": "g1"},
+          {"time": pd.Timestamp(f"{d1} 18:05").tz_localize(TZ).isoformat(), "kind": "Buck", "count": 1, "dir": "NE", "dist_yd": 80,
+           "came_from": "N"}]
+sess = huntlog.session_hours(st_, en_, sc, sights)
+import random
+random.seed(3)
+vh = [{"id": f"h{i}", "hours": [{"hour": "x", "score": round(random.uniform(0, 10), 1), "minutes": random.choice([5, 30, 60, 60]),
+                                  "seen": random.choice([0, 0, 1, 2, 3])} for _ in range(5)]} for i in range(8)]
+v = huntlog.validation(vh)
+val = {"n": v["n_hours"], "hunts": v["n_hunts"], "rho": v["rho"], "verdict": v["verdict"],
+       "bands": [[str(b), float(h), int(sn)] for b, h, sn in zip(v["bands"]["band"], v["bands"]["hours"], v["bands"]["seen"])]}
+hl = {"tz": TZ, "start": int(st_.timestamp() * 1000), "end": int(en_.timestamp() * 1000), "sightings": sights, "session": sess,
+      "vh": vh, "val": val, "locate": [list(huntlog.locate(37.3, -86.06, d, 80)) for d in ("N", "NE", "SSW", "W")],
+      "groups": [[g["group"], g["deer"], huntlog.deer_text(g["deer"]), huntlog.where_text(g)] for g in huntlog.group_sightings(sights)]}
+Path(ROOT / "web/src/lib/huntlog.fixtures.json").write_text(json.dumps(hl))
 Path(ROOT / "web/src/lib/model/fixtures.json").write_text(json.dumps({
     "lat": LAT, "lon": LON, "tz": TZ, "start": int(start.timestamp() * 1000), "rutPeak": peak.isoformat(),
     "rows": rows, "scored": out_rows, "days": days, "astro": astro_days, "stands": stands,
