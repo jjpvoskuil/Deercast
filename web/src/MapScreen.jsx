@@ -3,6 +3,7 @@ import L from "leaflet";
 import { CARDINALS_8, degToCardinal, destination, driftCone, scentCone, windOkForStand, YD } from "./lib/geo.js";
 import { combine, describe, gridSlopes, slopeFrom, slopePoints, thermalPhase } from "./lib/terrain.js";
 import { currentWind, elevations, hourlyWind } from "./lib/weather.js";
+import Icon from "./Icon.jsx";
 
 const KIND_COLOR = { Buck: "#ff6b1a", Doe: "#ffd60a", Fawn: "#f5deb3", Unknown: "#c0c0c0" };
 const FEATURE = {
@@ -35,7 +36,10 @@ function groupSightings(hunts) {
   return out;
 }
 
-export default function MapScreen({ ground, grounds, onGround, data, email, onSignOut, demo }) {
+const TREE = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 7h-3l4 6H6l4-6H7l5-7z"/><path d="M12 16v5"/></svg>';
+const fmtTime = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+export default function MapScreen({ ground, grounds, onGround, data, email, onSignOut, demo, theme }) {
   const mapEl = useRef(null);
   const map = useRef(null);
   const layers = useRef({});
@@ -53,6 +57,8 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
   const [sheetOpen, setSheetOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const [keyOpen, setKeyOpen] = useState(false);
+  const [toast, setToast] = useState("");
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2200); return () => clearTimeout(t); }, [toast]);
 
   const stands = data?.stands || [];
   const features = data?.features || [];
@@ -153,9 +159,10 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
         L.polygon(poly, { color, weight: 1, opacity: 0.5, fillColor: color, fillOpacity: op, interactive: false }).addTo(lg);
       }
     };
-    if (showCones) stands.forEach((s) => cone(s.lat, s.lon, "#ff8c1a", drifts[s.id]));
+    const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#E8682A";
+    if (showCones) stands.forEach((s) => cone(s.lat, s.lon, accent, drifts[s.id]));
     if (tapped) cone(tapped[0], tapped[1], "#ffd60a", drifts._tap);
-  }, [wind, drifts, showCones, stands, tapped]);
+  }, [wind, drifts, showCones, stands, tapped, theme.theme]);
 
   // ------------------------------------------------------------- draw: stands
   useEffect(() => {
@@ -165,7 +172,7 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
       const ok = wind ? windOkForStand(wind.dir, s.good_winds) : null;
       const cls = ok === true ? "good" : ok === false ? "bad" : "none";
       const icon = L.divIcon({ className: "", iconSize: [0, 0],
-        html: `<div class="stand ${cls}"><div class="pin">🌲</div><div class="lbl">${esc(s.name)}</div></div>` });
+        html: `<div class="stand ${cls}"><div class="dot">${TREE}</div><div class="lbl">${esc(s.name)}</div></div>` });
       L.marker([s.lat, s.lon], { icon }).bindPopup(
         `<b>${esc(s.name)}</b><br>${esc(s.type)}<br>Good winds: ${esc((s.good_winds || []).join(", ") || "—")}` +
         (s.notes ? `<br>${esc(s.notes)}` : "")).addTo(lg);
@@ -266,8 +273,14 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
       <div ref={mapEl} className="map" />
 
       <header className="topbar">
-        <button className="chip" onClick={() => setMenu(!menu)}>🏞️ {ground?.name || "—"} ▾</button>
-        {demo && <span className="demo">DEMO DATA</span>}
+        <button className="chip" onClick={() => setMenu(!menu)}>
+          <Icon name="pin" className="icon pin" size={18} /><span>{ground?.name || "—"}</span><Icon name="chev" size={16} />
+        </button>
+        {demo && <span className="demo">DEMO</span>}
+        <span className="spacer" />
+        <button className="round" onClick={theme.flip} aria-label={theme.theme === "dark" ? "Switch to light" : "Switch to dark"}>
+          <Icon name={theme.theme === "dark" ? "sun" : "moon"} />
+        </button>
       </header>
       {menu && (
         <div className="menu" onClick={() => setMenu(false)}>
@@ -275,9 +288,20 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
             <div className="menu-h">Hunting ground</div>
             {grounds.map((g) => (
               <button key={g.id} className={`menu-row ${g.id === ground?.id ? "on" : ""}`} onClick={() => { onGround(g.id); setMenu(false); }}>
-                {g.id === ground?.id ? "✓ " : ""}{g.name}
+                {g.id === ground?.id ? <Icon name="check" size={18} /> : <span style={{ width: 18 }} />}{g.name}
               </button>
             ))}
+            <div className="menu-h">Appearance</div>
+            <div className="seg">
+              {[["auto", "Automatic"], ["light", "Light"], ["dark", "Dark"]].map(([m, l]) => (
+                <button key={m} className={theme.mode === m ? "on" : ""} onClick={() => theme.choose(m)}>{l}</button>
+              ))}
+            </div>
+            <div className="menu-h" style={{ paddingTop: 0 }}>
+              {theme.mode === "auto" && `Dark from ${fmtTime(theme.darkStart)} to ${fmtTime(theme.lightStart)} (30 min around sunset/sunrise).`}
+              {theme.mode === "temp" && `${theme.theme === "dark" ? "Dark" : "Light"} until ${fmtTime(theme.next)}, then automatic.`}
+              {(theme.mode === "light" || theme.mode === "dark") && "Stays this way until you pick Automatic."}
+            </div>
             <div className="menu-h">Signed in</div>
             <div className="menu-row muted">{email}</div>
             <button className="menu-row" onClick={onSignOut}>Sign out</button>
@@ -286,15 +310,15 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
       )}
 
       <Compass wind={wind} />
-      <button className="fab locate" onClick={locate} aria-label="My location">◎</button>
+      <button className="fab" onClick={locate} aria-label="My location"><Icon name="locate" /></button>
 
       <section className={`sheet ${sheetOpen ? "open" : ""}`}>
         <button className="handle" onClick={() => setSheetOpen(!sheetOpen)} aria-label="Expand">
           <span className="grip" />
           {wind ? (
             <div className="wind-line">
-              <span className="big">💨 {Math.round(wind.mph)} mph {degToCardinal(wind.dir)}</span>
-              <span className="muted"> gusts {Math.round(wind.gust)} · {wind.label}</span>
+              <span className="big">{degToCardinal(wind.dir)} {Math.round(wind.mph)}</span>
+              <span className="muted">mph · gusts {Math.round(wind.gust)} · {wind.label}</span>
             </div>
           ) : <div className="wind-line muted">{windErr || "Getting wind…"}</div>}
         </button>
@@ -310,11 +334,11 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
               <div className="muted small">{fmtHour(hours[hourIdx].time)} · {Math.round(hours[hourIdx].mph)} mph from {degToCardinal(hours[hourIdx].dir)}</div>
             </div>
           )}
-          {mode === "live" && <button className="link" onClick={() => loadLive(true)}>↻ Refresh wind</button>}
+          {mode === "live" && <button className="link" onClick={() => loadLive(true)}><Icon name="refresh" size={18} />Refresh wind</button>}
 
           {tapped && (
             <div className="card tapcard">
-              <div><b>📍 Test point</b> — scent drifts to <b>{degToCardinal(tapDrift ? tapDrift.toBearing : ((wind?.dir ?? 0) + 180) % 360)}</b></div>
+              <div><b>Test point</b> — scent drifts to <b>{degToCardinal(tapDrift ? tapDrift.toBearing : ((wind?.dir ?? 0) + 180) % 360)}</b></div>
               {tapDrift && <div className="muted small">{describe(tapDrift)}</div>}
               <button className="link" onClick={() => setTapped(null)}>Clear point</button>
             </div>
@@ -326,13 +350,16 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
             {stands.map((s) => {
               const ok = wind ? windOkForStand(wind.dir, s.good_winds) : null;
               const d = drifts[s.id];
+              const cls = ok === null ? "none" : ok ? "good" : "bad";
               return (
                 <div className="stand-row" key={s.id}>
-                  <span className="mark">{ok === null ? "⚪" : ok ? "✅" : "❌"}</span>
-                  <div>
-                    <div><b>{s.name}</b> <span className="muted small">good: {(s.good_winds || []).join(", ") || "none set"}</span></div>
-                    {d && d.slope >= 1.5 && <div className="muted small">{describe(d)}</div>}
+                  <span className={`status ${cls}`}><Icon name={ok === null ? "minus" : ok ? "check" : "x"} /></span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="name">{s.name}</div>
+                    <div className="muted small">Good winds {(s.good_winds || []).join(", ") || "not set"}
+                      {d && d.slope >= 1.5 ? ` · ${describe(d)}` : ""}</div>
                   </div>
+                  {ok !== null && <span className={`verdict ${cls}`}>{ok ? "Good wind" : "Bad wind"}</span>}
                 </div>
               );
             })}
@@ -345,11 +372,11 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
           </div>
           {fieldNote && <div className="muted small">{fieldNote}</div>}
 
-          <button className="link" onClick={() => setKeyOpen(!keyOpen)}>🗝️ Map key {keyOpen ? "▴" : "▾"}</button>
+          <button className="link" onClick={() => setKeyOpen(!keyOpen)}><Icon name="key" size={18} />Map key {keyOpen ? "▴" : "▾"}</button>
           {keyOpen && (
             <div className="card small key">
-              <p>🌲 Stands: <span className="g">green</span> = wind is one of its good winds, <span className="r">red</span> = bad wind, blue = no good winds set.</p>
-              <p>🟧 Orange cones: where scent drifts from each stand. Short &amp; wide = light, swirly wind; long &amp; narrow = steady wind. With Thermals on, cones bend uphill as the sun warms slopes and downhill as they cool; around sunrise and the hour before sunset they widen (switching).</p>
+              <p>Stands: <span className="g">green</span> = wind is one of its good winds, <span className="r">red</span> = bad wind, blue = no good winds set.</p>
+              <p>Orange cones: where scent drifts from each stand. Short &amp; wide = light, swirly wind; long &amp; narrow = steady wind. With Thermals on, cones bend uphill as the sun warms slopes and downhill as they cool; around sunrise and the hour before sunset they widen (switching).</p>
               <p>Tap anywhere to test a spot (yellow cone). Tap the red dot to clear it.</p>
               <p>Drift field arrows: orange = wind-driven, purple = thermal-driven, yellow = thermals switching.</p>
               <p>🛢️🌽🍎 bait &amp; food · 💧 water · 🌲 cover · 🛏️ bedding (circles).</p>
@@ -360,6 +387,16 @@ export default function MapScreen({ ground, grounds, onGround, data, email, onSi
           <div className="foot muted small">Deercast web test · read-only · {sightings.length} sightings on this ground</div>
         </div>
       </section>
+
+      <nav className="tabbar">
+        {[["Forecast", "chart"], ["Map", "map"], ["Hunt Log", "log"], ["Shot", "target"]].map(([l, ic]) => (
+          <button key={l} className={l === "Map" ? "on" : ""} aria-current={l === "Map" ? "page" : undefined}
+            onClick={() => l !== "Map" && setToast(`${l} is coming next — use the current app for now`)}>
+            <Icon name={ic} /><span>{l}</span>
+          </button>
+        ))}
+      </nav>
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
 }
@@ -378,17 +415,17 @@ function Compass({ wind }) {
   const down = wind ? (wind.dir + 180) % 360 : null;
   return (
     <div className="compass" aria-label="Compass">
-      <svg viewBox="0 0 100 100" width="76" height="76">
-        <circle cx="50" cy="50" r="46" fill="rgba(20,24,26,.72)" stroke="rgba(255,255,255,.5)" strokeWidth="1.5" />
+      <svg viewBox="0 0 100 100" width="64" height="64" role="img" aria-label="Compass with downwind arrow">
+        <circle cx="50" cy="50" r="46" fill="var(--chip)" stroke="var(--line)" strokeWidth="1.5" />
         {["N", "E", "S", "W"].map((t, i) => {
           const a = (i * 90 * Math.PI) / 180;
           return <text key={t} x={50 + 36 * Math.sin(a)} y={54 - 36 * Math.cos(a)} textAnchor="middle" fontSize="12"
-            fill={t === "N" ? "#ff5a4f" : "#ddd"} fontWeight="700">{t}</text>;
+            fill={t === "N" ? "var(--bad)" : "var(--muted)"} fontWeight="700">{t}</text>;
         })}
         {down !== null && (
           <g transform={`rotate(${down} 50 50)`}>
-            <line x1="50" y1="72" x2="50" y2="30" stroke="#ff8c1a" strokeWidth="5" strokeLinecap="round" />
-            <polygon points="50,18 41,34 59,34" fill="#ff8c1a" />
+            <line x1="50" y1="72" x2="50" y2="30" stroke="var(--accent)" strokeWidth="5" strokeLinecap="round" />
+            <polygon points="50,18 41,34 59,34" fill="var(--accent)" />
           </g>
         )}
       </svg>

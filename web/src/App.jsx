@@ -2,11 +2,33 @@ import { useEffect, useState } from "react";
 import { supabase, configured } from "./supabase.js";
 import MapScreen from "./MapScreen.jsx";
 import { demoData } from "./demo.js";
+import { resolveTheme } from "./lib/theme.js";
 
 const LAST_GROUND = "deercast.ground";
+const THEME_PREF = "deercast.theme";
+const HOME = { lat: 37.3006, lon: -86.0608 }; // Cub Run — used until a ground is loaded
+
+/** Light/Soft theme: automatic by sunrise/sunset at the ground, with a manual override. */
+function useTheme(place) {
+  const [pref, setPrefState] = useState(() => { try { return JSON.parse(localStorage.getItem(THEME_PREF)) || { mode: "auto" }; } catch { return { mode: "auto" }; } });
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 60e3); return () => clearInterval(t); }, []);
+  const info = resolveTheme(pref, place.lat, place.lon, now);
+  useEffect(() => {
+    document.documentElement.dataset.theme = info.theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", info.theme === "dark" ? "#2B2A26" : "#F6F2EB");
+  }, [info.theme]);
+  const setPref = (p) => { setPrefState(p); try { localStorage.setItem(THEME_PREF, JSON.stringify(p)); } catch { /* ignore */ } };
+  return {
+    ...info, mode: info.manual ? (pref.until ? "temp" : pref.mode) : "auto",
+    // quick toggle: flip until the next automatic switch
+    flip: () => setPref({ mode: info.theme === "dark" ? "light" : "dark", until: info.next.getTime() }),
+    choose: (mode) => setPref(mode === "auto" ? { mode: "auto" } : { mode, until: null }),
+  };
+}
 
 export default function App() {
-  const demo = !configured;
+  const demo = !configured || new URLSearchParams(location.search).has("demo"); // ?demo = made-up data only
   const [session, setSession] = useState(undefined); // undefined = still checking
   const [approved, setApproved] = useState(undefined);
   const [grounds, setGrounds] = useState([]);
@@ -38,6 +60,7 @@ export default function App() {
   }, [session, demo]);
 
   const ground = grounds.find((g) => g.id === gid) || grounds[0];
+  const theme = useTheme(ground?.home || HOME);
 
   // that ground's stands, marks and everyone's hunts on it
   useEffect(() => {
@@ -78,7 +101,7 @@ export default function App() {
   );
   if (approved === undefined || (approved && !grounds.length && !error)) return <Splash><p className="muted">Loading your grounds…</p></Splash>;
   return <MapScreen ground={ground} grounds={grounds} onGround={setGid} data={data} email={session.user.email}
-    onSignOut={signOut} demo={demo} />;
+    onSignOut={signOut} demo={demo} theme={theme} />;
 }
 
 function Splash({ children }) {

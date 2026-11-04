@@ -23,6 +23,14 @@ John wants a more polished, real-app feel than Streamlit. If the pilot works he'
   - Supabase project `deercast` (East US Ohio, Free plan, GitHub repo link skipped). Google provider on. Import result: 2 users, 1 ground, 4 hunts.
   - URL config: Site URL + `https://deercast-john.netlify.app/**`.
   - Netlify project `deercast-john`. New projects default to **Private**, so it had to be set to Public under Visitor access. Base directory `web` was entered in the UI.
+- **Look & feel (11-04):**
+  - Design canvas "Deercast look & feel" (claude.ai artifact) explored Blaze / Timber / Topo. John chose **Blaze**, made warmer and lighter, in two variants: **Light** (warm stone) and **Soft** (warm charcoal).
+  - **Auto switch:** Soft from 30 min before sunset until 30 min after sunrise at the ground's home (`web/src/lib/theme.js`, tested).
+  - **Manual override:** the sun/moon button flips the theme until the next automatic switch. The menu → Appearance offers Automatic / Light / Dark ("always").
+  - All colors and fonts are tokens in `web/src/styles.css` (`[data-theme]`), so every future screen uses them.
+  - Fonts: Barlow + Barlow Condensed. Stroke icon set in `web/src/Icon.jsx`.
+  - Bottom tab bar added (Forecast / Map / Hunt Log / Shot). The non-Map tabs say "coming next".
+  - `?demo` URL shows the made-up demo data only.
 - **Live:** https://deercast-john.netlify.app. John confirmed sign-in and that the map looks good on his iPhone.
 - **Data correction:** `data/users/25bf8e1a2393` is the pre-Google `local` placeholder backup (claim_local copies it), not Matt. Real log = 4 hunts, about 12 h. Matt has logged nothing yet.
 - The Supabase free plan pauses after 7 idle days (restore from the dashboard). There are 2 free projects per account.
