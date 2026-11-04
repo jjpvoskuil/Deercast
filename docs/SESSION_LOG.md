@@ -4,6 +4,36 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-10-30 → 11-04 — Session 2b: web app pilot (Map screen on React + Supabase + Netlify)
+
+John wants a more polished, real-app feel than Streamlit. If the pilot works he'll move Deercast, and then his FP1.0 finance app, the same way.
+- **Decisions:**
+  - Stack: React (Vite) + Leaflet. Supabase Auth with the Google provider (reuses the existing Google OAuth client, plus the Supabase callback URI). Data visibility is enforced by RLS. Hosted on Netlify from GitHub.
+  - Plain HTML/JS was rejected as too messy past one screen.
+  - The Map was the first screen: it gains most from no reruns, and it is read-only, so it's low risk.
+  - Python stays the source of truth: the web copy is a snapshot until we re-import.
+  - For FP1.0: Python data pulls and scoring stay in GitHub Actions and write to Supabase. On-demand Python needs a small service, since Edge Functions are TypeScript only. Also noted for FP1.0: IBKR gateway needs a server, Polygon commercial licensing, and Netlify over Vercel Hobby for commercial use.
+- **Built (`web/`):**
+  - Full-screen map updated in place. Bottom sheet with wind, Live/Forecast hour, stand wind check, toggles (Scent cones / Thermals / Drift field) and map key. Also compass, locate, tap-to-test, ground picker, sign-out, and a home-screen manifest and icons.
+  - JS ports of scent.py and terrain.py with a parity test against Python fixtures. Gotcha: suncalc 2.x returns altitude in **degrees**.
+  - `supabase/schema.sql`: app_users allow-list, `is_member()`, select-only policies, anon revoked.
+  - `make_import.py`: private import, sent to John as a file and never committed.
+  - `netlify.toml`: base `web`, skips the build when `web/` is unchanged, noindex/security headers.
+- **Setup John did:**
+  - Supabase project `deercast` (East US Ohio, Free plan, GitHub repo link skipped). Google provider on. Import result: 2 users, 1 ground, 4 hunts.
+  - URL config: Site URL + `https://deercast-john.netlify.app/**`.
+  - Netlify project `deercast-john`. New projects default to **Private**, so it had to be set to Public under Visitor access. Base directory `web` was entered in the UI.
+- **Live:** https://deercast-john.netlify.app. John confirmed sign-in and that the map looks good on his iPhone.
+- **Data correction:** `data/users/25bf8e1a2393` is the pre-Google `local` placeholder backup (claim_local copies it), not Matt. Real log = 4 hunts, about 12 h. Matt has logged nothing yet.
+- The Supabase free plan pauses after 7 idle days (restore from the dashboard). There are 2 free projects per account.
+
+**Open / next**
+- John: side-by-side comparison with the Streamlit Map (feel, speed, anything missing).
+- If the web version wins: add editing (stands and marks, needing insert/update RLS policies), then decide the data source of truth (move Streamlit's storage to the same Supabase tables, or finish the migration screen by screen). The Forecast model needs one deliberate port (JS or a Python API), not two copies.
+- Re-run `make_import.py` whenever the web copy needs refreshing.
+
+---
+
 ## 2026-10-30 — Session 2: punch list (v0.7.1 → v0.7.2)
 
 John confirmed: Google sign-in is set up, works from the iPhone home-screen app, and Matt Klein is added (App users + Lewis/Klein member).
