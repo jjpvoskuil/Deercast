@@ -39,15 +39,21 @@ doesn't need to run anything locally. Design for phone screens first.
 - `deercast/regs/` — county lookup via FCC Census Block API; curated state data (`kentucky.py`: 2026-27 seasons, zones for all 120 counties, CWD counties, sources). **Update every season** and bump `SEASON`/`VERIFIED`. Other states show agency + search link.
 - Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network; `conftest.py` gives each test an empty temp data dir). Run before every push.
 
-## Web test (v0.8, started 2026-10-30)
-- `web/` = React (Vite) rebuild of the **Map** screen on Supabase Auth (Google) + RLS + Netlify — a pilot for moving
-  Deercast (and later John's FP1.0 app) off Streamlit. See `web/README.md`. Supabase project `deercast`
-  (`https://gzxobsvhzscouehlrxeg.supabase.co`, East US Ohio). Schema/RLS: `web/supabase/schema.sql`.
-- JS geometry (`web/src/lib/geo.js`, `terrain.js`) and the **activity model** (`web/src/lib/model/`: scoring, astro,
-  rut, beststand) must match the Python: change both, regenerate fixtures (`python web/supabase/make_fixtures.py`
-  and `make_model_fixtures.py`), run `cd web && npm test` (parity: 359/360 hours identical, max diff 0.1 rounding).
-- Web screens built: Forecast, Map (tab bar in `Shell.jsx`; theme tokens in `styles.css`; Light/Soft auto by sun).
-  Still to port: Hunt Log, Shot, Bow Setup, Regulations, Grounds, Development (most need Supabase write policies).
+## The web app (v0.8 — primary since 2026-11-04 cutover)
+- **https://deercast-john.netlify.app** — React (Vite) app in `web/`, Netlify auto-deploys on push (`netlify.toml`).
+  Supabase project `deercast` (`https://gzxobsvhzscouehlrxeg.supabase.co`): Google sign-in + all data.
+  Rules (row-level security) in `web/supabase/schema.sql` — keep it re-runnable; John pastes it in the SQL Editor.
+  **Data now lives in Supabase.** `deercast-data` (GitHub) is the pre-cutover backup; the Streamlit app shows a
+  "moved" banner and is a backup only. The sandbox can't reach Supabase or Netlify — test with `?demo` (browser-only
+  made-up data via `lib/db.js` demoDb) and Playwright mocks of Open-Meteo/FCC/Overpass.
+- Screens: Forecast, Map (+ editing), Hunt Log, Shot & Recovery, More → Grounds / Bow setup / Regulations /
+  Development. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
+- All logic ported from Python lives in `web/src/lib/` with **parity tests** against Python fixtures
+  (`cd web && npm test`): geo/terrain, model/ (scoring, astro, rut, beststand), huntlog, archery, shot, recovery.
+  Change both sides, then regenerate: `python web/supabase/make_fixtures.py`, `make_model_fixtures.py`,
+  `make_static_data.py` (KY regs + archery — **re-run after the yearly regs update**), `make_shot_fixtures.py`.
+- RLS was verified on a local PostgreSQL 16 (`/usr/lib/postgresql/16/bin`, initdb as user postgres) with a stub
+  `auth.jwt()` — redo that for any schema change before John runs it.
 - `make_import.py` output contains stand coordinates — send it to John as a file, **never commit it**.
 - John has no coding background: setup instructions go one screen at a time.
 
@@ -62,5 +68,5 @@ doesn't need to run anything locally. Design for phone screens first.
 - Bump `deercast/__init__.py` `__version__` on meaningful releases.
 - **End of every session:** append a dated entry to `docs/SESSION_LOG.md` (what changed, decisions, open items) and push.
 - The sandbox may block outbound calls to Open-Meteo; test with `tests/synthetic.py`.
-- Live punch list: `data/punchlist.json` in `jjpvoskuil/deercast-data` — attach read-only if Claude's GitHub app has access; otherwise John pastes the Development page export. Never write to the data repo from a session unless John asks.
+- Live punch list: since the cutover it's in Supabase (web app → More → Development → Export); Claude can't read it from the sandbox, so John pastes the export. `deercast-data` is the frozen pre-cutover backup — never write to it unless John asks.
 - Session startup is automated via the claude.ai Project doc `claude/deercast-session-start.md` (+ a one-line Project instruction). `NEW_SESSION_PROMPT.txt` is the manual fallback; keep both in sync.

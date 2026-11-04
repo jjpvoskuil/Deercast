@@ -1,19 +1,20 @@
 # Normally not needed: the Deercast claude.ai Project has a doc (claude/deercast-session-start.md)
 # plus a Project instruction that runs these steps automatically. Use this only outside the Project.
 
-We're continuing development of Deercast, my whitetail deer activity forecast app (Python/Streamlit, used on my iPhone).
+We're continuing development of Deercast, my whitetail deer activity forecast app. Since Nov 4, 2026 it's a React web
+app (web/ folder, https://deercast-john.netlify.app) with data in Supabase; the old Streamlit app is a backup only.
 
-1. Attach the GitHub repo jjpvoskuil/Deercast with push access and clone it. Also try to attach jjpvoskuil/deercast-data read-only (private; stands + punch list).
+1. Attach the GitHub repo jjpvoskuil/Deercast with push access and clone it.
 2. Read CLAUDE.md, docs/SESSION_LOG.md (latest entries first), and docs/MODEL.md before doing anything else.
-3. Read the current punch list from data/punchlist.json in deercast-data. If you can't reach it, use the export I paste below.
-4. Run the tests (pytest -q tests) to confirm the baseline is green.
+3. Use the punch list export I paste below (web app → More → Development → Export).
+4. Run the tests: `cd web && npm ci && npm test`, and `pytest -q tests` for the Python side.
 5. Give me a short status: current version, what was done last session, open punch list items by priority, and anything that looks broken. Then wait for my direction.
 
 Rules for this session:
 - Commit and push directly to main with clear commit messages; run tests before every push.
-- Keep docs/MODEL.md in sync with any model changes.
+- Keep the JavaScript and Python models in step (parity tests) and docs/MODEL.md in sync with any model changes.
 - Before we finish, append a dated entry to docs/SESSION_LOG.md (what changed, decisions, open items) and push it.
 
-Punch list export (optional): [paste from Development page]
+Punch list export (optional): [paste from More → Development → Export]
 
 Today's focus: [describe what you want to work on]

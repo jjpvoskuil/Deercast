@@ -4,6 +4,33 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-04 — Session 3: full migration to the web app (v0.8)
+
+John decided to move everything to the new app. He stopped using the Streamlit app, so a single cutover import is safe.
+- **Data layer** `web/src/lib/db.js`: one API with two backends, Supabase and a browser-only demo (`?demo`). App-level `save()` reloads the data and shows a toast.
+- **Schema v2** (`web/supabase/schema.sql`, re-runnable, upgrades v1):
+  - write policies: own hunts/gear/shots/active hunt; members edit stands and marks; owners manage grounds; admins manage app users and the punch list
+  - `leave_ground()`; hunts and shots survive a ground delete (`on delete set null`)
+  - verified on local PostgreSQL 16 for an outsider, signed-out, John (admin/owner) and Matt (member)
+- **Screens ported:**
+  - **Hunt Log:** live sit with clock and countdowns, 0-default quick entry, groups, where; past hunts; edit/delete; per-hour scoring with archive weather for old dates; validation chart.
+    - John's request: **"Time seen"** on the live sit (Now by default; type the time in after watching deer), and **every sighting's time is editable** in the live sit, past-hunt entry and hunt edit.
+  - **Shot & Recovery:** vector deer view with tap and nudge, outcomes, sign/bone choices, arrow-path diagram, search map (terrain + OSM water/woods + marks), timing and weather alerts, tips, saved shots.
+  - **More:** Grounds (switch/create/rename/home by ZIP or GPS/members/leave/delete; admin app users), Bow setup, Regulations (KY data generated from Python), Development punch list with export.
+  - **Map editing:** add a stand or mark where you tap, edit/center/delete stands, bait "Filled today", delete marks, and "Forecast this pin".
+  - **Best stand** shows the score breakdown (activity × wind fit × history).
+- **Parity tests:** 24 JS tests against Python fixtures cover the model, hunt log, archery, shot (1,815 traces) and recovery.
+- Streamlit shows a "Deercast has moved" banner and is a backup only.
+- **Cutover:** schema v2 plus a fresh import (2 users, 1 ground, 6 hunts, gear, 17 punch-list items) in one file, sent to John, not committed.
+- John to turn off Netlify's **Powered by Netlify** badge (Project configuration → General). It covered the tab bar text.
+
+**Open / next**
+- John: run the cutover SQL, sign in, check every screen with real data, and turn off the Netlify badge.
+- Matt: confirm his Google sign-in works on the new app.
+- Later: calibrate the model weights (≈30+ logged hours); retire the Streamlit app once John is comfortable; then FP1.0 planning.
+
+---
+
 ## 2026-10-30 → 11-04 — Session 2b: web app pilot (Map screen on React + Supabase + Netlify)
 
 John wants a more polished, real-app feel than Streamlit. If the pilot works he'll move Deercast, and then his FP1.0 finance app, the same way.

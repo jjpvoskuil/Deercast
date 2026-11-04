@@ -16,6 +16,8 @@ from deercast import __version__, accounts, ui
 
 st.set_page_config(page_title="Deercast", page_icon=str(Path(__file__).parent / "static" / "favicon.png"),
                    layout="wide", initial_sidebar_state="collapsed")
+st.warning("**Deercast has moved to the new app: [deercast-john.netlify.app](https://deercast-john.netlify.app).** "
+           "This old version is kept only as a backup — anything saved here will NOT show up in the new app.", icon="➡️")
 
 TOKEN_PARAM = "k"
 
