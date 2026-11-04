@@ -52,7 +52,10 @@ end $$;
 create policy "users read"   on public.app_users for select to authenticated using (email = public.me() or public.is_approved());
 create policy "users admin"  on public.app_users for all    to authenticated using (public.is_admin()) with check (public.is_admin());
 
-create policy "grounds read"   on public.grounds for select to authenticated using (public.is_member(id));
+-- read by checking the row itself: a brand-new ground isn't in the table yet, and "insert or update" (upsert)
+-- must also pass the read rule — is_member(id) looked the ground up and blocked creating grounds (fixed 11-04)
+create policy "grounds read"   on public.grounds for select to authenticated
+  using (public.is_approved() and (owner = public.me() or public.me() = any (members)));
 create policy "grounds create" on public.grounds for insert to authenticated with check (public.is_approved() and owner = public.me());
 create policy "grounds owner"  on public.grounds for update to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 create policy "grounds delete" on public.grounds for delete to authenticated using (public.is_approved() and owner = public.me());

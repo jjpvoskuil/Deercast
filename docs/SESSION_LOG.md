@@ -31,6 +31,11 @@ John decided to move everything to the new app. He stopped using the Streamlit a
 - **Backups:** a GitHub Actions workflow in `deercast-data` (Mon & Thu + manual) writes every table to `backups/supabase/`. Each run is a commit, and it also keeps Supabase from pausing.
   - `web/supabase/make_restore.py` turns a backup back into SQL; the round trip was tested identical on local Postgres.
 
+- **Bug (found by Matt):**
+  - **Problem:** non-admin, actually anyone, couldn't create a ground. The app saves with an upsert (INSERT … ON CONFLICT DO UPDATE), and Postgres also checks the SELECT policy on the new row. `grounds read` used `is_member(id)`, which looks the ground up in the table, so a brand-new ground failed.
+  - **Fix:** the policy now checks the row itself (owner or member, and approved).
+  - Reproduced and verified on local Postgres. The policy file was sent to John to run.
+
 **Open / next**
 - Matt: confirm his Google sign-in works on the new app.
 - Later: calibrate the model weights (≈30+ logged hours); retire the Streamlit app once John is comfortable; then FP1.0 planning.
