@@ -4,6 +4,7 @@ import MapScreen from "./MapScreen.jsx";
 import ForecastScreen from "./ForecastScreen.jsx";
 import HuntLogScreen from "./HuntLogScreen.jsx";
 import MoreScreen from "./MoreScreen.jsx";
+import ShotScreen from "./ShotScreen.jsx";
 import { Menu, TabBar } from "./Shell.jsx";
 import { demoSeed } from "./demo.js";
 import { demoDb, supabaseDb } from "./lib/db.js";
@@ -32,7 +33,7 @@ function useTheme(place) {
 }
 
 const TAB_IDS = ["forecast", "map", "log", "shot", "more"];
-const BUILT = ["forecast", "map", "log", "more"];
+const BUILT = ["forecast", "map", "log", "shot", "more"];
 
 export default function App() {
   const demo = !configured || new URLSearchParams(location.search).has("demo"); // ?demo = made-up data only
@@ -48,7 +49,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2600); return () => clearTimeout(t); }, [toast]);
   const go = (id) => { setTabState(id); history.replaceState(null, "", `#${id}`); };
-  const onTab = (id, built) => (built ? go(id) : setToast("Shot & Recovery is coming next"));
+  const onTab = (id) => go(id);
 
   // who is signed in
   useEffect(() => {
@@ -128,6 +129,7 @@ export default function App() {
         <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
         <MapScreen {...common} active={tab === "map"} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
         <HuntLogScreen {...common} active={tab === "log"} key={`l-${ground.id}`} />
+        <ShotScreen {...common} active={tab === "shot"} />
       </> : tab !== "more" && <NoGround go={go} />}
       <MoreScreen {...common} active={tab === "more"} />
       <TabBar tab={tab} onTab={onTab} built={BUILT} />

@@ -71,6 +71,10 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const [notes, setNotes] = useState("");
   const [harvest, setHarvest] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [liveTime, setLiveTime] = useState(""); // "" = now; or HH:MM typed in after the fact
+  const liveStamp = () => (liveTime && live ? isoLocal(atLocal(dateKey(Date.parse(live.start), tz), liveTime, tz), tz) : isoLocal(Math.floor(Date.now() / 60000) * 60000, tz));
+  const addLive = (recs) => { putLive({ ...live, sightings: [...live.sightings, ...recs.map((r) => ({ ...r, time: liveStamp() }))] }); setLiveTime(""); };
+  const retime = (list, idx, hhmm, key) => list.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(key, hhmm, tz), tz) } : x));
   const [busy, setBusy] = useState(false);
   const liveCoords = coords(live?.where || where);
   const [nowFc, setNowFc] = useState(null);
@@ -152,13 +156,17 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                 {nowFc.length > 1 && <> · next hours {nowFc.slice(1).map((x) => x.toFixed(1)).join(" → ")}</>}</div>
             )}
             <div className="sub-h">Deer seen</div>
-            <QuickPicker baitNames={baitNames} anchor={liveCoords}
-              onAdd={(recs) => putLive({ ...live, sightings: [...live.sightings, ...recs.map((r) => ({ ...r, time: isoLocal(Math.floor(Date.now() / 60000) * 60000, tz) }))] })} />
+            <div className="time-row">
+              <label className="field"><span>Time seen</span><input type="time" value={liveTime} onChange={(e) => setLiveTime(e.target.value)} /></label>
+              <button className={`btn sm ${liveTime ? "" : "primary"}`} onClick={() => setLiveTime("")}>Now</button>
+            </div>
+            <p className="muted small">{liveTime ? "Using the time you entered — it goes back to Now after each entry." : "Leave on Now while you're watching; you can set or fix times later."}</p>
+            <QuickPicker baitNames={baitNames} anchor={liveCoords} onAdd={addLive} />
             <details className="more-box"><summary>Several deer together (e.g. doe + fawns)</summary>
-              <GroupPicker baitNames={baitNames} anchor={liveCoords}
-                onAdd={(recs) => putLive({ ...live, sightings: [...live.sightings, ...recs.map((r) => ({ ...r, time: isoLocal(Math.floor(Date.now() / 60000) * 60000, tz) }))] })} />
+              <GroupPicker baitNames={baitNames} anchor={liveCoords} onAdd={addLive} />
             </details>
-            <SightingList sightings={live.sightings} tz={tz} onRemove={(idx) => putLive({ ...live, sightings: live.sightings.filter((_, i) => !idx.includes(i)) })} />
+            <SightingList sightings={live.sightings} tz={tz} onRemove={(idx) => putLive({ ...live, sightings: live.sightings.filter((_, i) => !idx.includes(i)) })}
+              onRetime={(idx, hhmm) => putLive({ ...live, sightings: retime(live.sightings, idx, hhmm, dateKey(Date.parse(live.start), tz)) })} />
             <label className="field"><span>Notes for this sit</span><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
             <label className="check"><input type="checkbox" checked={harvest} onChange={(e) => setHarvest(e.target.checked)} /> Harvested a deer</label>
             <div className="btn-row">
@@ -421,7 +429,7 @@ function GroupPicker({ baitNames, anchor, onAdd }) {
   );
 }
 
-function SightingList({ sightings, tz, onRemove }) {
+function SightingList({ sightings, tz, onRemove, onRetime }) {
   const groups = groupSightings(sightings);
   if (!groups.length) return null;
   return (
@@ -429,7 +437,10 @@ function SightingList({ sightings, tz, onRemove }) {
       {groups.map((e) => (
         <div key={e.group} className="sighting">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <b>{fmtClock(Date.parse(e.time), tz)}</b> — {deerText(e.deer)}{e.activity ? ` · ${e.activity}` : ""}{e.bait ? ` · at ${e.bait}` : ""}
+            {onRetime
+              ? <input className="time-in" type="time" aria-label="Time seen" value={timeOf(Date.parse(e.time), tz)} onChange={(ev) => ev.target.value && onRetime(e.idx, ev.target.value)} />
+              : <b>{fmtClock(Date.parse(e.time), tz)}</b>}
+            {" "}— {deerText(e.deer)}{e.activity ? ` · ${e.activity}` : ""}{e.bait ? ` · at ${e.bait}` : ""}
             {whereText(e) && <div className="muted small">{whereText(e)}</div>}
           </div>
           <button className="x" aria-label="Remove" onClick={() => onRemove(e.idx)}><Icon name="x" size={18} /></button>
@@ -468,7 +479,8 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
       <label className="field"><span>Time seen</span><input type="time" step="300" value={stime} onChange={(e) => setStime(e.target.value)} /></label>
       <GroupPicker baitNames={baitNames} anchor={coords(f.where)}
         onAdd={(recs) => setF({ ...f, sightings: [...f.sightings, ...recs.map((r) => ({ ...r, time: isoLocal(atLocal(f.date, stime, tz), tz) }))] })} />
-      <SightingList sightings={f.sightings} tz={tz} onRemove={(idx) => setF({ ...f, sightings: f.sightings.filter((_, i) => !idx.includes(i)) })} />
+      <SightingList sightings={f.sightings} tz={tz} onRemove={(idx) => setF({ ...f, sightings: f.sightings.filter((_, i) => !idx.includes(i)) })}
+        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })} />
       {!f.sightings.length && <p className="muted small">No deer added — that's fine for a sit where you saw nothing.</p>}
       <label className="field"><span>Notes</span><textarea rows="2" value={f.notes} onChange={set("notes")} /></label>
       <label className="check"><input type="checkbox" checked={f.harvest} onChange={set("harvest")} /> Harvested a deer</label>
