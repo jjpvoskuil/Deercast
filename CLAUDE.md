@@ -43,8 +43,8 @@ doesn't need to run anything locally. Design for phone screens first.
 - **https://deercast-john.netlify.app** — React (Vite) app in `web/`, Netlify auto-deploys on push (`netlify.toml`).
   Supabase project `deercast` (`https://gzxobsvhzscouehlrxeg.supabase.co`): Google sign-in + all data.
   Rules (row-level security) in `web/supabase/schema.sql` — keep it re-runnable; John pastes it in the SQL Editor.
-  **Data now lives in Supabase.** `deercast-data` (GitHub) is the pre-cutover backup; the Streamlit app shows a
-  "moved" banner and is a backup only. The sandbox can't reach Supabase or Netlify — test with `?demo` (browser-only
+  **Data now lives in Supabase.** `deercast-data` (GitHub) is the pre-cutover backup; the Streamlit Cloud app was
+  deleted 11-04 (its GitHub PAT revoked); the Python code stays as the reference the web app is tested against. The sandbox can't reach Supabase or Netlify — test with `?demo` (browser-only
   made-up data via `lib/db.js` demoDb) and Playwright mocks of Open-Meteo/FCC/Overpass.
 - Screens: Forecast, Map (+ editing), Hunt Log, Shot & Recovery, More → Grounds / Bow setup / Regulations /
   Development. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
@@ -54,7 +54,11 @@ doesn't need to run anything locally. Design for phone screens first.
   `make_static_data.py` (KY regs + archery — **re-run after the yearly regs update**), `make_shot_fixtures.py`.
 - RLS was verified on a local PostgreSQL 16 (`/usr/lib/postgresql/16/bin`, initdb as user postgres) with a stub
   `auth.jwt()` — redo that for any schema change before John runs it.
-- `make_import.py` output contains stand coordinates — send it to John as a file, **never commit it**.
+- **Backups:** `deercast-data/.github/workflows/backup.yml` (Mon & Thu + manual) dumps every table to
+  `deercast-data/backups/supabase/*.json` with the `SUPABASE_SECRET_KEY` Actions secret (apikey header only); it also
+  keeps the free project from pausing. Restore: `python web/supabase/make_restore.py <dir> > restore.sql` (tested
+  round-trip identical on local Postgres).
+- `make_import.py` / `make_restore.py` output contains stand coordinates — send it to John as a file, **never commit it**.
 - John has no coding background: setup instructions go one screen at a time.
 
 ## Conventions

@@ -24,8 +24,14 @@ John decided to move everything to the new app. He stopped using the Streamlit a
 - **Cutover:** schema v2 plus a fresh import (2 users, 1 ground, 6 hunts, gear, 17 punch-list items) in one file, sent to John, not committed.
 - John to turn off Netlify's **Powered by Netlify** badge (Project configuration → General). It covered the tab bar text.
 
+- **Done the same day:**
+  - John ran the cutover SQL (via "Run and enable RLS"; Supabase's checker doesn't see RLS enabled inside a DO loop) and checked the app.
+  - He turned off the Netlify badge.
+  - He **deleted the Streamlit Cloud app**, revoked its GitHub PAT, and removed the Streamlit redirect URI from the Google client.
+- **Backups:** a GitHub Actions workflow in `deercast-data` (Mon & Thu + manual) writes every table to `backups/supabase/`. Each run is a commit, and it also keeps Supabase from pausing.
+  - `web/supabase/make_restore.py` turns a backup back into SQL; the round trip was tested identical on local Postgres.
+
 **Open / next**
-- John: run the cutover SQL, sign in, check every screen with real data, and turn off the Netlify badge.
 - Matt: confirm his Google sign-in works on the new app.
 - Later: calibrate the model weights (≈30+ logged hours); retire the Streamlit app once John is comfortable; then FP1.0 planning.
 
