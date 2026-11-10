@@ -344,9 +344,10 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
 
           <div className="toggles">
             <Toggle label="Scent cones" on={showCones} set={setShowCones} />
-            <Toggle label="Thermals" on={useThermals} set={setUseThermals} />
             <Toggle label="Drift field" on={showField} set={setShowField} />
+            <Toggle label="Bend for thermals" on={useThermals} set={setUseThermals} disabled={!showCones && !showField} />
           </div>
+          {!showCones && !showField && <div className="muted small">"Bend for thermals" adjusts the scent cones and drift field — turn one of them on to see it.</div>}
           {fieldNote && <div className="muted small">{fieldNote}</div>}
           <SiteLists features={features} stands={stands} wind={wind} ground={ground} save={save}
             onCenter={(st) => { map.current?.setView([st.lat, st.lon], 17); setSheetOpen(false); }} />
@@ -371,10 +372,10 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
   );
 }
 
-function Toggle({ label, on, set }) {
+function Toggle({ label, on, set, disabled }) {
   return (
-    <label className="toggle">
-      <input type="checkbox" checked={on} onChange={(e) => set(e.target.checked)} />
+    <label className={`toggle ${disabled ? "off" : ""}`}>
+      <input type="checkbox" checked={on} disabled={disabled} onChange={(e) => set(e.target.checked)} />
       <span className="track"><span className="knob" /></span>
       <span>{label}</span>
     </label>

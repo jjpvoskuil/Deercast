@@ -409,3 +409,4 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .foc-out .big { font-size: 24px; }
 .hours-grid.four { grid-template-columns: 1.3fr 1fr 1.1fr 0.9fr; }
 .warn-text { color: #d9534f; }
+.toggle.off { opacity: .45; }
