@@ -12,8 +12,12 @@ ACTIVITIES = ["Feeding", "Walking / cruising", "Chasing", "Rubbing / scraping", 
               "At bait / feeder", "Other"]
 
 
-def session_hours(start: pd.Timestamp, end: pd.Timestamp, scored: pd.DataFrame, sightings: list[dict]) -> list[dict]:
-    """Split a sit into clock hours with the model score, minutes hunted and deer seen in each."""
+def session_hours(start: pd.Timestamp, end: pd.Timestamp, scored: pd.DataFrame, sightings: list[dict],
+                  stand: str | None = None) -> list[dict]:
+    """Split a sit into clock hours with the model score, minutes hunted and deer seen in each.
+    Trail-cam sightings (source "camera") count toward `seen`; with any, `at` = deer per stand label
+    (the sit's own stand + the stand a camera is next to, `near`)."""
+    has_cam = any(s.get("source") == "camera" for s in sightings)
     out = []
     t = start.floor("h")
     while t < end:
@@ -21,10 +25,16 @@ def session_hours(start: pd.Timestamp, end: pd.Timestamp, scored: pd.DataFrame, 
         minutes = (b - a).total_seconds() / 60
         if minutes > 0:
             score = float(scored.loc[t, "score"]) if t in scored.index else math.nan
-            seen = sum(int(s.get("count", 1)) for s in sightings
-                       if t <= pd.Timestamp(s["time"]).tz_convert(t.tz) < t + pd.Timedelta(hours=1))
-            out.append({"hour": t.isoformat(), "score": None if math.isnan(score) else round(score, 1),
-                        "minutes": round(minutes), "seen": seen})
+            in_hour = [s for s in sightings if t <= pd.Timestamp(s["time"]).tz_convert(t.tz) < t + pd.Timedelta(hours=1)]
+            row = {"hour": t.isoformat(), "score": None if math.isnan(score) else round(score, 1),
+                   "minutes": round(minutes), "seen": sum(int(s.get("count", 1)) for s in in_hour)}
+            if has_cam:
+                row["at"] = {}
+                for s in in_hour:
+                    k = s.get("near") if s.get("source") == "camera" else stand
+                    if k:
+                        row["at"][k] = row["at"].get(k, 0) + int(s.get("count", 1))
+            out.append(row)
         t += pd.Timedelta(hours=1)
     return out
 

@@ -31,10 +31,13 @@ def scent_ok(stand: dict, wind_from: float, drift_to: float | None) -> bool | No
 
 
 def history_rates(hunts: list[dict], stand_label: str, session: str) -> tuple[float, float]:
-    """(deer seen, hours hunted) at a stand for morning or evening sits."""
+    """(deer seen, hours watched) at a stand for morning or evening sits. Sits at the stand count; so do sits
+    elsewhere while its trail camera was being checked (cam_stands). Hours with trail-cam sightings carry `at`
+    (deer per stand) so far-off camera deer don't credit this stand."""
     seen = hours = 0.0
     for h in hunts:
-        if h.get("stand") != stand_label:
+        own = h.get("stand") == stand_label
+        if not own and stand_label not in (h.get("cam_stands") or []):
             continue
         for hr in h.get("hours", []):
             t = pd.Timestamp(hr["hour"])
@@ -42,7 +45,7 @@ def history_rates(hunts: list[dict], stand_label: str, session: str) -> tuple[fl
             if (session == "Morning") != is_am:
                 continue
             hours += hr.get("minutes", 0) / 60
-            seen += hr.get("seen", 0)
+            seen += (hr["at"].get(stand_label, 0) if "at" in hr else hr.get("seen", 0) if own else 0)
     return seen, hours
 
 

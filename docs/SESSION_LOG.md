@@ -4,6 +4,19 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-09 — Session 4: sightings, trail cams, staged shots (web)
+**Changed**
+- Number boxes (`web/src/NumInput.jsx`): tap selects the value so typing replaces the 0 (iPhone can't select text in type=number inputs). Used for Shot distance/height/last-seen, sighting distance, mark radius, and Bow setup.
+- Hunt Log: one "Deer seen" card (From my stand / On a trail cam, time, steppers for Buck, Doe, Doe fawn, Button buck, Fawn not sure, Unknown, doing, bait, where). Each Save is stored in `active_hunt` immediately; the list allows retime/delete. Fawn records: `kind:"Fawn"` + `fawn: doe|buck|unknown` (`huntlog.kindLabel`).
+- Trail cameras: new map mark `camera` with an optional `stand_id` (set when added or from the Map's "Trail cameras" list). Cam sightings carry `source:"camera"`, `camera`, `near` ("Stand: X" or null), and the camera's lat/lon. They **count toward `seen`** (forecast check; John: the cams are in the same area). With any cam sighting, `hours[].at` = deer per stand label, and the hunt gets `cam_stands`. `beststand.historyRates` credits a stand with its own sits plus sits where its camera was checked, using `at` so far-off cams don't count (JS + Python updated together, plus a test).
+- Shots: "Shot taken" on the live sit, the past-hunt form and hunt edit opens the Shot tab linked by `hunt_id` (live sits now get an `id` at start). The Shot page has **Shot & hit / Shot & missed**; a miss hides the analysis. Result: Still tracking / Recovered / Not found. **Tracking trips** `[{date,from,to,notes}]` record tracking that runs overnight. Save progress any time; the full input snapshot is in `input`, so a shot reopens from My shots or the Hunt Log (delete is there too). `time` is now local (it was UTC by mistake) and `time_iso` is added. Hunt entries show their linked shots; "harvest" comes from a recovered shot (the old field is kept).
+- End & save on a sit older than 5 h asks when you climbed down (tracking belongs on the shot, not the sit).
+- No schema change: all new fields live in the jsonb `data`.
+
+**Open**
+- John to correct his last hunt in the app: Edit the hunt's end time → Shot taken → hit, Not found, two tracking trips (that evening until 8 PM; next day 6:30 AM–1 PM).
+- Grounds-read RLS fix / Matt creating a ground: still unconfirmed.
+
 ## 2026-11-04 — Session 3: full migration to the web app (v0.8)
 
 John decided to move everything to the new app. He stopped using the Streamlit app, so a single cutover import is safe.

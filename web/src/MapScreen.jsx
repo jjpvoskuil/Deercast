@@ -12,6 +12,7 @@ const FEATURE = {
   water: ["#3a86ff", "💧", "Water"], cover: ["#2d6a4f", "🌲", "Thick cover"], bedding: ["#ffb703", "🛏️", "Bedding area"],
   feeder: ["#f4a261", "🛢️", "Broadcast corn feeder"], corn_shelled: ["#e9c46a", "🌽", "Shelled corn pile"],
   corn_ear: ["#e9c46a", "🌽", "Ear corn pile"], food_other: ["#90be6d", "🍎", "Other food / plot"],
+  camera: ["#8d99ae", "📷", "Trail camera"],
 };
 const BAIT = new Set(["feeder", "corn_shelled", "corn_ear", "food_other"]);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -185,7 +186,10 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
     marks.clearLayers(); bait.clearLayers();
     features.forEach((f) => {
       const [col, emoji, label] = FEATURE[f.type] || ["#999", "•", f.type];
-      if (BAIT.has(f.type)) {
+      if (f.type === "camera") {
+        L.marker([f.lat, f.lon], { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="emoji">${emoji}</div>` }) })
+          .bindPopup(`<b>${esc(label)}</b>${f.name ? `<br>${esc(f.name)}` : ""}`).addTo(marks);
+      } else if (BAIT.has(f.type)) {
         const filled = f.last_filled ? ` · filled ${f.last_filled}` : "";
         L.marker([f.lat, f.lon], { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="emoji">${emoji}</div>` }) })
           .bindPopup(`<b>${esc(label)}</b>${f.name ? `<br>${esc(f.name)}` : ""}${esc(filled)}`).addTo(bait);
@@ -219,7 +223,9 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
         L.marker(end, { interactive: false, icon: L.divIcon({ className: "", iconSize: [14, 14], iconAnchor: [7, 7],
           html: `<div class="arrowhead" style="transform:rotate(${b}deg);border-bottom-color:${col}"></div>` }) }).addTo(lg);
       }
-      L.circleMarker(pt, { radius: 7, color: "#111", weight: 1, fillColor: col, fillOpacity: 0.95 }).bindPopup(esc(tip)).addTo(lg);
+      const cam = e.source === "camera";
+      L.circleMarker(pt, cam ? { radius: 6, color: col, weight: 3, fillColor: "#111", fillOpacity: 0.6 } : { radius: 7, color: "#111", weight: 1, fillColor: col, fillOpacity: 0.95 })
+        .bindPopup(esc(cam ? `📷 ${e.camera || "Trail camera"} · ${tip}` : tip)).addTo(lg);
     });
   }, [sightings]);
 
@@ -309,7 +315,7 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
             <div className="card tapcard">
               <div><b>Test point</b> — scent drifts to <b>{degToCardinal(tapDrift ? tapDrift.toBearing : ((wind?.dir ?? 0) + 180) % 360)}</b></div>
               {tapDrift && <div className="muted small">{describe(tapDrift)}</div>}
-              <TapActions tapped={tapped} ground={ground} save={save} onClear={() => setTapped(null)}
+              <TapActions tapped={tapped} ground={ground} save={save} stands={stands} onClear={() => setTapped(null)}
                 onForecast={() => onForecastPin({ lat: tapped[0], lon: tapped[1], label: `Pin ${tapped[0].toFixed(4)}, ${tapped[1].toFixed(4)}` })} />
               <button className="link" onClick={() => setTapped(null)}>Clear point</button>
             </div>

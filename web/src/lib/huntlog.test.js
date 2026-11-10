@@ -33,3 +33,21 @@ test("sighting position, grouping and text", () => {
     assert.equal(deerText(e.deer), fx.groups[i][2]); assert.equal(whereText(e), fx.groups[i][3]);
   });
 });
+
+test("trail-camera sightings count toward seen and credit the stand they're next to", async () => {
+  const { historyRates } = await import("./model/beststand.js");
+  const sc = scoreForecast(mf.rows, mf.lat, mf.lon, mf.tz, { rutPeak: mf.rutPeak, start: mf.start });
+  const base = sessionHours(fx.start, fx.end, sc, fx.sightings, fx.tz, "Stand: A");
+  assert.ok(base.every((h) => !("at" in h)));
+  const cam = fx.sightings.map((s) => ({ ...s, source: "camera", camera: "Creek cam", near: "Stand: B" }));
+  const far = fx.sightings.map((s) => ({ ...s, source: "camera", camera: "Field cam" }));
+  const hrs = sessionHours(fx.start, fx.end, sc, [...fx.sightings, ...cam, ...far], fx.tz, "Stand: A");
+  hrs.forEach((h, i) => { assert.equal(h.seen, base[i].seen * 3); assert.equal(h.at["Stand: A"] || 0, base[i].seen); assert.equal(h.at["Stand: B"] || 0, base[i].seen); });
+  const hunts = [{ stand: "Stand: A", cam_stands: ["Stand: B"], hours: hrs }];
+  const iso = (x) => +String(x).slice(11, 13);
+  const tot = base.filter((h) => iso(h.hour) >= 12).reduce((n, h) => n + h.seen, 0);
+  assert.equal(historyRates(hunts, "Stand: A", "Evening", iso)[0], tot);
+  assert.equal(historyRates(hunts, "Stand: B", "Evening", iso)[0], tot);
+  assert.deepEqual(historyRates(hunts, "Stand: C", "Evening", iso), [0, 0]);
+  assert.equal(groupSightings(cam)[0].source, "camera");
+});

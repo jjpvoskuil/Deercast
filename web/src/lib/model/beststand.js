@@ -15,15 +15,18 @@ export function scentOk(stand, windFrom, driftTo) {
   return goods.some((g) => angleDiff(driftTo, (g + 180) % 360) <= 30);
 }
 
-/** [deer seen, hours hunted] at a stand for morning or evening sits. `hourOf` gives an ISO hour's local hour. */
+/** [deer seen, hours watched] at a stand for morning or evening sits. `hourOf` gives an ISO hour's local hour.
+ *  Sits at the stand count; so do sits elsewhere while its trail camera was being checked (h.cam_stands).
+ *  Hours with trail-cam sightings carry `at` (deer per stand) so far-off camera deer don't credit this stand. */
 export function historyRates(hunts, label, session, hourOf) {
   let seen = 0, hours = 0;
   for (const h of hunts) {
-    if (h.stand !== label) continue;
+    const own = h.stand === label;
+    if (!own && !(h.cam_stands || []).includes(label)) continue;
     for (const hr of h.hours || []) {
       if ((session === "Morning") !== (hourOf(hr.hour) < 12)) continue;
       hours += (hr.minutes || 0) / 60;
-      seen += hr.seen || 0;
+      seen += hr.at ? hr.at[label] || 0 : own ? hr.seen || 0 : 0;
     }
   }
   return [seen, hours];

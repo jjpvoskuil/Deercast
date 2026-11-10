@@ -2,6 +2,7 @@
 // bait & food list with "Filled today", water/cover/bedding marks, and stand edit / center / delete.
 import { useState } from "react";
 import Icon from "./Icon.jsx";
+import NumInput from "./NumInput.jsx";
 import { CARDINALS_8, windOkForStand } from "./lib/geo.js";
 import { newId } from "./lib/db.js";
 import { dateKey, daysBetween } from "./lib/model/tz.js";
@@ -9,6 +10,7 @@ import { dateKey, daysBetween } from "./lib/model/tz.js";
 export const FEATURE_TYPES = {
   water: "Water", cover: "Thick cover", bedding: "Bedding area",
   feeder: "Broadcast corn feeder", corn_shelled: "Shelled corn pile", corn_ear: "Ear corn pile", food_other: "Other food / plot",
+  camera: "Trail camera",
 };
 export const BAIT = new Set(["feeder", "corn_shelled", "corn_ear", "food_other"]);
 const STAND_TYPES = ["Ladder", "Hang-on", "Climber", "Ground blind", "Box blind", "Saddle", "Other"];
@@ -25,7 +27,7 @@ function WindChips({ value, onChange }) {
   );
 }
 
-export function TapActions({ tapped, ground, save, onForecast, onClear }) {
+export function TapActions({ tapped, ground, save, onForecast, onClear, stands = [] }) {
   const [mode, setMode] = useState(null);
   const [st, setSt] = useState({ name: "", type: "Ladder", good_winds: [], notes: "" });
   const [ft, setFt] = useState({ type: "feeder", name: "", radius_yd: 40, last_filled: dateKey(Date.now(), TZ) });
@@ -36,8 +38,9 @@ export function TapActions({ tapped, ground, save, onForecast, onClear }) {
   };
   const saveFeature = async () => {
     const bait = BAIT.has(ft.type);
-    const rec = { id: newId(), type: ft.type, name: ft.name.trim(), lat: r6(tapped[0]), lon: r6(tapped[1]), radius_yd: bait ? 10 : +ft.radius_yd || 40, created: stamp() };
+    const rec = { id: newId(), type: ft.type, name: ft.name.trim(), lat: r6(tapped[0]), lon: r6(tapped[1]), radius_yd: bait || ft.type === "camera" ? 10 : +ft.radius_yd || 40, created: stamp() };
     if (bait) rec.last_filled = ft.last_filled || dateKey(Date.now(), TZ);
+    if (ft.type === "camera") rec.stand_id = ft.stand_id || null;
     if (await save((d) => d.saveFeature(ground.id, rec), { ok: `Saved ${FEATURE_TYPES[ft.type]}` })) { onClear(); setMode(null); }
   };
   return (
@@ -63,7 +66,7 @@ export function TapActions({ tapped, ground, save, onForecast, onClear }) {
           <label className="field"><span>Name (optional)</span><input placeholder="e.g. back feeder, creek bottom" value={ft.name} onChange={(e) => setFt({ ...ft, name: e.target.value })} /></label>
           {BAIT.has(ft.type)
             ? <label className="field"><span>Last filled</span><input type="date" value={ft.last_filled} onChange={(e) => setFt({ ...ft, last_filled: e.target.value })} /></label>
-            : <label className="field"><span>Radius (yd)</span><input type="number" inputMode="numeric" min="10" max="300" step="10" value={ft.radius_yd} onChange={(e) => setFt({ ...ft, radius_yd: e.target.value })} /></label>}
+            : ft.type === "camera" ? <CamStand stands={stands} value={ft.stand_id} onChange={(v) => setFt({ ...ft, stand_id: v })} /> : <label className="field"><span>Radius (yd)</span><NumInput min={10} max={300} value={ft.radius_yd} onChange={(v) => setFt({ ...ft, radius_yd: v })} /></label>}
           <p className="muted small">Water, cover and bedding marks feed the Shot & Recovery search map — wounded deer head for water and heavy cover.</p>
           <button className="btn primary wide" onClick={saveFeature}>Save mark</button>
         </div>
@@ -72,9 +75,19 @@ export function TapActions({ tapped, ground, save, onForecast, onClear }) {
   );
 }
 
+/** A trail camera next to a stand counts its deer toward that stand's history (Best stand). */
+function CamStand({ stands, value, onChange }) {
+  return (
+    <label className="field"><span>Next to a stand? (its deer then count for that stand)</span>
+      <select value={value || ""} onChange={(e) => onChange(e.target.value || null)}>
+        <option value="">No — just in the area</option>{stands.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+  );
+}
+
 export function SiteLists({ features, stands, wind, ground, save, onCenter }) {
   const today = dateKey(Date.now(), TZ);
-  const bait = features.filter((f) => BAIT.has(f.type)), other = features.filter((f) => !BAIT.has(f.type));
+  const bait = features.filter((f) => BAIT.has(f.type)), cams = features.filter((f) => f.type === "camera");
+  const other = features.filter((f) => !BAIT.has(f.type) && f.type !== "camera");
   const [edit, setEdit] = useState(null);
   const [confirm, setConfirm] = useState(null);
   return (
@@ -126,6 +139,21 @@ export function SiteLists({ features, stands, wind, ground, save, onCenter }) {
             );
           })}
           <p className="muted small">Baiting is legal on private land in Kentucky for 2026-27, but not on WMAs/public land, and contact-style feeders are banned in CWD zone counties — check Regulations for your county.</p>
+        </div>
+      )}
+      {cams.length > 0 && (
+        <div className="card">
+          <span className="sub-h">Trail cameras ({cams.length})</span>
+          {cams.map((f, i) => (
+            <div key={f.id} className="stand-row" style={{ flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 0 }}><div className="name">📷 {f.name || `Trail camera ${i + 1}`}</div></div>
+              <button className="btn sm" aria-label="Delete" onClick={() => setConfirm(f.id)}><Icon name="trash" size={18} /></button>
+              <div style={{ width: "100%" }}><CamStand stands={stands} value={f.stand_id} onChange={(v) => save((d) => d.saveFeature(ground.id, { ...f, stand_id: v }), { ok: "Camera updated" })} /></div>
+              {confirm === f.id && <div className="confirm" style={{ width: "100%" }}>Delete this camera?
+                <div className="btn-row"><button className="btn danger" onClick={() => save((d) => d.deleteFeature(ground.id, f.id), { ok: "Deleted" })}>Delete</button><button className="btn" onClick={() => setConfirm(null)}>Keep</button></div></div>}
+            </div>
+          ))}
+          <p className="muted small">Log what your cameras catch while you sit (Hunt Log → Deer seen → On a trail cam). Those deer count toward the forecast check, and toward the linked stand's history in Best stand.</p>
         </div>
       )}
       {other.length > 0 && (

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import Icon from "./Icon.jsx";
+import NumInput from "./NumInput.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { CARDINALS, degToCardinal, destination, YD } from "./lib/geo.js";
-import { newId } from "./lib/db.js";
+import { newId, nowIso } from "./lib/db.js";
 import { summary } from "./lib/archery.js";
 import { BODY, DECOR, EVIDENCE, ORGANS, OUTCOMES, REACTION, VIEW, classify, depth, outline, project, standAngle, trace, viewBasis } from "./lib/shot.js";
 import { COVER_BIAS, DOWNHILL_BIAS, WATER_BIAS, featureDistances, fetchOsm, habitatMultiplier, searchGrid, weightCells } from "./lib/recovery.js";
@@ -24,7 +25,22 @@ const shade = (hex, f) => "#" + [1, 3, 5].map((i) => Math.round(Math.min(255, Ma
 const pathOf = (pts, flip) => "M" + pts.map(([x, y]) => `${(flip * x).toFixed(2)},${(-y).toFixed(2)}`).join("L") + "Z";
 const fmtWait = (w) => (w === 0 ? "Track now (carefully)" : w < 60 ? `${w} min` : `${Math.round(w / 60)}+ hours`);
 
-export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save, toast, active }) {
+const pad2 = (n) => String(n).padStart(2, "0");
+const localDay = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const localHM = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const RESULTS = [["tracking", "Still tracking"], ["recovered", "Recovered"], ["not_found", "Not found"]];
+const DEFAULTS = { yawIdx: 6, side: "Left", buck: true, weapon: "Bow", dist: 20, height: 18, manual: false, manualPitch: 30, cross: null,
+  evidence: "(not checked yet)", reaction: "(didn't see)", arrow: ARROW[0], useSign: true, boneChoice: null, toDeer: "N", ran: "Unknown", seen: 0 };
+
+export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save, toast, active, shotCtx, go }) {
+  // ------------------------------------------------ 0 the record: new or reopened, linked to a sit or not
+  const [shotId, setShotId] = useState(null);   // null = not saved yet
+  const [created, setCreated] = useState(null);
+  const [huntId, setHuntId] = useState(null);
+  const [status, setStatus] = useState("hit");  // "hit" | "missed"
+  const [result, setResult] = useState("tracking");
+  const [shotDate, setShotDate] = useState(() => localDay(new Date()));
+  const [tracks, setTracks] = useState([]); // tracking trips: [{date, from, to, notes}] — e.g. that evening, then again next morning
   // ------------------------------------------------ 1–2 deer position & shot
   const [yawIdx, setYawIdx] = useState(6);
   const yaw = ANGLES[yawIdx][0];
@@ -65,7 +81,8 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const O = OUTCOMES[planKey];
   let wait = O.wait_min;
   if (partial && O.lethal && wait >= 120) wait = Math.round(wait * 1.5);
-  useEffect(() => setBoneChoice(null), [cross, yaw, pitch, arrow, weapon]);
+  const restoring = useRef(false);
+  useEffect(() => { if (restoring.current) { restoring.current = false; return; } setBoneChoice(null); }, [cross, yaw, pitch, arrow, weapon]);
 
   // ------------------------------------------------ 5 where to look
   const stands = data?.stands || [];
@@ -84,8 +101,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const marks = (data?.features || []).filter((f) => ["water", "cover", "bedding"].includes(f.type));
 
   // ------------------------------------------------ 6 timing
-  const nowHHMM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
-  const [shotTime, setShotTime] = useState(nowHHMM);
+  const [shotTime, setShotTime] = useState(() => localHM(new Date()));
   const [note, setNote] = useState("");
   const [logV, setLogV] = useState(0);
 
@@ -99,11 +115,52 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   };
   const nudge = (dx, dy) => setCross(([x, y]) => [x + (mirror ? -dx : dx), y + dy]);
 
-  const saveShot = () => save((d) => d.saveShot({
-    id: newId(), time: new Date().toISOString().slice(0, 16).replace("T", " "), stand: src, weapon, angle: ANGLES[yawIdx][1], side, pitch_deg: pitch,
-    distance_yd: dist, outcome: O.title, organs: (res?.hits || []).map((h) => h.label), evidence, arrow, setup: setup?.name || null, reaction, ran,
-    hit_lat: Math.round(hit[0] * 1e6) / 1e6, hit_lon: Math.round(hit[1] * 1e6) / 1e6, ground_id: ground?.id || null, notes: note,
-  }), { reload: "none", ok: "Shot saved" });
+  // ------------------------------------------------ load / reset / save (each stage can be saved and reopened later)
+  const apply = (i, rec) => {
+    const v = { ...DEFAULTS, ...i };
+    restoring.current = true;
+    setYawIdx(v.yawIdx); setSide(v.side); setBuck(v.buck); setWeapon(v.weapon); setDist(v.dist); setHeight(v.height);
+    setManual(v.manual); setManualPitch(v.manualPitch); setCross(v.cross); setEvidence(v.evidence); setReaction(v.reaction); setArrow(v.arrow);
+    setUseSign(v.useSign); setBoneChoice(v.boneChoice); setToDeer(v.toDeer); setRan(v.ran); setSeen(v.seen);
+    if (v.src) setSrc(v.src);
+    setShotId(rec?.id || null); setCreated(rec?.created || null); setHuntId(rec?.hunt_id || null);
+    setStatus(rec?.status || "hit"); setResult(rec?.result || "tracking"); setNote(rec?.notes || ""); setTracks(rec?.tracking || []);
+  };
+  const startNew = ({ huntId: hid = null, stand = null, time = Date.now() } = {}) => {
+    apply({ src: stand && stands.some((x) => `Stand: ${x.name}` === stand) ? stand : undefined }, null);
+    setHuntId(hid);
+    const d = new Date(time); setShotDate(localDay(d)); setShotTime(localHM(d));
+    window.scrollTo(0, 0);
+  };
+  const openRec = (rec) => {
+    apply(rec.input || { src: rec.stand, weapon: rec.weapon, dist: rec.distance_yd, ran: rec.ran, evidence: rec.evidence, reaction: rec.reaction, arrow: rec.arrow }, rec);
+    const [d, t] = String(rec.time || "").split(" ");
+    if (d && t) { setShotDate(d); setShotTime(t.slice(0, 5)); }
+    window.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    if (!shotCtx) return;
+    if (shotCtx.shotId) db.listShots().then((all) => { const r = all.find((x) => x.id === shotCtx.shotId); if (r) openRec(r); }).catch(() => {});
+    else startNew(shotCtx);
+  }, [shotCtx?.n]);
+
+  const linked = huntId ? (data?.hunts || []).find((h) => h.id === huntId) : null;
+  const saveShot = async () => {
+    const [y, mo, d] = shotDate.split("-").map(Number), [h, mi] = shotTime.split(":").map(Number);
+    const isHit = status === "hit";
+    const rec = {
+      id: shotId || newId(), created: created || nowIso(), updated: nowIso(), hunt_id: huntId, status, result: isHit ? result : null,
+      time: `${shotDate} ${shotTime}`, time_iso: new Date(y, mo - 1, d, h, mi).toISOString(), stand: src, weapon, angle: ANGLES[yawIdx][1], side, pitch_deg: pitch,
+      distance_yd: dist, outcome: !isHit ? "Missed" : res ? O.title : "Hit — spot not marked", organs: isHit ? (res?.hits || []).map((x) => x.label) : [],
+      evidence, arrow, setup: setup?.name || null, reaction, ran, seen_yd: seen,
+      tracking: isHit ? tracks : [],
+      hit_lat: isHit ? Math.round(hit[0] * 1e6) / 1e6 : null, hit_lon: isHit ? Math.round(hit[1] * 1e6) / 1e6 : null, ground_id: ground?.id || null, notes: note,
+      input: { yawIdx, side, buck, weapon, dist, height, manual, manualPitch, cross, evidence, reaction, arrow, useSign, boneChoice, src, toDeer, ran, seen },
+    };
+    const msg = !isHit ? "Miss saved" : result === "tracking" ? "Progress saved — reopen it any time from My shots" : result === "recovered" ? "Saved — congratulations!" : "Saved";
+    if (await save((x) => x.saveShot(rec), { reload: "none", ok: msg })) { setShotId(rec.id); setCreated(rec.created); setLogV((v) => v + 1); }
+  };
+  const isHit = status === "hit";
 
   return (
     <div className="page" style={{ display: active ? undefined : "none" }}>
@@ -113,6 +170,18 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         <ThemeButton theme={theme} />
       </header>
       <div className="page-title"><span className="label">Estimates are general guidance — every deer is different</span><h1>Shot & Recovery</h1></div>
+
+      <section className="card">
+        <span className="h2">The shot</span>
+        {linked && <p className="chip-line">🔗 Linked to your sit — {linked.stand.replace("Stand: ", "")}, {new Date(linked.start).toLocaleDateString([], { month: "short", day: "numeric" })}</p>}
+        {huntId && !linked && <p className="chip-line">🔗 Linked to the sit you're logging</p>}
+        <div className="seg big-seg">
+          <button className={isHit ? "on" : ""} onClick={() => setStatus("hit")}>Shot & hit</button>
+          <button className={!isHit ? "on" : ""} onClick={() => setStatus("missed")}>Shot & missed</button>
+        </div>
+        {shotId ? <p className="muted small">Saved shot — changes update it when you save again. <button className="link" onClick={() => startNew()}>Start a new shot</button></p>
+          : <p className="muted small">{isHit ? "Work down the page. Save progress at any point — after the shot, while you wait, or once you've found the deer." : "Note the distance and where you shot from, then save the miss at the bottom."}</p>}
+      </section>
 
       <section className="card">
         <span className="h2">1 · How was the deer standing?</span>
@@ -129,8 +198,8 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         <span className="h2">2 · Your shot</span>
         <div className="grid2">
           <label className="field half"><span>Weapon</span><select value={weapon} onChange={(e) => setWeapon(e.target.value)}>{WEAPONS.map((w) => <option key={w}>{w}</option>)}</select></label>
-          <label className="field half"><span>Distance (yd)</span><input type="number" inputMode="numeric" min="1" max="400" value={dist} onChange={(e) => setDist(Math.max(1, Math.min(400, +e.target.value || 1)))} /></label>
-          <label className="field half"><span>Stand height (ft, 0 = ground)</span><input type="number" inputMode="numeric" min="0" max="40" value={height} onChange={(e) => setHeight(Math.max(0, Math.min(40, +e.target.value || 0)))} /></label>
+          <label className="field half"><span>Distance (yd)</span><NumInput min={1} max={400} value={dist} onChange={setDist} /></label>
+          <label className="field half"><span>Stand height (ft, 0 = ground)</span><NumInput min={0} max={40} value={height} onChange={setHeight} /></label>
           <div className="field half"><span>Downward angle</span><span className="big" style={{ fontSize: 26 }}>{pitch}°</span></div>
         </div>
         <label className="check"><input type="checkbox" checked={manual} onChange={(e) => { setManual(e.target.checked); setManualPitch(pitch); }} /> Set angle manually</label>
@@ -139,7 +208,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
           : <p className="muted small">Add your bow under More → Bow setup to factor penetration into the estimate.</p>)}
       </section>
 
-      <section className="card">
+      {isHit && <section className="card">
         <span className="h2">3 · Tap where you hit</span>
         <p className="muted small">Set the angle first, then tap the deer where the arrow/bullet went in.</p>
         <DeerView refEl={svgRef} yaw={yaw} pitch={pitch} flip={flip} buck={buck} vitals={vitals} cross={cross} hitKeys={new Set((res?.hits || []).map((h) => h.key))} onTap={onTap} />
@@ -152,9 +221,9 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
             <button className="btn sm" aria-label="Clear" onClick={() => setCross(null)}><Icon name="x" size={18} /></button>
           </div>
         ) : <p className="muted">Tap the deer to place the crosshair.</p>}
-      </section>
+      </section>}
 
-      {res && (
+      {isHit && res && (
         <section className="card">
           <span className="h2">4 · What was likely hit</span>
           <label className="field"><span>What did you find? (arrow / impact site)</span><select value={evidence} onChange={(e) => setEvidence(e.target.value)}>{Object.keys(EVIDENCE).map((k) => <option key={k}>{k}</option>)}</select></label>
@@ -196,7 +265,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         </section>
       )}
 
-      {res && planKey !== "miss" && (
+      {isHit && res && planKey !== "miss" && (
         <>
           <section className="card">
             <span className="h2">5 · Where to look</span>
@@ -206,7 +275,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
               <label className="field half"><span>Direction from you to the deer</span><select value={toDeer} onChange={(e) => setToDeer(e.target.value)}>{CARDINALS.map((c) => <option key={c}>{c}</option>)}</select></label>
               <label className="field half"><span>Direction the deer ran</span><select value={ran} onChange={(e) => setRan(e.target.value)}>{["Unknown", ...CARDINALS].map((c) => <option key={c}>{c}</option>)}</select></label>
             </div>
-            <label className="field"><span>Last saw it this far from where it was hit (yd, 0 = not seen)</span><input type="number" inputMode="numeric" min="0" max="1000" step="5" value={seen} onChange={(e) => setSeen(Math.max(0, +e.target.value || 0))} /></label>
+            <label className="field"><span>Last saw it this far from where it was hit (yd, 0 = not seen)</span><NumInput min={0} max={1000} value={seen} onChange={setSeen} /></label>
             <RecoveryMap from={from} hit={hit} yards={yards} runDir={runDir} planKey={planKey} marks={marks} active={active} />
           </section>
 
@@ -241,14 +310,27 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         </>
       )}
 
-      {res && (
-        <section className="card">
-          <span className="h2">Save this shot</span>
-          <label className="field"><span>Notes (recovered? where found?)</span><textarea rows="2" value={note} onChange={(e) => setNote(e.target.value)} /></label>
-          <button className="btn primary wide" onClick={async () => { if (await saveShot()) { setNote(""); setLogV((v) => v + 1); } }}>Save shot to my log</button>
-        </section>
-      )}
-      <ShotLog db={db} active={active} v={logV} />
+      <section className="card">
+        <span className="h2">{isHit ? "Result & save" : "Save the miss"}</span>
+        {!isHit && <>
+          <label className="field"><span>You shot from</span>
+            <select value={src} onChange={(e) => setSrc(e.target.value)}>{["Current location", ...stands.map((x) => `Stand: ${x.name}`)].map((o) => <option key={o} value={o}>{o.replace("Stand: ", "")}</option>)}</select></label>
+        </>}
+        <div className="grid2">
+          <label className="field half"><span>Date</span><input type="date" value={shotDate} onChange={(e) => e.target.value && setShotDate(e.target.value)} /></label>
+          <label className="field half"><span>Time of shot</span><input type="time" value={shotTime} onChange={(e) => e.target.value && setShotTime(e.target.value)} /></label>
+        </div>
+        {isHit && <>
+          <div className="field"><span>Where things stand</span>
+            <div className="seg">{RESULTS.map(([k, l]) => <button key={k} className={result === k ? "on" : ""} onClick={() => setResult(k)}>{l}</button>)}</div></div>
+          {!res && <p className="muted small">You can save now and mark the hit spot (section 3) later.</p>}
+          <Tracks tracks={tracks} setTracks={setTracks} defaultDate={shotDate} />
+        </>}
+        <label className="field"><span>Notes{isHit ? " (blood, where you found it, who helped)" : " (high, low, deflected?)"}</span><textarea rows="2" value={note} onChange={(e) => setNote(e.target.value)} /></label>
+        <button className="btn primary wide" onClick={saveShot}>{!isHit ? "Save miss" : result === "tracking" ? "Save progress" : "Save"}{shotId ? " (update)" : ""}</button>
+        {huntId && shotId && <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("log")}>Back to Hunt Log</button>}
+      </section>
+      <ShotLog db={db} active={active} v={logV} current={shotId} onOpen={openRec} save={save} onDeleted={(id) => { setLogV((v) => v + 1); if (id === shotId) startNew(); }} />
     </div>
   );
 }
@@ -398,18 +480,57 @@ function WeatherAlerts({ hit, wait, active }) {
   return msgs.map((m) => <p key={m} className="confirm small">{m}</p>);
 }
 
-function ShotLog({ db, active, v }) {
+/** Tracking trips: one row per time out on the trail (date, from–to, notes). */
+function Tracks({ tracks, setTracks, defaultDate }) {
+  const blank = () => ({ date: defaultDate, from: "", to: "", notes: "" });
+  const [nw, setNw] = useState(null);
+  const fmt = (hm) => { if (!hm) return "?"; const [h, m] = hm.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); };
+  const day = (d) => new Date(`${d}T12:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  return (
+    <div className="field"><span>Tracking trips</span>
+      {tracks.map((t, i) => (
+        <div key={i} className="sighting">
+          <div style={{ flex: 1, minWidth: 0 }}><b>{day(t.date)}</b> {fmt(t.from)}–{fmt(t.to)}{t.notes ? <div className="muted small">{t.notes}</div> : null}</div>
+          <button className="x" aria-label="Remove trip" onClick={() => setTracks(tracks.filter((_, j) => j !== i))}><Icon name="x" size={18} /></button>
+        </div>
+      ))}
+      {nw ? (
+        <div className="form">
+          <div className="grid3">
+            <label className="field"><span>Date</span><input type="date" value={nw.date} onChange={(e) => setNw({ ...nw, date: e.target.value })} /></label>
+            <label className="field"><span>From</span><input type="time" value={nw.from} onChange={(e) => setNw({ ...nw, from: e.target.value })} /></label>
+            <label className="field"><span>To</span><input type="time" value={nw.to} onChange={(e) => setNw({ ...nw, to: e.target.value })} /></label>
+          </div>
+          <label className="field"><span>What you found (optional)</span><input value={nw.notes} onChange={(e) => setNw({ ...nw, notes: e.target.value })} /></label>
+          <div className="btn-row"><button className="btn primary" disabled={!nw.date} onClick={() => { setTracks([...tracks, nw].sort((a, b) => `${a.date}${a.from}`.localeCompare(`${b.date}${b.from}`))); setNw(null); }}>Add trip</button>
+            <button className="btn" onClick={() => setNw(null)}>Cancel</button></div>
+        </div>
+      ) : <button className="btn sm" onClick={() => setNw(blank())}>+ Add a tracking trip</button>}
+      {tracks.length > 0 && <span className="muted small">Tap Save below to keep changes.</span>}
+    </div>
+  );
+}
+
+function ShotLog({ db, active, v, current, onOpen, save, onDeleted }) {
   const [shots, setShots] = useState(null);
+  const [confirm, setConfirm] = useState(null);
   useEffect(() => { if (active) db.listShots().then(setShots).catch(() => setShots([])); }, [db, active, v]);
   if (!shots?.length) return null;
+  const label = (x) => (x.status === "missed" ? "Missed" : x.status === "hit" ? { tracking: "Hit — tracking", recovered: "Hit — recovered", not_found: "Hit — not found" }[x.result] || "Hit" : "Shot");
   return (
     <section className="card">
       <span className="h2">My shots ({shots.length})</span>
-      {[...shots].sort((a, b) => String(b.time).localeCompare(String(a.time))).map((s) => (
-        <div key={s.id} className="rank-row"><div style={{ flex: 1, minWidth: 0 }}>
-          <div className="name">{s.outcome}</div>
-          <div className="muted small">{s.time} · {s.weapon} · {s.distance_yd} yd · {s.angle}{s.notes ? ` — ${s.notes}` : ""}</div>
-        </div></div>
+      <p className="muted small">Tap a shot to reopen it and keep going.</p>
+      {[...shots].sort((a, b) => String(b.time).localeCompare(String(a.time))).map((x) => (
+        <div key={x.id} className={`rank-row ${x.id === current ? "current" : ""}`}>
+          <button className="shot-open" onClick={() => onOpen(x)}>
+            <div className="name">{label(x)}{x.status !== "missed" && x.outcome ? ` · ${x.outcome}` : ""}</div>
+            <div className="muted small">{x.time} · {x.weapon} · {x.distance_yd} yd{x.hunt_id ? " · 🔗 sit" : ""}{x.notes ? ` — ${x.notes}` : ""}</div>
+          </button>
+          {confirm === x.id
+            ? <button className="btn sm danger" onClick={async () => { if (await save((d) => d.deleteShot(x.id), { reload: "none", ok: "Shot deleted" })) { setConfirm(null); onDeleted(x.id); } }}>Delete?</button>
+            : <button className="x" aria-label="Delete shot" onClick={() => setConfirm(x.id)}><Icon name="x" size={18} /></button>}
+        </div>
       ))}
     </section>
   );

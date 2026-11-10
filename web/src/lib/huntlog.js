@@ -3,9 +3,15 @@ import { CARDINALS, destination } from "./geo.js";
 import { dateKey, offsetMin, parts } from "./model/tz.js";
 
 export const KINDS = ["Buck", "Doe", "Fawn", "Unknown"];
+/** Fawns can be split by sex (record: kind "Fawn" + fawn "doe" | "buck" | "unknown"). */
+export const FAWN_LABEL = { doe: "Doe fawn", buck: "Button buck", unknown: "Fawn" };
+export const kindLabel = (s) => (s.kind === "Fawn" && FAWN_LABEL[s.fawn] ? FAWN_LABEL[s.fawn] : s.kind);
 export const ACTIVITIES = ["Feeding", "Walking / cruising", "Chasing", "Rubbing / scraping", "Bedded", "Running (spooked)",
   "At bait / feeder", "Other"];
 export const LOC_FIELDS = ["dir", "dist_yd", "came_from", "went_to", "lat", "lon"];
+/** Deer on a trail camera while you sit (source "camera"). They count toward `seen` (the forecast check — the cams are
+ *  in the same area); a camera next to a stand also credits that stand (`near` = its "Stand: …" label) via hours[].at. */
+export const isCamera = (s) => s?.source === "camera";
 
 const pad = (n) => String(n).padStart(2, "0");
 /** ISO time with the place's own UTC offset, like Python's isoformat(): 2026-10-27T15:17:00-05:00 */
@@ -15,8 +21,10 @@ export function isoLocal(ms, tz) {
 }
 export const floorHour = (ms) => Math.floor(ms / 3600e3) * 3600e3; // hour boundaries are whole UTC hours for US zones
 
-/** Split a sit into clock hours with the model score, minutes hunted and deer seen in each. */
-export function sessionHours(startMs, endMs, scored, sightings, tz) {
+/** Split a sit into clock hours with the model score, minutes hunted and deer seen in each.
+ *  With trail-cam sightings, `at` = deer per stand label (the sit's own stand + stands next to a camera). */
+export function sessionHours(startMs, endMs, scored, sightings, tz, stand = null) {
+  const hasCam = sightings.some(isCamera);
   const byTime = new Map(scored.map((r) => [r.time, r.score]));
   const out = [];
   for (let t = floorHour(startMs); t < endMs; t += 3600e3) {
@@ -25,9 +33,14 @@ export function sessionHours(startMs, endMs, scored, sightings, tz) {
     if (minutes <= 0) continue;
     const v = byTime.get(t);
     const score = v == null || Number.isNaN(v) ? null : Math.round(v * 10) / 10;
-    const seen = sightings.filter((s) => { const x = Date.parse(s.time); return x >= t && x < t + 3600e3; })
-      .reduce((n, s) => n + (+s.count || 1), 0);
-    out.push({ hour: isoLocal(t, tz), score, minutes: Math.round(minutes), seen });
+    const inHour = sightings.filter((s) => { const x = Date.parse(s.time); return x >= t && x < t + 3600e3; });
+    const seen = inHour.reduce((n, s) => n + (+s.count || 1), 0);
+    const row = { hour: isoLocal(t, tz), score, minutes: Math.round(minutes), seen };
+    if (hasCam) {
+      row.at = {};
+      for (const s of inHour) { const k = isCamera(s) ? s.near : stand; if (k) row.at[k] = (row.at[k] || 0) + (+s.count || 1); }
+    }
+    out.push(row);
   }
   return out;
 }
@@ -58,18 +71,19 @@ export function groupSightings(sightings) {
   (sightings || []).forEach((s, i) => {
     const g = s.group || `_${i}`;
     if (!by.has(g)) {
-      const e = { group: g, time: s.time, deer: [], activity: s.activity || "", bait: s.bait || "", notes: s.notes || "", idx: [] };
+      const e = { group: g, time: s.time, deer: [], activity: s.activity || "", bait: s.bait || "", notes: s.notes || "", idx: [],
+        source: s.source || "stand", camera: s.camera || "" };
       for (const k of LOC_FIELDS) e[k] = s[k] ?? null;
       by.set(g, e); out.push(e);
     }
-    by.get(g).deer.push([s.kind, +s.count || 1]);
+    by.get(g).deer.push([kindLabel(s), +s.count || 1]);
     by.get(g).idx.push(i);
   });
   return out.sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
 }
 
 export function deerText(deer) {
-  const order = Object.fromEntries(KINDS.map((k, i) => [k, i]));
+  const order = { Buck: 0, Doe: 1, "Doe fawn": 2, "Button buck": 3, Fawn: 4, Unknown: 5 };
   return [...deer].sort((a, b) => (order[a[0]] ?? 9) - (order[b[0]] ?? 9))
     .map(([k, n]) => (k === "Unknown" ? `${n} unknown` : `${n} ${n === 1 ? k : k + "s"}`)).join(", ");
 }

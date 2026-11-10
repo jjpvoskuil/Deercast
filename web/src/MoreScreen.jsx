@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Icon from "./Icon.jsx";
+import NumInput from "./NumInput.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { newId, nowIso } from "./lib/db.js";
 import { BOW_TYPES, TIP_FACTOR, flightTime, summary } from "./lib/archery.js";
@@ -222,7 +223,7 @@ function GearPage({ db, toast }) {
   const [f, setF] = useState(blank);
   useEffect(() => { if (gear) setF(cur ? { ...blank, ...cur } : blank); }, [pick, gear]);
   const put = async (g, msg) => { try { await db.putDoc("gear", g); setGear(g); if (msg) toast(msg); return true; } catch (e) { toast(`Couldn't save — ${e.message}`); return false; } };
-  const num = (k, step = 1) => (e) => setF({ ...f, [k]: e.target.value === "" ? "" : step < 1 ? parseFloat(e.target.value) : parseInt(e.target.value, 10) });
+  const num = (k) => (v) => setF({ ...f, [k]: v ?? "" });
   const txt = (k) => (e) => setF({ ...f, [k]: e.target.value });
   if (!gear) return <p className="muted">Loading…</p>;
   const s = cur ? summary(cur) : null;
@@ -269,16 +270,16 @@ function GearPage({ db, toast }) {
         <div className="grid2">
           <label className="field half"><span>Type</span><select value={f.bow_type} onChange={txt("bow_type")}>{BOW_TYPES.map((b) => <option key={b}>{b}</option>)}</select></label>
           <label className="field half"><span>Bow make / model</span><input value={f.bow_model} onChange={txt("bow_model")} /></label>
-          <label className="field half"><span>{f.bow_type === "Crossbow" ? "Rated speed (fps)" : "IBO / ATA speed (fps)"}</span><input type="number" inputMode="numeric" value={f.rated_fps} onChange={num("rated_fps")} /></label>
-          {f.bow_type === "Crossbow" && <label className="field half"><span>Bolt weight for rated speed (gr)</span><input type="number" inputMode="numeric" value={f.rated_bolt_gr} onChange={num("rated_bolt_gr")} /></label>}
-          <label className="field half"><span>Draw weight (lb)</span><input type="number" inputMode="numeric" value={f.draw_weight} onChange={num("draw_weight")} /></label>
-          <label className="field half"><span>Draw length (in)</span><input type="number" inputMode="decimal" step="0.5" value={f.draw_length} onChange={num("draw_length", 0.5)} /></label>
+          <label className="field half"><span>{f.bow_type === "Crossbow" ? "Rated speed (fps)" : "IBO / ATA speed (fps)"}</span><NumInput empty min={0} max={2000} value={f.rated_fps} onChange={num("rated_fps")} /></label>
+          {f.bow_type === "Crossbow" && <label className="field half"><span>Bolt weight for rated speed (gr)</span><NumInput empty min={0} max={2000} value={f.rated_bolt_gr} onChange={num("rated_bolt_gr")} /></label>}
+          <label className="field half"><span>Draw weight (lb)</span><NumInput empty min={0} max={2000} value={f.draw_weight} onChange={num("draw_weight")} /></label>
+          <label className="field half"><span>Draw length (in)</span><NumInput empty decimals min={0} max={40} value={f.draw_length} onChange={num("draw_length")} /></label>
           <label className="field half"><span>Arrow / bolt</span><input value={f.arrow_model} onChange={txt("arrow_model")} /></label>
-          <label className="field half"><span>Total arrow weight incl. tip (gr)</span><input type="number" inputMode="numeric" value={f.arrow_gr} onChange={num("arrow_gr")} /></label>
+          <label className="field half"><span>Total arrow weight incl. tip (gr)</span><NumInput empty min={0} max={2000} value={f.arrow_gr} onChange={num("arrow_gr")} /></label>
           <label className="field half"><span>Tip</span><select value={f.tip_type} onChange={txt("tip_type")}>{Object.keys(TIP_FACTOR).map((t) => <option key={t}>{t}</option>)}</select></label>
           <label className="field half"><span>Broadhead make / weight / cut</span><input placeholder='e.g. 100 gr, 1-3/16" cut' value={f.tip_model} onChange={txt("tip_model")} /></label>
-          <label className="field half"><span>String accessories (gr)</span><input type="number" inputMode="numeric" value={f.string_gr} onChange={num("string_gr")} /></label>
-          <label className="field half"><span>Chronograph fps (optional)</span><input type="number" inputMode="numeric" value={f.chrono_fps ?? ""} onChange={num("chrono_fps")} /></label>
+          <label className="field half"><span>String accessories (gr)</span><NumInput empty min={0} max={2000} value={f.string_gr} onChange={num("string_gr")} /></label>
+          <label className="field half"><span>Chronograph fps (optional)</span><NumInput empty min={0} max={2000} value={f.chrono_fps ?? ""} onChange={num("chrono_fps")} /></label>
         </div>
         <div className="btn-row">
           <button className="btn primary" onClick={saveSetup}>Save setup</button>

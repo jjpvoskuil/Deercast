@@ -46,6 +46,7 @@ export default function App() {
   const [tab, setTabState] = useState(() => { const h = location.hash.slice(1).split("/")[0]; return TAB_IDS.includes(h) ? h : "forecast"; });
   const [menu, setMenu] = useState(false);
   const [pin, setPin] = useState(null); // "Forecast this pin" from the map
+  const [shotCtx, setShotCtx] = useState(null); // "Shot taken" from the Hunt Log → open the Shot page linked to that sit
   const [toast, setToast] = useState("");
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2600); return () => clearTimeout(t); }, [toast]);
   const go = (id) => { setTabState(id); history.replaceState(null, "", `#${id}`); };
@@ -128,8 +129,8 @@ export default function App() {
       {ground ? <>
         <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
         <MapScreen {...common} active={tab === "map"} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
-        <HuntLogScreen {...common} active={tab === "log"} key={`l-${ground.id}`} />
-        <ShotScreen {...common} active={tab === "shot"} />
+        <HuntLogScreen {...common} active={tab === "log"} key={`l-${ground.id}`} openShot={(c) => { setShotCtx({ ...c, n: Date.now() }); go("shot"); }} />
+        <ShotScreen {...common} active={tab === "shot"} shotCtx={shotCtx} />
       </> : tab !== "more" && <NoGround go={go} />}
       <MoreScreen {...common} active={tab === "more"} />
       <TabBar tab={tab} onTab={onTab} built={BUILT} />
