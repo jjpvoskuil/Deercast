@@ -102,7 +102,7 @@ export default function App() {
     } catch (e) { setToast(`Couldn't save — ${e.message}`); return false; }
   }, [db, loadData, loadGrounds]);
 
-  const signIn = () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+  const signIn = () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin + import.meta.env.BASE_URL } });
   const signOut = () => { if (!demo) supabase.auth.signOut(); localStorage.removeItem(LAST_GROUND); if (demo) location.reload(); };
 
   if (error) return <Splash><p className="err">Couldn't load: {error}</p><button className="btn" onClick={() => location.reload()}>Try again</button></Splash>;
@@ -154,7 +154,7 @@ function NoGround({ go }) {
 function Splash({ children }) {
   return (
     <div className="splash">
-      <img src="/icon-192.png" alt="" width="96" height="96" />
+      <img src={`${import.meta.env.BASE_URL}icon-192.png`} alt="" width="96" height="96" />
       <h1>Deercast</h1>
       {children}
     </div>
