@@ -2,7 +2,7 @@
 # plus a Project instruction that runs these steps automatically. Use this only outside the Project.
 
 We're continuing development of Deercast, my whitetail deer activity forecast app. Since Nov 4, 2026 it's a React web
-app (web/ folder, https://deercast-john.netlify.app) with data in Supabase; the old Streamlit app is a backup only.
+app (web/ folder, https://jjpvoskuil.github.io/Deercast/) with data in Supabase; the old Streamlit app is a backup only.
 
 1. Attach the GitHub repo jjpvoskuil/Deercast with push access and clone it.
 2. Read CLAUDE.md, docs/SESSION_LOG.md (latest entries first), and docs/MODEL.md before doing anything else.

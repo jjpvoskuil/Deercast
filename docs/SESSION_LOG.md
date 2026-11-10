@@ -14,7 +14,11 @@ Newest first. Each session: what changed, decisions made, and what's open.
 - Tracking trips record what you found and where you left off: blood amount and look, other sign, trail heading, a GPS "left off here" spot (shown on the search map with a dotted trail, plus a "Walk to the last blood" link), distance from the hit, why you stopped, helpers or dog, and notes. When you reopen a shot that's still tracking, the top shows **Where you left off**. When it's done: `found_yd` (recovered distance, or farthest blood). My shots shows trips, hours and blood for learning.
 - No schema change: all new fields live in the jsonb `data`.
 
+- **Hosting moved to GitHub Pages** (https://jjpvoskuil.github.io/Deercast/). Netlify's free plan is 300 credits/month at 15 per production deploy, so about 20 deploys. Those ran out on Nov 4, and every push since was "Skipped" (Netlify's period runs Nov 4–Dec 3). Changes: workflow `.github/workflows/pages.yml`, Vite `base` from `BASE`, relative manifest/icons, sign-in `redirectTo` = origin + BASE_URL. In John's Chrome, with his OK, I set Pages source = GitHub Actions and added Supabase redirect URL `https://jjpvoskuil.github.io/Deercast/**` + Site URL. The build time is shown in the menu and More.
+- Hunt Log: "I shot at this deer" on each sighting; "Shot taken on this hunt" on every saved hunt; edit/past forms save before opening the Shot page; edit errors are shown instead of hanging.
+
 **Open**
+- John: re-add the app to his home screen from the new address (delete the old Netlify icon).
 - John to correct his last hunt in the app: Edit the hunt's end time → Shot taken → hit, Not found, two tracking trips (that evening until 8 PM; next day 6:30 AM–1 PM).
 - Grounds-read RLS fix / Matt creating a ground: still unconfirmed.
 
