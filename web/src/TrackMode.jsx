@@ -114,7 +114,10 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
       persist({ ...cur, trips }, false);
     }, (e) => setGpsMsg(e.code === 1 ? "Location permission is off — allow it for Safari to record your path" : "Looking for GPS…"),
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
-    const wake = () => { if (document.visibilityState === "visible") navigator.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {}); };
+    const wake = () => {
+      if (document.visibilityState === "visible") navigator.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {});
+      else { clearTimeout(timer.current); onSave({ ...sRef.current, updated: nowIso() }).catch(() => {}); } // phone locked / app switched: save the path so far now
+    };
     document.addEventListener("visibilitychange", wake);
     return () => { navigator.geolocation.clearWatch(id); lock?.release?.().catch(() => {}); document.removeEventListener("visibilitychange", wake); };
   }, [live]);
