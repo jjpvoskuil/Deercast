@@ -36,4 +36,11 @@ export function summary(s) {
   return { fps: v, ke, momentum: mo, keClass: keClass(ke), bone, effMomentum: eff, gpp: s.draw_weight ? gr / +s.draw_weight : null, measured: !!s.chrono_fps };
 }
 /** Seconds to target, with ~1.5% speed loss per 10 yd. */
+/** Front-of-center %: how far the balance point sits ahead of the arrow's middle (AMO/ATA method).
+ *  length = nock throat to end of shaft (no point), balance = nock throat to balance point with the tip on. */
+export function foc(length, balance) {
+  if (!(length > 0) || !(balance > 0) || balance >= length) return null;
+  return ((balance - length / 2) / length) * 100;
+}
+export const focClass = (p) => (p == null ? "" : p < 7 ? "Low" : p < 10 ? "Target range" : p <= 15 ? "Good for hunting" : p < 19 ? "High FOC" : "Extreme FOC (19%+)");
 export const flightTime = (fps, yards) => (fps <= 0 ? NaN : (yards * 3) / (fps * (1 - (0.0075 * yards) / 10)));

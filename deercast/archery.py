@@ -93,6 +93,14 @@ def summary(setup: dict) -> dict:
             "measured": bool(setup.get("chrono_fps"))}
 
 
+def foc(length: float, balance: float) -> float | None:
+    """Front-of-center %: balance point ahead of the arrow's middle (AMO/ATA). length = nock throat to end of
+    shaft (no point); balance = nock throat to the balance point with the tip installed."""
+    if not length or not balance or length <= 0 or balance <= 0 or balance >= length:
+        return None
+    return (balance - length / 2) / length * 100
+
+
 def flight_time(fps: float, yards: float) -> float:
     """Seconds to target, with ~1.5% speed loss per 10 yd (light drag)."""
     if fps <= 0:

@@ -405,3 +405,5 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .track-mode input, .track-mode textarea { -webkit-user-select: text; user-select: text; }
 .track-handle { height: 34px; }
 .stand-pin { width: 26px; height: 26px; border-radius: 6px; background: #ff9f1c; color: #1b1b1b; border: 2px solid #fff; font: 700 14px/22px var(--body, sans-serif); text-align: center; box-shadow: 0 1px 3px #0008; }
+.foc-out { display: flex; flex-direction: column; justify-content: flex-end; }
+.foc-out .big { font-size: 24px; }

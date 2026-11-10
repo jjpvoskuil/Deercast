@@ -12,3 +12,11 @@ test("bow math matches the Python", () => {
     [10, 20, 30, 40].forEach((y, i) => assert.ok(Math.abs(flightTime(js.fps, y) - ft[i]) < 1e-9));
   }
 });
+
+test("FOC: balance ahead of the middle, as a % of length", async () => {
+  const { foc, focClass } = await import("./archery.js");
+  assert.equal(foc(28, 17.5).toFixed(1), "12.5"); // (17.5 − 14) / 28
+  assert.equal(foc(29, 14.5), 0);
+  assert.equal(foc(28, 0), null); assert.equal(foc(28, 30), null);
+  assert.equal(focClass(12.5), "Good for hunting"); assert.equal(focClass(20), "Extreme FOC (19%+)");
+});
