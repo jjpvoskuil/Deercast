@@ -150,6 +150,20 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
       </header>
       <div className="page-title"><span className="label">{ground?.name}</span><h1>Hunt Log</h1></div>
 
+      {/* ------------------------------------------------ open tracks: deer hit but not yet recovered */}
+      {shots.filter((x) => x.status === "hit" && (!x.result || x.result === "tracking")).map((x) => {
+        const t = (x.tracking || [])[x.tracking?.length - 1];
+        return (
+          <section key={x.id} className="card open-track">
+            <span className="h2">🩸 Open track</span>
+            <p className="small">Shot {x.time}{x.stand ? ` from ${x.stand.replace("Stand: ", "")}` : ""} · {x.outcome}</p>
+            {t ? <p className="muted small">Last trip {t.date} until {t.to || "?"}{t.stopped ? ` — ${t.stopped.toLowerCase()}` : ""}{t.notes ? `. ${t.notes}` : ""}</p>
+              : <p className="muted small">No tracking trips logged yet.</p>}
+            <button className="btn primary wide" onClick={() => openShot({ shotId: x.id })}>Pick up the track ›</button>
+          </section>
+        );
+      })}
+
       {/* ------------------------------------------------ in the stand */}
       <section className="card">
         <span className="h2">In the stand</span>

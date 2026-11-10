@@ -352,3 +352,6 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .trip-form { border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-top: 8px; }
 .trip-form .filter-row { margin: 4px 0; }
 .shot-this { margin-top: 6px; }
+.open-track { border-color: #c0392b; }
+.details-toggle { margin: 4px 0 12px; }
+.picker-map { margin-top: 6px; }
