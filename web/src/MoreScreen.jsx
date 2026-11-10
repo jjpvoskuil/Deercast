@@ -234,7 +234,8 @@ function GearPage({ db, toast }) {
     const rec = { ...f, id: cur?.id || newId(), name: f.name.trim(), chrono_fps: +f.chrono_fps || null };
     for (const k of ["rated_fps", "rated_bolt_gr", "draw_weight", "draw_length", "arrow_gr", "string_gr"]) rec[k] = +rec[k] || 0;
     for (const k of ["arrow_len", "balance_in", "tip_gr"]) rec[k] = +rec[k] || null;
-    rec.foc = foc(rec.arrow_len, rec.balance_in);
+    rec.balance_from = rec.balance_from || "nock";
+    rec.foc = foc(rec.arrow_len, rec.balance_in, rec.balance_from);
     const setups = [...gear.setups.filter((x) => x.id !== rec.id && x.name !== rec.name), rec];
     if (await put({ setups, active: rec.id }, `Saved ${rec.name}`)) setPick(rec.id);
   };
@@ -255,7 +256,7 @@ function GearPage({ db, toast }) {
             <div><span className="big">{Math.round(s.ke)}</span><span className="label">ft·lb · {s.keClass}</span></div>
             <div><span className="big">{s.momentum.toFixed(2)}</span><span className="label">momentum · bone {s.bone}</span></div>
           </div>
-          {foc(cur.arrow_len, cur.balance_in) != null && <p className="small"><b>FOC {foc(cur.arrow_len, cur.balance_in).toFixed(1)}%</b> — {focClass(foc(cur.arrow_len, cur.balance_in))}. 10–15% is the usual hunting range; higher FOC helps penetration and broadhead flight but drops more at long range.</p>}
+          {foc(cur.arrow_len, cur.balance_in, cur.balance_from) != null && <p className="small"><b>FOC {foc(cur.arrow_len, cur.balance_in, cur.balance_from).toFixed(1)}%</b> — {focClass(foc(cur.arrow_len, cur.balance_in, cur.balance_from))}. 10–15% is the usual hunting range; higher FOC helps penetration and broadhead flight but drops more at long range.</p>}
           {cur.tip_gr > 0 && <p className="muted small">{cur.tip_gr} gr {/broadhead/i.test(cur.tip_type) ? "broadhead" : "point"}{cur.arrow_gr > 0 ? ` — ${Math.round((cur.tip_gr / cur.arrow_gr) * 100)}% of the arrow's weight` : ""}.</p>}
           {s.gpp && <p className="muted small">{s.gpp.toFixed(1)} grains per pound of draw weight{s.gpp < 6 ? " — light; heavier arrows penetrate better." : "."}</p>}
           <p><b>Bone penetration: {s.bone}.</b> {{ High: "Good odds of breaking through a deer's shoulder blade with this setup.",
@@ -282,9 +283,13 @@ function GearPage({ db, toast }) {
           <label className="field half"><span>Arrow / bolt</span><input value={f.arrow_model} onChange={txt("arrow_model")} /></label>
           <label className="field half"><span>Total arrow weight incl. tip (gr)</span><NumInput empty min={0} max={2000} value={f.arrow_gr} onChange={num("arrow_gr")} /></label>
           <label className="field half"><span>Arrow length (in) — nock throat to end of shaft</span><NumInput empty decimals min={0} max={40} value={f.arrow_len ?? ""} onChange={num("arrow_len")} /></label>
-          <label className="field half"><span>Balance point (in from nock throat, tip on)</span><NumInput empty decimals min={0} max={40} value={f.balance_in ?? ""} onChange={num("balance_in")} /></label>
-          <div className="field half foc-out"><span>FOC</span>{(() => { const p = foc(+f.arrow_len, +f.balance_in);
+          <label className="field half"><span>Balance point (in, tip on)</span><NumInput empty decimals min={0} max={40} value={f.balance_in ?? ""} onChange={num("balance_in")} /></label>
+          <div className="field half"><span>Balance measured from</span><div className="seg small-seg">
+            <button className={(f.balance_from || "nock") === "nock" ? "on" : ""} onClick={() => setF({ ...f, balance_from: "nock" })}>Nock end</button>
+            <button className={f.balance_from === "front" ? "on" : ""} onClick={() => setF({ ...f, balance_from: "front" })}>Tip end</button></div></div>
+          <div className="field half foc-out"><span>FOC</span>{(() => { const p = foc(+f.arrow_len, +f.balance_in, f.balance_from || "nock");
             return p == null ? <span className="muted small">{f.arrow_len && f.balance_in ? "Balance point must be less than the arrow length" : "Enter length and balance point"}</span>
+              : p < 0 ? <span className="muted small">Balance point is behind the middle — measured from the {(f.balance_from || "nock") === "nock" ? "tip end? Switch to Tip end" : "nock end? Switch to Nock end"}.</span>
               : <><b className="big">{p.toFixed(1)}%</b><span className="muted small">{focClass(p)}</span></>; })()}</div>
           <label className="field half"><span>Tip</span><select value={f.tip_type} onChange={txt("tip_type")}>{Object.keys(TIP_FACTOR).map((t) => <option key={t}>{t}</option>)}</select></label>
           <label className="field half"><span>Broadhead / point weight (gr)</span><NumInput empty min={0} max={500} value={f.tip_gr ?? ""} onChange={num("tip_gr")} /></label>

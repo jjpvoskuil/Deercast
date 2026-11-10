@@ -93,12 +93,15 @@ def summary(setup: dict) -> dict:
             "measured": bool(setup.get("chrono_fps"))}
 
 
-def foc(length: float, balance: float) -> float | None:
+def foc(length: float, balance: float, frm: str | None = None) -> float | None:
     """Front-of-center %: balance point ahead of the arrow's middle (AMO/ATA). length = nock throat to end of
-    shaft (no point); balance = nock throat to the balance point with the tip installed."""
+    shaft (no point); balance = distance to the balance point with the tip on, from the nock throat ("nock") or
+    the front of the shaft ("front"). Without frm, a balance point behind the middle means it was measured from the front."""
     if not length or not balance or length <= 0 or balance <= 0 or balance >= length:
         return None
-    return (balance - length / 2) / length * 100
+    from_front = (frm == "front") if frm else balance < length / 2
+    b = length - balance if from_front else balance
+    return (b - length / 2) / length * 100
 
 
 def flight_time(fps: float, yards: float) -> float:
