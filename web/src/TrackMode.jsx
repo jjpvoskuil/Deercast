@@ -95,7 +95,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
 
   // a live session needs an open trip
   const startTrip = (when = nowIso()) => persist({ ...sRef.current, result: "tracking", trips: [...sRef.current.trips, { id: newId(), start: when, end: null, path: [], drawn: [], stopped: "", notes: "" }] });
-  useEffect(() => { if (startLive && !openTrip && !s.recovery && s.result !== "not_found") startTrip(); }, []);
+  useEffect(() => { if (startLive && !openTrip && !s.recovery && s.result !== "not_found") setSheet("start"); }, []);
 
   // ---------------------------------------------------------------- GPS + keep the screen on
   useEffect(() => {
@@ -214,9 +214,9 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
         <button className="btn sm" onClick={close} aria-label="Close map"><Icon name="x" size={18} /> Close</button>
         <div className="track-title">
           <b>{s.recovery ? "Recovered 🦌" : s.result === "not_found" ? "Track ended — not found" : openTrip ? `Tracking · trip ${tripNo(openTrip.id)}` : "Track paused"}</b>
-          <span className="muted small">{live ? (me ? `${crumbs && openTrip ? "● recording path" : "path paused"} · GPS ±${Math.round(me[2])} m · walked ${walked} yd` : gpsMsg || "Finding GPS…") : "Editing — tap the map to place things"}</span>
+          <span className="muted small">{live ? (me ? `${crumbs && openTrip ? "● Recording" : "Paused"} · ${walked} yd · ±${Math.round(me[2])} m` : gpsMsg || "Finding GPS…") : "Editing — tap the map to place things"}</span>
         </div>
-        {live && openTrip && <button className={`btn sm ${crumbs ? "" : "primary"}`} onClick={() => setCrumbs(!crumbs)}>{crumbs ? "Pause path" : "Resume path"}</button>}
+        {live && openTrip && <button className={`btn sm ${crumbs ? "" : "primary"}`} onClick={() => setCrumbs(!crumbs)}>{crumbs ? "Pause" : "Resume"}</button>}
         <button className="btn sm" onClick={() => setSheet(sheet === "log" ? null : "log")}>Log</button>
       </div>
       {live && <button className="fab track-me" aria-label="Center on me" onClick={follow}><Icon name="locate" /></button>}
@@ -227,10 +227,13 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
       <div className="track-panel">
         {selPin ? (
           <PinSheet pin={selPin} onChange={(patch) => updPin(selPin.id, patch)} onDelete={() => delPin(selPin.id)} onDone={() => setSel(null)} live={live} />
+        ) : sheet === "start" ? (
+          <StartSheet n={s.trips.length + 1} onCancel={() => setSheet(null)}
+            onStart={async (when) => { await startTrip(when); setSheet(null); setLive(true); setMode("gps"); setCrumbs(true); }} />
         ) : sheet === "stop" ? (
-          <StopSheet onCancel={() => setSheet(null)} onStop={async (stopped, notes) => { await endTrip({ stopped, notes }); setSheet(null); setLive(false); }} />
+          <StopSheet onCancel={() => setSheet(null)} onStop={async (stops, notes, end) => { await endTrip({ stopped: stops.join(", "), stops, notes, end }); setSheet(null); setLive(false); }} />
         ) : sheet === "off" ? (
-          <OffSheet onCancel={() => setSheet(null)} onOff={async (notes, yd) => { await endTrip({ stopped: "Called it off", notes }, { result: "not_found", found_yd: yd }); setSheet(null); setLive(false); }}
+          <OffSheet onCancel={() => setSheet(null)} onOff={async (notes, yd, end) => { await endTrip({ stopped: "Called it off", notes, ...(openTrip ? { end } : {}) }, { result: "not_found", found_yd: yd }); setSheet(null); setLive(false); }}
             farthest={hitPin ? Math.max(0, ...s.pins.map((p) => yds([hitPin.lat, hitPin.lon], [p.lat, p.lon]))) : null} />
         ) : sheet === "found" ? (
           <FoundSheet r={fd} setR={setFd} me={me} lastPin={lastPin} onCancel={() => setSheet(null)} onTapMap={() => { setSheet(null); setArm("found"); }}
@@ -268,7 +271,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
               </div>
             ) : (
               <div className="track-actions">
-                <button className="btn primary" onClick={() => { startTrip(); setLive(true); setMode("gps"); }}>▶ Pick up the track now</button>
+                <button className="btn primary" onClick={() => setSheet("start")}>▶ Pick up the track</button>
                 <button className="btn" onClick={() => setSheet("trip")}>+ Add a past trip</button>
                 <button className="btn" onClick={() => { setFd(blankRecovery(s.recovery)); setSheet("found"); }}>🦌 Found it</button>
                 <button className="btn" onClick={() => setSheet("off")}>✖ Called it off</button>
@@ -319,28 +322,63 @@ function PinSheet({ pin, onChange, onDelete, onDone, live }) {
   );
 }
 
+/** Now, or a date + time you enter (when you're logging it after the fact). */
+function WhenField({ label, value, onChange }) {
+  const [manual, setManual] = useState(false);
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date(value || Date.now());
+  const day = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, hm = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  const put = (dd, tt) => { if (dd && tt) onChange(new Date(`${dd}T${tt}`).toISOString()); };
+  return (
+    <div className="field"><span>{label}</span>
+      <div className="seg small-seg">
+        <button className={!manual ? "on" : ""} onClick={() => { setManual(false); onChange(null); }}>Now</button>
+        <button className={manual ? "on" : ""} onClick={() => { setManual(true); onChange(d.toISOString()); }}>Enter date & time</button>
+      </div>
+      {manual && <div className="grid2">
+        <label className="field half"><span>Date</span><input type="date" value={day} onChange={(e) => put(e.target.value, hm)} /></label>
+        <label className="field half"><span>Time</span><input type="time" value={hm} onChange={(e) => put(day, e.target.value)} /></label>
+      </div>}
+    </div>
+  );
+}
+
+function StartSheet({ n, onStart, onCancel }) {
+  const [when, setWhen] = useState(null);
+  return (
+    <div className="pin-sheet">
+      <b className="h2">▶ Trip {n}{n > 1 ? " — picking up the track" : " — start tracking"}</b>
+      <WhenField label="Started" value={when} onChange={setWhen} />
+      <p className="muted small">Your path records by GPS while this map is open on screen.</p>
+      <div className="btn-row"><button className="btn primary" onClick={() => onStart(when || nowIso())}>Start trip {n}</button><button className="btn" onClick={onCancel}>Not yet</button></div>
+    </div>
+  );
+}
+
 function StopSheet({ onStop, onCancel }) {
-  const [why, setWhy] = useState(null), [notes, setNotes] = useState("");
+  const [why, setWhy] = useState([]), [notes, setNotes] = useState(""), [when, setWhen] = useState(null);
   return (
     <div className="pin-sheet">
       <b className="h2">⏸ Stop for now</b>
       <p className="muted small">Ends this trip. The track stays open — pick it up from the Hunt Log.</p>
-      <div className="field"><span>Why</span><Chips opts={STOPS} value={why} onChange={setWhy} /></div>
+      <div className="field"><span>Why (pick any)</span><Chips multi opts={STOPS} value={why} onChange={setWhy} /></div>
+      <WhenField label="Stopped" value={when} onChange={setWhen} />
       <label className="field"><span>Notes for next time (where to start, what to check first)</span><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-      <div className="btn-row"><button className="btn primary" onClick={() => onStop(why || "", notes)}>Stop & save</button><button className="btn" onClick={onCancel}>Keep tracking</button></div>
+      <div className="btn-row"><button className="btn primary" onClick={() => onStop(why, notes, when || nowIso())}>Stop & save</button><button className="btn" onClick={onCancel}>Keep tracking</button></div>
     </div>
   );
 }
 
 function OffSheet({ onOff, onCancel, farthest }) {
-  const [notes, setNotes] = useState(""), [yd, setYd] = useState(farthest || null);
+  const [notes, setNotes] = useState(""), [yd, setYd] = useState(farthest || null), [when, setWhen] = useState(null);
   return (
     <div className="pin-sheet">
       <b className="h2">✖ Call it off</b>
       <p className="muted small">Ends the track as not found. You can re-open it later if you find the deer.</p>
+      <WhenField label="Called it off" value={when} onChange={setWhen} />
       <label className="field"><span>Farthest blood from the hit site (yd)</span><NumInput empty min={0} max={5000} value={yd} onChange={setYd} /></label>
       <label className="field"><span>Notes</span><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
-      <div className="btn-row"><button className="btn danger" onClick={() => onOff(notes, yd)}>Call it off</button><button className="btn" onClick={onCancel}>Keep tracking</button></div>
+      <div className="btn-row"><button className="btn danger" onClick={() => onOff(notes, yd, when || nowIso())}>Call it off</button><button className="btn" onClick={onCancel}>Keep tracking</button></div>
     </div>
   );
 }
@@ -376,7 +414,7 @@ function FoundSheet({ r, setR, me, lastPin, onSave, onCancel, onTapMap }) {
 
 function PastTrip({ onAdd, onCancel }) {
   const today = new Date(); const d0 = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const [d, setD] = useState(d0), [a, setA] = useState(""), [b, setB] = useState(""), [why, setWhy] = useState(null), [notes, setNotes] = useState("");
+  const [d, setD] = useState(d0), [a, setA] = useState(""), [b, setB] = useState(""), [why, setWhy] = useState([]), [notes, setNotes] = useState("");
   const iso = (hm) => new Date(`${d}T${hm || "00:00"}`).toISOString();
   return (
     <div className="pin-sheet">
@@ -386,10 +424,10 @@ function PastTrip({ onAdd, onCancel }) {
         <label className="field"><span>From</span><input type="time" value={a} onChange={(e) => setA(e.target.value)} /></label>
         <label className="field"><span>To</span><input type="time" value={b} onChange={(e) => setB(e.target.value)} /></label>
       </div>
-      <div className="field"><span>Why you stopped</span><Chips opts={STOPS} value={why} onChange={setWhy} /></div>
+      <div className="field"><span>Why you stopped (pick any)</span><Chips multi opts={STOPS} value={why} onChange={setWhy} /></div>
       <label className="field"><span>Notes</span><input value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
       <p className="muted small">After adding, draw the path you walked and tap pins onto the map.</p>
-      <div className="btn-row"><button className="btn primary" disabled={!d || !a} onClick={() => onAdd(iso(a), iso(b || a), why || "", notes)}>Add trip, then draw it</button><button className="btn" onClick={onCancel}>Cancel</button></div>
+      <div className="btn-row"><button className="btn primary" disabled={!d || !a} onClick={() => onAdd(iso(a), iso(b || a), why.join(", "), notes)}>Add trip, then draw it</button><button className="btn" onClick={onCancel}>Cancel</button></div>
     </div>
   );
 }

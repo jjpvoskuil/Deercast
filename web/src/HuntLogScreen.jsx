@@ -62,7 +62,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
       result: f.status === "hit" ? cur?.result || "tracking" : null, time: `${f.day} ${f.time}`, time_iso: new Date(`${f.day}T${f.time}`).toISOString(),
       stand: f.stand, weapon: f.weapon, distance_yd: f.dist, deer: f.deer || "", notes: f.notes, updated: nowIso() };
     const ok = await save((d) => d.saveShot(rec), { reload: "none", ok: f.status === "hit" ? "Shot saved — let it lie before you track" : "Miss logged" });
-    if (ok) { await loadShots(); setShotForm(null); }
+    if (ok) { await loadShots(); setShotForm(null); if (!cur && f.status === "hit") openAnalysis(rec.id); } // a new hit → straight into shot placement
     return ok;
   };
   const delShot = async (id) => { if (await save((d) => d.deleteShot(id), { reload: "none", ok: "Shot deleted" })) loadShots(); };
