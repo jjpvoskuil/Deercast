@@ -306,7 +306,10 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                       const anchor = coords(f.where);
                       const fixed = f.sightings.map((x) => {
                         const y = { ...x }; delete y.lat; delete y.lon;
-                        y.time = isoLocal(atLocal(f.date, timeOf(Date.parse(x.time), tz), tz), tz);
+                        const t = Date.parse(x.time);
+                        // keep a sighting's clock time and its day relative to the sit (overnight sits), moved onto the new date
+                        y.time = Number.isNaN(t) ? isoLocal(f.startMs, tz)
+                          : isoLocal(atLocal(addDays(f.date, daysBetween(dateKey(s, tz), dateKey(t, tz))), timeOf(t, tz), tz), tz);
                         return withPosition(y, anchor);
                       });
                       const rec = await buildHunt(f.where, f.startMs, f.endMs, fixed, f.notes, recovered(h), h.id);
@@ -523,9 +526,11 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
   const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   const submit = async () => {
     const startMs = atLocal(f.date, f.start, tz), endMs = atLocal(f.date, f.end, tz);
-    if (endMs <= startMs) return setErr("End time must be after start time.");
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) return setErr("Set the date, start and end times.");
+    if (endMs <= startMs) return setErr(`End time must be after start time (both on ${fmtDay(startMs, tz)}). For a sit you forgot to end, set End to when you climbed down.`);
     setErr(""); setBusy(true);
-    const ok = await onSubmit({ ...f, startMs, endMs });
+    let ok = false;
+    try { ok = await onSubmit({ ...f, startMs, endMs }); } catch (e) { setErr(`Couldn't save — ${e.message}`); }
     setBusy(false);
     if (ok && resetAfter) setF({ ...initial, id: newId(), where: f.where });
   };

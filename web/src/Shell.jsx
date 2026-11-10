@@ -49,6 +49,7 @@ export function Menu({ open, onClose, ground, grounds, onGround, theme, email, o
         <div className="menu-h">Signed in</div>
         <div className="menu-row muted">{email}</div>
         <button className="menu-row" onClick={onSignOut}>Sign out</button>
+        <div className="muted small" style={{ padding: "6px 4px" }}>App updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}</div>
       </div>
     </div>
   );

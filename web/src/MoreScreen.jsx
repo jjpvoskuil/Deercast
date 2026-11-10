@@ -40,7 +40,7 @@ export default function MoreScreen(props) {
           <section className="card">
             <div className="muted small">Signed in as <b>{me?.name || me?.email}</b> ({me?.email}){admin ? " · admin" : ""}</div>
             <button className="link" onClick={signOut}>Sign out</button>
-            <div className="muted small">Deercast {MODEL_VERSION}{demo ? " · demo data" : ""}</div>
+            <div className="muted small">Deercast {MODEL_VERSION} · updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}{demo ? " · demo data" : ""}</div>
           </section>
         </>
       )}
