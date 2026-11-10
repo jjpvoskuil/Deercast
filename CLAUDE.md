@@ -40,11 +40,11 @@ doesn't need to run anything locally. Design for phone screens first.
 - Tests: `pytest -q tests` (synthetic weather; AppTest renders all pages without network; `conftest.py` gives each test an empty temp data dir). Run before every push.
 
 ## The web app (v0.8 — primary since 2026-11-04 cutover)
-- **https://jjpvoskuil.github.io/Deercast/** — React (Vite) app in `web/`, published to **GitHub Pages** by `.github/workflows/pages.yml` on every push touching `web/` (build uses `BASE=/Deercast/`; use `import.meta.env.BASE_URL` / `%BASE_URL%` for any local asset path). Moved off Netlify 2026-11-09: its free plan allows ~20 deploys/month and silently skipped them (old site deercast-john.netlify.app is frozen at b915b03; `netlify.toml` kept only as a fallback). Check a deploy: `gh run list --workflow pages.yml`. The app shows its build time in the menu and under More.
+- **https://jjpvoskuil.github.io/Deercast/** — React (Vite) app in `web/`, published to **GitHub Pages** by `.github/workflows/pages.yml` on every push touching `web/` (build uses `BASE=/Deercast/`; use `import.meta.env.BASE_URL` / `%BASE_URL%` for any local asset path). Moved off Netlify 2026-11-09: its free plan allows ~20 deploys/month and silently skipped them (the Netlify project and `netlify.toml` were deleted 2026-11-10; Supabase allows only the GitHub Pages redirect URL). Check a deploy: `gh run list --workflow pages.yml`. The app shows its build time in the menu and under More.
   Supabase project `deercast` (`https://gzxobsvhzscouehlrxeg.supabase.co`): Google sign-in + all data.
   Rules (row-level security) in `web/supabase/schema.sql` — keep it re-runnable; John pastes it in the SQL Editor.
   **Data now lives in Supabase.** `deercast-data` (GitHub) is the pre-cutover backup; the Streamlit Cloud app was
-  deleted 11-04 (its GitHub PAT revoked); the Python code stays as the reference the web app is tested against. The sandbox can't reach Supabase or Netlify — test with `?demo` (browser-only
+  deleted 11-04 (its GitHub PAT revoked); the Python code stays as the reference the web app is tested against. The sandbox can't reach Supabase — test with `?demo` (browser-only
   made-up data via `lib/db.js` demoDb) and Playwright mocks of Open-Meteo/FCC/Overpass.
 - Screens: Forecast, Map (+ editing), Hunt Log, Shot & Recovery, More → Grounds / Bow setup / Regulations /
   Development. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
