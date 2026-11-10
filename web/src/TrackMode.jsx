@@ -157,8 +157,12 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
     if (arm) return dropPin(arm, pt);
     if (draw) {
       const cur = sRef.current;
-      let t = cur.trips.find((x) => !x.end) || cur.trips[cur.trips.length - 1];
-      if (!t) return;
+      const t = cur.trips.find((x) => !x.end) || cur.trips[cur.trips.length - 1];
+      if (!t) { // no trip yet: start trip 1 at the shot time (times can be fixed in the Log)
+        const at = cur.time_iso || nowIso();
+        persist({ ...cur, trips: [{ id: newId(), start: at, end: at, path: [], drawn: [pt], stopped: "", notes: "" }] });
+        return;
+      }
       persist({ ...cur, trips: cur.trips.map((x) => (x.id === t.id ? { ...x, drawn: [...(x.drawn || []), pt] } : x)) });
     }
   };
@@ -217,7 +221,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
       </div>
       {live && <button className="fab track-me" aria-label="Center on me" onClick={follow}><Icon name="locate" /></button>}
       {(arm || draw) && <div className="track-hint">{arm ? <>Tap the map where {arm === "found" ? "the deer lay" : `the ${PIN_KINDS[arm][1].toLowerCase()} was`}. <button className="link" onClick={() => setArm(null)}>Cancel</button></>
-        : <>Tap along the way you walked. <button className="link" onClick={() => { const cur = sRef.current, t = cur.trips.find((x) => !x.end) || cur.trips[cur.trips.length - 1];
+        : <>Tap along the way you walked{s.trips.length ? ` (trip ${s.trips.length})` : ""} — each tap adds a point. <button className="link" onClick={() => { const cur = sRef.current, t = cur.trips.find((x) => !x.end) || cur.trips[cur.trips.length - 1];
           if (t) persist({ ...cur, trips: cur.trips.map((x) => (x.id === t.id ? { ...x, drawn: (x.drawn || []).slice(0, -1) } : x)) }); }}>Undo</button> · <button className="link" onClick={() => setDraw(false)}>Done</button></>}</div>}
 
       <div className="track-panel">
@@ -412,6 +416,7 @@ function LogSheet({ s, onPin, onTrip, onDelTrip, onClose }) {
             ))}
             {t.stopped && <div className="small">⏸ {t.stopped}{t.notes ? ` — ${t.notes}` : ""}</div>}
             {!t.stopped && t.notes && <div className="small muted">{t.notes}</div>}
+            {t.end && <TripTimes t={t} onChange={(patch) => onTrip(t.id, patch)} />}
             {t.end && <label className="field"><span>Trip notes</span><input defaultValue={t.notes} onBlur={(e) => e.target.value !== t.notes && onTrip(t.id, { notes: e.target.value })} /></label>}
           </div>
         );
@@ -420,6 +425,20 @@ function LogSheet({ s, onPin, onTrip, onDelTrip, onClose }) {
       {s.recovery && <div className="small">🦌 Recovered {day(s.recovery.time)} {clock(s.recovery.time)} · {s.recovery.sex}{s.recovery.points ? ` ${s.recovery.points} pts` : ""}{s.found_yd ? ` · ${s.found_yd} yd from hit` : ""}
         {(s.recovery.organs_actual || []).length > 0 && <> · hit {s.recovery.organs_actual.join(", ").toLowerCase()}</>}</div>}
       {s.result === "not_found" && <div className="small">✖ Not found{s.found_yd ? ` · blood to ${s.found_yd} yd` : ""}</div>}
+    </div>
+  );
+}
+
+/** Fix a finished trip's date and times (for trips recreated from memory). */
+function TripTimes({ t, onChange }) {
+  const loc = (iso) => { const d = new Date(iso); const p = (n) => String(n).padStart(2, "0"); return [`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, `${p(d.getHours())}:${p(d.getMinutes())}`]; };
+  const [d0, a0] = loc(t.start), [, b0] = loc(t.end);
+  const put = (d, a, b) => { const s = new Date(`${d}T${a}`), e = new Date(`${d}T${b}`); if (e < s) e.setDate(e.getDate() + 1); onChange({ start: s.toISOString(), end: e.toISOString() }); };
+  return (
+    <div className="grid3">
+      <label className="field"><span>Date</span><input type="date" defaultValue={d0} onBlur={(e) => e.target.value && put(e.target.value, a0, b0)} /></label>
+      <label className="field"><span>From</span><input type="time" defaultValue={a0} onBlur={(e) => e.target.value && put(d0, e.target.value, b0)} /></label>
+      <label className="field"><span>To</span><input type="time" defaultValue={b0} onBlur={(e) => e.target.value && put(d0, a0, e.target.value)} /></label>
     </div>
   );
 }
