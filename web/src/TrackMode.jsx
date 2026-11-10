@@ -78,6 +78,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
   const [sheet, setSheet] = useState(null);              // "stop" | "found" | "off" | "log" | "trip"
   const [crumbs, setCrumbs] = useState(true);            // breadcrumb path on/off (pause for a break without ending the trip)
   const crumbsRef = useRef(true); crumbsRef.current = crumbs;
+  const [awake, setAwake] = useState(null);              // screen wake lock: true = held, false = not supported/refused
   const [mini, setMini] = useState(false);               // panel pulled down → more map
   const drag = useRef(null);
   const [fd, setFd] = useState(null);                    // recovery draft while the Found sheet is open
@@ -104,7 +105,9 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
     if (!live) return;
     if (!navigator.geolocation) { setGpsMsg("Location isn't available on this device"); return; }
     let lock = null;
-    navigator.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {});
+    const getLock = () => (navigator.wakeLock ? navigator.wakeLock.request("screen").then((l) => { lock = l; setAwake(true); l.addEventListener?.("release", () => setAwake(false)); })
+      .catch(() => setAwake(false)) : setAwake(false));
+    getLock();
     const id = navigator.geolocation.watchPosition((p) => {
       const pt = [r6(p.coords.latitude), r6(p.coords.longitude)], acc = p.coords.accuracy;
       setMe([...pt, acc]); setGpsMsg("");
@@ -117,7 +120,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
     }, (e) => setGpsMsg(e.code === 1 ? "Location permission is off — allow it for Safari to record your path" : "Looking for GPS…"),
     { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
     const wake = () => {
-      if (document.visibilityState === "visible") navigator.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {});
+      if (document.visibilityState === "visible") getLock();
       else { clearTimeout(timer.current); onSave({ ...sRef.current, updated: nowIso() }).catch(() => {}); } // phone locked / app switched: save the path so far now
     };
     document.addEventListener("visibilitychange", wake);
@@ -230,6 +233,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
         <button className="btn sm" onClick={() => setSheet(sheet === "log" ? null : "log")}>Log</button>
       </div>
       {live && <button className="fab track-me" aria-label="Center on me" onClick={follow}><Icon name="locate" /></button>}
+      {live && awake === false && !mini && <div className="track-hint warn">This phone may auto-lock and pause your path. Set Settings → Display & Brightness → Auto-Lock → <b>Never</b> while tracking. <button className="link" onClick={() => setAwake(null)}>OK</button></div>}
       {(arm || draw) && <div className="track-hint">{arm ? <>Tap the map where {arm === "found" ? "the deer lay" : `the ${PIN_KINDS[arm][1].toLowerCase()} was`}. <button className="link" onClick={() => setArm(null)}>Cancel</button></>
         : <>Tap along the way you walked{s.trips.length ? ` (trip ${s.trips.length})` : ""} — each tap adds a point. <button className="link" onClick={() => { const cur = sRef.current, t = cur.trips.find((x) => !x.end) || cur.trips[cur.trips.length - 1];
           if (t) persist({ ...cur, trips: cur.trips.map((x) => (x.id === t.id ? { ...x, drawn: (x.drawn || []).slice(0, -1) } : x)) }); }}>Undo</button> · <button className="link" onClick={() => setDraw(false)}>Done</button></>}</div>}
