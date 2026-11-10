@@ -4,12 +4,13 @@ import NumInput from "./NumInput.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { newId, nowIso } from "./lib/db.js";
 import { BOW_TYPES, TIP_FACTOR, flightTime, foc, focClass, summary } from "./lib/archery.js";
+import { BULLET_TYPES, DEER_FTLB, DEER_FTLB_MIN, DEFAULT_BC, GUN_TYPES, gunTable } from "./lib/ballistics.js";
 import { countyFor, geocodePlace, myLocation, normalizeCounty, REG_DATA } from "./lib/places.js";
 import { dailyAstro } from "./lib/model/astro.js";
 import { dateKey, daysBetween } from "./lib/model/tz.js";
 import { MODEL_VERSION } from "./HuntLogScreen.jsx";
 
-const PAGES = { grounds: "Hunting grounds", gear: "Bow setup", regs: "Regulations", dev: "Development" };
+const PAGES = { grounds: "Hunting grounds", gear: "Bow setup", gun: "Gun setup", regs: "Regulations", dev: "Development" };
 const pageFromHash = () => { const [t, p] = location.hash.slice(1).split("/"); return t === "more" && PAGES[p] ? p : null; };
 
 export default function MoreScreen(props) {
@@ -34,6 +35,7 @@ export default function MoreScreen(props) {
           <section className="card list">
             <button className="nav-row" onClick={() => open("grounds")}><Icon name="ground" /><span>Hunting grounds</span><span className="muted small">{ground?.name}</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("gear")}><Icon name="bow" /><span>Bow setup</span><Icon name="chev" className="icon chev-r" /></button>
+            <button className="nav-row" onClick={() => open("gun")}><Icon name="target" /><span>Gun setup</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => props.openAnalysis?.(null)}><Icon name="target" /><span>Shot analyzer</span><span className="muted small">calculator</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("regs")}><Icon name="book" /><span>Regulations</span><Icon name="chev" className="icon chev-r" /></button>
             {admin && <button className="nav-row" onClick={() => open("dev")}><Icon name="tools" /><span>Development</span><Icon name="chev" className="icon chev-r" /></button>}
@@ -47,6 +49,7 @@ export default function MoreScreen(props) {
       )}
       {page === "grounds" && <GroundsPage {...props} />}
       {page === "gear" && <GearPage {...props} />}
+      {page === "gun" && <GunPage {...props} />}
       {page === "regs" && <RegsPage {...props} />}
       {page === "dev" && (admin ? <DevPage {...props} /> : <p className="muted">Admins only.</p>)}
     </div>
@@ -237,7 +240,7 @@ function GearPage({ db, toast }) {
     rec.balance_from = rec.balance_from || "nock";
     rec.foc = foc(rec.arrow_len, rec.balance_in, rec.balance_from);
     const setups = [...gear.setups.filter((x) => x.id !== rec.id && x.name !== rec.name), rec];
-    if (await put({ setups, active: rec.id }, `Saved ${rec.name}`)) setPick(rec.id);
+    if (await put({ ...gear, setups, active: rec.id }, `Saved ${rec.name}`)) setPick(rec.id);
   };
 
   return (
@@ -299,7 +302,7 @@ function GearPage({ db, toast }) {
         </div>
         <div className="btn-row">
           <button className="btn primary" onClick={saveSetup}>Save setup</button>
-          {cur && <button className="btn" onClick={async () => { const rest = gear.setups.filter((x) => x.id !== cur.id); if (await put({ setups: rest, active: rest[0]?.id || null }, "Setup deleted")) setPick(rest[0]?.id || NEW); }}>Delete</button>}
+          {cur && <button className="btn" onClick={async () => { const rest = gear.setups.filter((x) => x.id !== cur.id); if (await put({ ...gear, setups: rest, active: rest[0]?.id || null }, "Setup deleted")) setPick(rest[0]?.id || NEW); }}>Delete</button>}
         </div>
       </section>
     </>
@@ -307,10 +310,85 @@ function GearPage({ db, toast }) {
 }
 const Frag = ({ a, b, c }) => <><span>{a}</span><span>{b}</span><span>{c}</span></>;
 
+// ================================================================ gun setup
+function GunPage({ db, toast }) {
+  const [gear, setGear] = useState(null);
+  useEffect(() => { db.getDoc("gear", { setups: [], active: null }).then((g) => setGear({ guns: [], active_gun: null, ...g })).catch(() => setGear({ setups: [], active: null, guns: [], active_gun: null })); }, [db]);
+  const [pick, setPick] = useState(null);
+  useEffect(() => { if (gear && pick === null) setPick(gear.active_gun || gear.guns[0]?.id || NEW); }, [gear]);
+  const cur = gear?.guns.find((s) => s.id === pick);
+  const blank = { name: gear?.guns.length ? "" : "My rifle", type: "Rifle", model: "", cartridge: "", gr: 150, bullet_type: BULLET_TYPES[0], bullet_model: "",
+    fps: 2800, bc: null, zero_yd: 100, sight_in: 1.5, optic: "", notes: "" };
+  const [f, setF] = useState(blank);
+  useEffect(() => { if (gear) setF(cur ? { ...blank, ...cur } : blank); }, [pick, gear]);
+  const put = async (g, msg) => { try { await db.putDoc("gear", g); setGear(g); if (msg) toast(msg); return true; } catch (e) { toast(`Couldn't save — ${e.message}`); return false; } };
+  const num = (k) => (v) => setF({ ...f, [k]: v ?? "" });
+  const txt = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  if (!gear) return <p className="muted">Loading…</p>;
+  const live = gunTable({ ...f, gr: +f.gr, fps: +f.fps, bc: +f.bc || null, zero_yd: +f.zero_yd, sight_in: f.sight_in === "" ? 1.5 : +f.sight_in });
+  const saveGun = async () => {
+    if (!f.name.trim()) return toast("Name the gun setup");
+    const rec = { ...f, id: cur?.id || newId(), name: f.name.trim() };
+    for (const k of ["gr", "fps", "zero_yd"]) rec[k] = +rec[k] || 0;
+    rec.bc = +rec.bc || null; rec.sight_in = rec.sight_in === "" ? 1.5 : +rec.sight_in;
+    const guns = [...gear.guns.filter((x) => x.id !== rec.id && x.name !== rec.name), rec];
+    if (await put({ ...gear, guns, active_gun: rec.id }, `Saved ${rec.name}`)) setPick(rec.id);
+  };
+  return (
+    <>
+      <p className="muted small">Enter each gun once. The hunt log and hit analysis use it for energy at the shot distance and bullet drop.</p>
+      <label className="field"><span>Gun</span>
+        <select value={pick || NEW} onChange={(e) => setPick(e.target.value)}>
+          {gear.guns.map((x) => <option key={x.id} value={x.id}>{x.name}{x.id === gear.active_gun ? " (active)" : ""}</option>)}
+          <option value={NEW}>+ New gun</option>
+        </select></label>
+      {live && (
+        <section className="card">
+          <div className="stats">
+            <div><span className="big">{Math.round(+f.fps)}</span><span className="label">fps muzzle</span></div>
+            <div><span className="big">{Math.round(live.muzzleFtlb)}</span><span className="label">ft·lb muzzle</span></div>
+            <div><span className="big">{live.maxDeerYd || "<25"}</span><span className="label">yd with {DEER_FTLB}+ ft·lb</span></div>
+          </div>
+          <div className="hours-grid four"><span className="muted">Range</span><span className="muted">Velocity</span><span className="muted">Energy</span><span className="muted">Drop</span>
+            {live.rows.map((r) => <Frag4 key={r.yd} a={`${r.yd} yd${r.yd === live.zero ? " (zero)" : ""}`} b={`${Math.round(r.fps)} fps`} c={`${Math.round(r.ftlb)} ft·lb`}
+              d={`${r.dropIn >= 0 ? "+" : ""}${r.dropIn.toFixed(1)} in`} warn={r.ftlb < DEER_FTLB} />)}</div>
+          <p className="muted small">Drop is relative to your crosshair with a {live.zero} yd zero ({+f.bc > 0 ? `G1 BC ${(+f.bc).toFixed(3)}` : `typical BC ${DEFAULT_BC[f.type]} for a ${f.type.toLowerCase()} — enter yours from the ammo box for better numbers`}), standard air, no wind.
+            About {DEER_FTLB} ft·lb at the deer is the common guideline ({DEER_FTLB_MIN} is a widely quoted floor for slugs and muzzleloaders up close). Always confirm on paper.</p>
+          {cur && (gear.active_gun === cur.id ? <p className="ok small">✓ Active gun — the default when you log a gun hunt.</p>
+            : <button className="btn wide" onClick={() => put({ ...gear, active_gun: cur.id }, `${cur.name} is now active`)}>Make “{cur.name}” the active gun</button>)}
+        </section>
+      )}
+      <section className="card form">
+        <label className="field"><span>Name</span><input value={f.name} onChange={txt("name")} placeholder="e.g. .308 deer rifle" /></label>
+        <div className="grid2">
+          <label className="field half"><span>Type</span><select value={f.type} onChange={txt("type")}>{GUN_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
+          <label className="field half"><span>Make / model</span><input value={f.model} onChange={txt("model")} /></label>
+          <label className="field half"><span>{f.type === "Shotgun slug" ? "Gauge" : "Cartridge / caliber"}</span><input value={f.cartridge} onChange={txt("cartridge")} placeholder={f.type === "Shotgun slug" ? "12 ga 3\"" : f.type === "Muzzleloader" ? ".50 cal, 150 gr powder" : ".308 Win"} /></label>
+          <label className="field half"><span>{f.type === "Shotgun slug" ? "Slug" : "Bullet"} weight (gr)</span><NumInput empty min={0} max={1000} value={f.gr} onChange={num("gr")} /></label>
+          <label className="field half"><span>{f.type === "Shotgun slug" ? "Slug" : "Bullet"} type</span><select value={f.bullet_type} onChange={txt("bullet_type")}>{BULLET_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
+          <label className="field half"><span>Load / bullet make</span><input value={f.bullet_model} onChange={txt("bullet_model")} placeholder="e.g. Federal Fusion" /></label>
+          <label className="field half"><span>Muzzle velocity (fps)</span><NumInput empty min={0} max={5000} value={f.fps} onChange={num("fps")} /></label>
+          <label className="field half"><span>Ballistic coefficient (G1, optional)</span><NumInput empty decimals min={0} max={1.5} value={f.bc ?? ""} onChange={num("bc")} /></label>
+          <label className="field half"><span>Zeroed at (yd)</span><NumInput empty min={1} max={600} value={f.zero_yd} onChange={num("zero_yd")} /></label>
+          <label className="field half"><span>Sight height over bore (in)</span><NumInput empty decimals min={0} max={4} value={f.sight_in} onChange={num("sight_in")} /></label>
+          <label className="field half"><span>Optic / sights</span><input value={f.optic} onChange={txt("optic")} placeholder="e.g. 3-9x40 scope" /></label>
+        </div>
+        <label className="field"><span>Notes</span><input value={f.notes} onChange={txt("notes")} /></label>
+        <div className="btn-row">
+          <button className="btn primary" onClick={saveGun}>Save gun</button>
+          {cur && <button className="btn" onClick={async () => { const rest = gear.guns.filter((x) => x.id !== cur.id); if (await put({ ...gear, guns: rest, active_gun: rest[0]?.id || null }, "Gun deleted")) setPick(rest[0]?.id || NEW); }}>Delete</button>}
+        </div>
+      </section>
+    </>
+  );
+}
+const Frag4 = ({ a, b, c, d, warn }) => <><span>{a}</span><span>{b}</span><span className={warn ? "warn-text" : ""}>{c}</span><span>{d}</span></>;
+
 // ================================================================ regulations
 function RegsPage({ ground }) {
   const home = ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" };
   const [place, setPlace] = useState(null);
+  const [wFilter, setWFilter] = useState(() => { try { return localStorage.getItem("deercast.regsWeapon") || "all"; } catch { return "all"; } });
   useEffect(() => { countyFor(home.lat, home.lon).then(setPlace).catch(() => setPlace({ county: null, state: home.state })); }, [home.lat, home.lon]);
   const state = place?.state || home.state;
   const mod = REG_DATA.curated[state];
@@ -334,8 +412,10 @@ function RegsPage({ ground }) {
   if (!county) return null;
   const zone = mod.zones[county], inCwd = mod.cwdCounties.includes(county);
   const tz = "America/Chicago", today = dateKey(Date.now(), tz);
-  const rows = mod.seasons.filter(([n]) => !(n.startsWith("CWD") && !inCwd)).map(([n, s, e, note]) => ({
-    n, s, e, note, status: today < s ? `Opens in ${daysBetween(today, s)} days` : today <= e ? "OPEN" : "Closed" }));
+  const isBowSeason = (n) => /archery|crossbow/i.test(n);
+  const rows = mod.seasons.filter(([n]) => !(n.startsWith("CWD") && !inCwd))
+    .filter(([n]) => wFilter === "all" || (wFilter === "bow" ? isBowSeason(n) : !isBowSeason(n)))
+    .map(([n, s, e, note]) => ({ n, s, e, note, status: today < s ? `Opens in ${daysBetween(today, s)} days` : today <= e ? "OPEN" : "Closed" }));
   const fmt = (k, y) => new Date(`${k}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric", ...(y ? { year: "numeric" } : {}) });
   const a = dailyAstro(home.lat, home.lon, [today], tz)[today];
   const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz });
@@ -354,6 +434,9 @@ function RegsPage({ ground }) {
       </section>
       <section className="card">
         <span className="h2">Season dates</span>
+        <div className="seg small-seg">{[["all", "All"], ["bow", "Bow / crossbow"], ["gun", "Gun / muzzleloader"]].map(([k, l]) =>
+          <button key={k} className={wFilter === k ? "on" : ""} onClick={() => { setWFilter(k); try { localStorage.setItem("deercast.regsWeapon", k); } catch { /* ignore */ } }}>{l}</button>)}</div>
+        {!rows.length && <p className="muted small">No seasons for that weapon here.</p>}
         {rows.map((r) => (
           <div key={r.n} className="rank-row">
             <div style={{ flex: 1, minWidth: 0 }}><div className="name">{r.n}</div><div className="muted small">{fmt(r.s)} – {fmt(r.e, true)} · {r.note}</div></div>

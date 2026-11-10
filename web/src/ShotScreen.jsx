@@ -5,6 +5,8 @@ import NumInput from "./NumInput.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { CARDINALS, degToCardinal, destination, YD } from "./lib/geo.js";
 import { newId, nowIso } from "./lib/db.js";
+import { defaultWeaponId, findWeapon, weaponIdFor, weaponOptions } from "./lib/gear.js";
+import { atRange, DEER_FTLB } from "./lib/ballistics.js";
 import { summary } from "./lib/archery.js";
 import { BODY, DECOR, EVIDENCE, ORGANS, OUTCOMES, REACTION, VIEW, classify, depth, outline, project, standAngle, trace, viewBasis } from "./lib/shot.js";
 import { COVER_BIAS, DOWNHILL_BIAS, WATER_BIAS, featureDistances, fetchOsm, habitatMultiplier, searchGrid, weightCells } from "./lib/recovery.js";
@@ -45,7 +47,8 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const [side, setSide] = useState("Left");
   const [buck, setBuck] = useState(true);
   const [vitals, setVitals] = useState(true);
-  const [weapon, setWeapon] = useState("Bow");
+  const [weapon, setWeapon] = useState("Bow");   // category the hit model uses
+  const [weaponId, setWeaponId] = useState(null); // which of your bows/guns (lib/gear.js)
   const [dist, setDist] = useState(20);
   const [height, setHeight] = useState(18);
   const [manual, setManual] = useState(false);
@@ -54,9 +57,17 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const mirror = side === "Right";
   const isBow = weapon === "Bow" || weapon === "Crossbow";
   const [gear, setGear] = useState(null);
+  const gearRef = useRef(null); gearRef.current = gear;
   useEffect(() => { if (active) db.getDoc("gear", { setups: [], active: null }).then(setGear).catch(() => setGear(null)); }, [db, active]);
-  const setup = isBow ? gear?.setups.find((g) => g.id === gear.active) : null;
+  const wOpts = weaponOptions(gear);
+  const wSel = findWeapon(gear, weaponId) || findWeapon(gear, defaultWeaponId(gear));
+  useEffect(() => { if (gear && !weaponId) { const id = defaultWeaponId(gear); setWeaponId(id); setWeapon(findWeapon(gear, id)?.weapon || "Bow"); } }, [gear]);
+  const pickWeapon = (id) => { setWeaponId(id); setWeapon(findWeapon(gear, id)?.weapon || "Bow"); };
+  // bow: the chosen setup, or your active bow for a generic "Bow"; gun: the chosen gun
+  const setup = isBow ? (wSel?.kind === "bow" && wSel.setup) || gear?.setups.find((g) => g.id === gear.active) || null : null;
   const ss = setup ? summary(setup) : null;
+  const gun = !isBow && wSel?.kind === "gun" ? wSel.setup : null;
+  const gunAt = gun ? atRange(gun, dist) : null;
 
   // ------------------------------------------------ 3 crosshair
   const [cross, setCross] = useState(null); // model screen coords, pre-mirror
@@ -119,7 +130,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const apply = (i, rec) => {
     const v = { ...DEFAULTS, ...Object.fromEntries(Object.entries(i || {}).filter(([, x]) => x != null)) };
     restoring.current = true;
-    setYawIdx(v.yawIdx); setSide(v.side); setBuck(v.buck); setWeapon(v.weapon); setDist(v.dist); setHeight(v.height);
+    setYawIdx(v.yawIdx); setSide(v.side); setBuck(v.buck); setWeapon(v.weapon); setWeaponId(v.weaponId || weaponIdFor(gearRef.current, rec || { weapon: v.weapon })); setDist(v.dist); setHeight(v.height);
     setManual(v.manual); setManualPitch(v.manualPitch); setCross(v.cross); setEvidence(v.evidence); setReaction(v.reaction); setArrow(v.arrow);
     setUseSign(v.useSign); setBoneChoice(v.boneChoice); setToDeer(v.toDeer); setRan(v.ran); setSeen(v.seen);
     if (v.src) setSrc(v.src);
@@ -133,7 +144,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
     setTimeout(() => pageRef.current?.scrollTo(0, 0), 0);
   };
   const openRec = (rec) => {
-    apply(rec.input || { src: rec.stand, weapon: rec.weapon, dist: rec.distance_yd, ran: rec.ran, evidence: rec.evidence, reaction: rec.reaction, arrow: rec.arrow }, rec);
+    apply(rec.input ? { ...rec.input, weaponId: rec.input.weaponId || rec.weapon_id } : { src: rec.stand, weapon: rec.weapon, weaponId: rec.weapon_id, dist: rec.distance_yd, ran: rec.ran, evidence: rec.evidence, reaction: rec.reaction, arrow: rec.arrow }, rec);
     const [d, t] = String(rec.time || "").split(" ");
     if (d && t) { setShotDate(d); setShotTime(t.slice(0, 5)); }
     setTimeout(() => pageRef.current?.scrollTo(0, 0), 0);
@@ -145,10 +156,10 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
 
   const saveShot = async () => {
     const patch = {
-      stand: src, weapon, angle: ANGLES[yawIdx][1], side, pitch_deg: pitch, distance_yd: dist, outcome: res ? O.title : "Hit — spot not marked",
-      organs: (res?.hits || []).map((x) => x.label), evidence, arrow, setup: setup?.name || null, reaction, ran, seen_yd: seen, wait_min: res ? wait : null,
+      stand: src, weapon, weapon_id: wSel?.id || null, weapon_kind: wSel?.kind || null, angle: ANGLES[yawIdx][1], side, pitch_deg: pitch, distance_yd: dist, outcome: res ? O.title : "Hit — spot not marked",
+      organs: (res?.hits || []).map((x) => x.label), evidence, arrow, setup: (isBow ? setup : gun)?.name || null, gun_ftlb: gunAt ? Math.round(gunAt.ftlb) : null, reaction, ran, seen_yd: seen, wait_min: res ? wait : null,
       hit_lat: Math.round(hitEst[0] * 1e6) / 1e6, hit_lon: Math.round(hitEst[1] * 1e6) / 1e6, analysis_at: nowIso(),
-      input: { yawIdx, side, buck, weapon, dist, height, manual, manualPitch, cross, evidence, reaction, arrow, useSign, boneChoice, src, toDeer, ran, seen },
+      input: { yawIdx, side, buck, weapon, weaponId: wSel?.id || null, dist, height, manual, manualPitch, cross, evidence, reaction, arrow, useSign, boneChoice, src, toDeer, ran, seen },
     };
     if (await patchShot(openId, patch, res ? `Saved — wait ${fmtWait(wait)} before tracking` : "Saved")) onClose?.();
   };
@@ -180,7 +191,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
       <section className="card">
         <span className="h2">2 · Your shot</span>
         <div className="grid2">
-          <label className="field half"><span>Weapon</span><select value={weapon} onChange={(e) => setWeapon(e.target.value)}>{WEAPONS.map((w) => <option key={w}>{w}</option>)}</select></label>
+          <label className="field half"><span>Weapon</span><select value={wSel?.id || ""} onChange={(e) => pickWeapon(e.target.value)}>{wOpts.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
           <label className="field half"><span>Distance (yd)</span><NumInput min={1} max={400} value={dist} onChange={setDist} /></label>
           <label className="field half"><span>Stand height (ft, 0 = ground)</span><NumInput min={0} max={40} value={height} onChange={setHeight} /></label>
           <div className="field half"><span>Downward angle</span><span className="big" style={{ fontSize: 26 }}>{pitch}°</span></div>
@@ -189,6 +200,9 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         {manual && <input type="range" className="range" min="0" max="70" value={manualPitch} onChange={(e) => setManualPitch(+e.target.value)} />}
         {isBow && (ss ? <p className="muted small"><b>{setup.name}</b> — {Math.round(ss.fps)} fps, {Math.round(ss.ke)} ft·lb, momentum {ss.momentum.toFixed(2)}, {setup.tip_type?.toLowerCase()} · bone penetration <b>{ss.bone}</b></p>
           : <p className="muted small">Add your bow under More → Bow setup to factor penetration into the estimate.</p>)}
+        {!isBow && (gunAt ? <p className={`small ${gunAt.ftlb < DEER_FTLB ? "warn-text" : "muted"}`}><b>{gun.name}</b> at {dist} yd: {Math.round(gunAt.fps)} fps, <b>{Math.round(gunAt.ftlb)} ft·lb</b>, {gunAt.dropIn >= 0 ? "+" : ""}{gunAt.dropIn.toFixed(1)} in vs. your {gun.zero_yd || 100} yd zero
+            {gunAt.ftlb < DEER_FTLB ? ` — under the ~${DEER_FTLB} ft·lb guideline for deer; expect less expansion and a longer track.` : "."}</p>
+          : <p className="muted small">Add your gun under More → Gun setup to see energy and drop at this distance.</p>)}
       </section>
 
       {isHit && <section className="card">
