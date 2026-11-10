@@ -10,6 +10,40 @@ export async function geocodeZip(zip) {
   return { lat: +p.latitude, lon: +p.longitude, label: `${p["place name"]}, ${p["state abbreviation"]} ${z}`, state: p["state abbreviation"], zip: z };
 }
 
+/** JSONP: the Census geocoder doesn't allow ordinary cross-site requests, only a <script> callback. */
+function jsonp(url, ms = 12000) {
+  return new Promise((resolve, reject) => {
+    const cb = `__dcGeo${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
+    const s = document.createElement("script");
+    const done = () => { clearTimeout(t); delete window[cb]; s.remove(); };
+    const t = setTimeout(() => { done(); reject(new Error("Address lookup timed out")); }, ms);
+    window[cb] = (d) => { done(); resolve(d); };
+    s.onerror = () => { done(); reject(new Error("Address lookup failed")); };
+    s.src = `${url}&callback=${cb}`;
+    document.head.appendChild(s);
+  });
+}
+
+/** A street address → point. US Census geocoder first (best for rural US addresses), then OpenStreetMap. */
+export async function geocodeAddress(text) {
+  const q = String(text).trim();
+  if (q.length < 5) throw new Error("Enter a street address, city and state");
+  try {
+    const d = await jsonp(`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(q)}&benchmark=Public_AR_Current&format=jsonp`);
+    const m = d?.result?.addressMatches?.[0];
+    if (m) return { lat: +m.coordinates.y, lon: +m.coordinates.x, label: m.matchedAddress, state: m.addressComponents?.state || null, zip: m.addressComponents?.zip || null, exact: true };
+  } catch { /* fall through to OpenStreetMap */ }
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&countrycodes=us&limit=1&q=${encodeURIComponent(q)}`);
+  const p = r.ok ? (await r.json())[0] : null;
+  if (!p) throw new Error("Couldn't find that address — check the spelling, or add the city and state");
+  const iso = p.address?.["ISO3166-2-lvl4"] || "";
+  return { lat: +p.lat, lon: +p.lon, label: p.display_name.split(", ").slice(0, 4).join(", "), state: iso.startsWith("US-") ? iso.slice(3) : null,
+    zip: p.address?.postcode || null, exact: ["house", "building", "residential", "address"].includes(p.addresstype) || !!p.address?.house_number };
+}
+
+/** "42101" → ZIP lookup; anything else → address lookup. */
+export const geocodePlace = (text) => (/^\s*\d{5}\s*$/.test(String(text)) ? geocodeZip(String(text).trim()) : geocodeAddress(text));
+
 const COUNTY_KEY = "deercast.county.v1";
 /** {county, state} for a point; cached on the phone (counties don't move). */
 export async function countyFor(lat, lon) {

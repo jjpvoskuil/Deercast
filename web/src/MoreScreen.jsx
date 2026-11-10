@@ -4,7 +4,7 @@ import NumInput from "./NumInput.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { newId, nowIso } from "./lib/db.js";
 import { BOW_TYPES, TIP_FACTOR, flightTime, foc, focClass, summary } from "./lib/archery.js";
-import { countyFor, geocodeZip, myLocation, normalizeCounty, REG_DATA } from "./lib/places.js";
+import { countyFor, geocodePlace, myLocation, normalizeCounty, REG_DATA } from "./lib/places.js";
 import { dailyAstro } from "./lib/model/astro.js";
 import { dateKey, daysBetween } from "./lib/model/tz.js";
 import { MODEL_VERSION } from "./HuntLogScreen.jsx";
@@ -73,13 +73,13 @@ function GroundsPage({ db, me, ground, grounds, save, setGround, toast }) {
     setBusy(how);
     try {
       let home;
-      if (how === "zip") home = await geocodeZip(zip);
+      if (how === "zip") home = await geocodePlace(zip);
       else {
         const p = await myLocation();
         const c = await countyFor(p.lat, p.lon).catch(() => ({}));
         home = { lat: p.lat, lon: p.lon, label: ground.name, state: c.state || ground.home?.state || null, zip: null };
       }
-      await saveG({ ...ground, home }, `Home set to ${home.label}`);
+      await saveG({ ...ground, home }, `Home set to ${home.label}${home.exact === false ? " (approximate — couldn't match the exact address)" : ""}`);
       setZip("");
     } catch (e) { toast(e.message); }
     setBusy("");
@@ -89,7 +89,7 @@ function GroundsPage({ db, me, ground, grounds, save, setGround, toast }) {
     setBusy("create");
     try {
       let home;
-      if (ng.zip) home = await geocodeZip(ng.zip);
+      if (ng.zip.trim()) home = await geocodePlace(ng.zip);
       else {
         try { const p = await myLocation(); const c = await countyFor(p.lat, p.lon).catch(() => ({})); home = { lat: p.lat, lon: p.lon, label: ng.name.trim(), state: c.state, zip: null }; }
         catch { home = { ...(ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" }), label: ng.name.trim() }; }
@@ -137,8 +137,8 @@ function GroundsPage({ db, me, ground, grounds, save, setGround, toast }) {
               <div className="sub-h">Home location</div>
               <p className="muted small">Where the forecast, map and regulations open for this ground. Now: {ground.home?.label || "—"} ({ground.home?.lat?.toFixed(4)}, {ground.home?.lon?.toFixed(4)})</p>
               <div className="inline">
-                <input inputMode="numeric" maxLength="5" placeholder="ZIP code" value={zip} onChange={(e) => setZip(e.target.value)} />
-                <button className="btn sm" disabled={!zip || !!busy} onClick={() => homeFrom("zip")}>{busy === "zip" ? "…" : "Use ZIP"}</button>
+                <input placeholder="Street address, city, state — or ZIP" autoComplete="street-address" value={zip} onChange={(e) => setZip(e.target.value)} onKeyDown={(e) => e.key === "Enter" && zip.trim() && homeFrom("zip")} />
+                <button className="btn sm" disabled={!zip.trim() || !!busy} onClick={() => homeFrom("zip")}>{busy === "zip" ? "…" : "Use it"}</button>
               </div>
               <button className="btn wide" disabled={!!busy} onClick={() => homeFrom("gps")}>{busy === "gps" ? "Finding you…" : "Use where I am now"}</button>
 
@@ -167,7 +167,7 @@ function GroundsPage({ db, me, ground, grounds, save, setGround, toast }) {
       <section className="card">
         <span className="h2">Create a hunting ground</span>
         <label className="field"><span>Name</span><input placeholder="e.g. Ohio lease, Dad's farm" value={ng.name} onChange={(e) => setNg({ ...ng, name: e.target.value })} /></label>
-        <label className="field"><span>Home ZIP (optional — otherwise where you are now)</span><input inputMode="numeric" maxLength="5" value={ng.zip} onChange={(e) => setNg({ ...ng, zip: e.target.value })} /></label>
+        <label className="field"><span>Home address or ZIP (optional — otherwise where you are now)</span><input placeholder="e.g. 123 Main St, Cub Run, KY" autoComplete="street-address" value={ng.zip} onChange={(e) => setNg({ ...ng, zip: e.target.value })} /></label>
         <button className="btn primary wide" disabled={busy === "create"} onClick={create}>{busy === "create" ? "Creating…" : "Create"}</button>
       </section>
 
