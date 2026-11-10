@@ -233,7 +233,7 @@ function GearPage({ db, toast }) {
     if (!f.name.trim()) return toast("Name the setup");
     const rec = { ...f, id: cur?.id || newId(), name: f.name.trim(), chrono_fps: +f.chrono_fps || null };
     for (const k of ["rated_fps", "rated_bolt_gr", "draw_weight", "draw_length", "arrow_gr", "string_gr"]) rec[k] = +rec[k] || 0;
-    for (const k of ["arrow_len", "balance_in"]) rec[k] = +rec[k] || null;
+    for (const k of ["arrow_len", "balance_in", "tip_gr"]) rec[k] = +rec[k] || null;
     rec.foc = foc(rec.arrow_len, rec.balance_in);
     const setups = [...gear.setups.filter((x) => x.id !== rec.id && x.name !== rec.name), rec];
     if (await put({ setups, active: rec.id }, `Saved ${rec.name}`)) setPick(rec.id);
@@ -256,6 +256,7 @@ function GearPage({ db, toast }) {
             <div><span className="big">{s.momentum.toFixed(2)}</span><span className="label">momentum · bone {s.bone}</span></div>
           </div>
           {foc(cur.arrow_len, cur.balance_in) != null && <p className="small"><b>FOC {foc(cur.arrow_len, cur.balance_in).toFixed(1)}%</b> — {focClass(foc(cur.arrow_len, cur.balance_in))}. 10–15% is the usual hunting range; higher FOC helps penetration and broadhead flight but drops more at long range.</p>}
+          {cur.tip_gr > 0 && <p className="muted small">{cur.tip_gr} gr {/broadhead/i.test(cur.tip_type) ? "broadhead" : "point"}{cur.arrow_gr > 0 ? ` — ${Math.round((cur.tip_gr / cur.arrow_gr) * 100)}% of the arrow's weight` : ""}.</p>}
           {s.gpp && <p className="muted small">{s.gpp.toFixed(1)} grains per pound of draw weight{s.gpp < 6 ? " — light; heavier arrows penetrate better." : "."}</p>}
           <p><b>Bone penetration: {s.bone}.</b> {{ High: "Good odds of breaking through a deer's shoulder blade with this setup.",
             Moderate: "May break through the shoulder blade, but heavy bone can stop or deflect it.",
@@ -286,7 +287,8 @@ function GearPage({ db, toast }) {
             return p == null ? <span className="muted small">{f.arrow_len && f.balance_in ? "Balance point must be less than the arrow length" : "Enter length and balance point"}</span>
               : <><b className="big">{p.toFixed(1)}%</b><span className="muted small">{focClass(p)}</span></>; })()}</div>
           <label className="field half"><span>Tip</span><select value={f.tip_type} onChange={txt("tip_type")}>{Object.keys(TIP_FACTOR).map((t) => <option key={t}>{t}</option>)}</select></label>
-          <label className="field half"><span>Broadhead make / weight / cut</span><input placeholder='e.g. 100 gr, 1-3/16" cut' value={f.tip_model} onChange={txt("tip_model")} /></label>
+          <label className="field half"><span>Broadhead / point weight (gr)</span><NumInput empty min={0} max={500} value={f.tip_gr ?? ""} onChange={num("tip_gr")} /></label>
+          <label className="field half"><span>Broadhead make / cut</span><input placeholder='e.g. 1-3/16" cut' value={f.tip_model} onChange={txt("tip_model")} /></label>
           <label className="field half"><span>String accessories (gr)</span><NumInput empty min={0} max={2000} value={f.string_gr} onChange={num("string_gr")} /></label>
           <label className="field half"><span>Chronograph fps (optional)</span><NumInput empty min={0} max={2000} value={f.chrono_fps ?? ""} onChange={num("chrono_fps")} /></label>
         </div>
