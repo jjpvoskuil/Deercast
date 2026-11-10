@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import NumInput from "./NumInput.jsx";
 import { normalizeTrack } from "./TrackMode.jsx";
@@ -7,6 +7,7 @@ import { CARDINALS_8, degToCardinal } from "./lib/geo.js";
 import { newId, nowIso } from "./lib/db.js";
 import { ACTIVITIES, BANDS, KINDS, deerText, isCamera, groupSightings, isoLocal, sessionHours, validation, whereText, withPosition } from "./lib/huntlog.js";
 import { fetchForecast, fetchRange } from "./lib/weather.js";
+import { myLocation } from "./lib/places.js";
 import { scoreForecast } from "./lib/model/scoring.js";
 import { dailyAstro } from "./lib/model/astro.js";
 import { rutPeakFor } from "./lib/model/rut.js";
@@ -50,17 +51,25 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const shotsFor = (id) => shots.filter((x) => x.hunt_id === id).sort((a, b) => String(a.time).localeCompare(String(b.time)));
   const recovered = (h) => !!h.harvest || shotsFor(h.id).some((x) => x.result === "recovered");
   const [shotForm, setShotForm] = useState(null); // { huntId, stand, day, time, … id? } — the "I took a shot" form
+  const standOf = (x) => (x.from_lat != null ? [x.from_lat, x.from_lon] : coords(x.stand || ""));
   const centerFor = (x) => {
     const hp = (x.pins || []).find((p) => p.kind === "hit");
     if (hp) return [hp.lat, hp.lon];
     if (x.hit_lat != null) return [x.hit_lat, x.hit_lon];
-    return coords(x.stand || "");
+    return standOf(x);
   };
   const saveShotBasics = async (f) => {
     const cur = f.id ? shots.find((x) => x.id === f.id) : null;
     const rec = { ...(cur || { id: newId(), created: nowIso(), trips: [], pins: [] }), hunt_id: f.huntId, ground_id: ground.id, status: f.status,
       result: f.status === "hit" ? cur?.result || "tracking" : null, time: `${f.day} ${f.time}`, time_iso: new Date(`${f.day}T${f.time}`).toISOString(),
       stand: f.stand, weapon: f.weapon, distance_yd: f.dist, deer: f.deer || "", notes: f.notes, updated: nowIso() };
+    const hunt = live?.id === f.huntId ? live : mine.find((h) => h.id === f.huntId);
+    if (f.stand !== "Current location") [rec.from_lat, rec.from_lon] = coords(f.stand);
+    else if (cur?.from_lat == null || cur?.stand !== "Current location") {
+      // where the phone was: the sit's saved spot, else where tracking began, else the property's home spot
+      const p0 = normalizeTrack(rec).trips.find((t) => t.path?.length)?.path[0];
+      [rec.from_lat, rec.from_lon] = hunt?.lat != null && hunt.stand === "Current location" ? [hunt.lat, hunt.lon] : p0 ? [p0[0], p0[1]] : ptOf(f.stand, hunt);
+    }
     const ok = await save((d) => d.saveShot(rec), { reload: "none", ok: f.status === "hit" ? "Shot saved — let it lie before you track" : "Miss logged" });
     if (ok) { await loadShots(); setShotForm(null); if (!cur && f.status === "hit") openAnalysis(rec.id); } // a new hit → straight into shot placement
     return ok;
@@ -70,13 +79,13 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const shotPanel = (huntId, stand, defaultMs, deerOpts, live) => (
     <div className="shots-box">
       {shotsFor(huntId).map((x) => shotForm?.id === x.id
-        ? <ShotQuick key={x.id} initial={shotForm} deerOpts={deerOpts} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
+        ? <ShotQuick key={x.id} initial={shotForm} deerOpts={deerOpts} whereOptions={whereOptions} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
         : <ShotStage key={x.id} x={x} live={live}
             onEdit={() => { const [day, time] = String(x.time).split(" "); setShotForm({ id: x.id, huntId, stand: x.stand || stand, day, time, status: x.status, weapon: x.weapon || "Bow", dist: x.distance_yd || 20, deer: x.deer || "", notes: x.notes || "" }); }}
             onDelete={() => delShot(x.id)} onAnalysis={() => openAnalysis(x.id)}
-            onTrack={(gps) => openTrack(x, centerFor(x), gps)} />)}
+            onTrack={(gps) => openTrack(x, centerFor(x), gps, standOf(x))} />)}
       {shotForm && !shotForm.id && shotForm.huntId === huntId
-        ? <ShotQuick initial={shotForm} deerOpts={deerOpts} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
+        ? <ShotQuick initial={shotForm} deerOpts={deerOpts} whereOptions={whereOptions} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
         : <button className="btn wide" onClick={() => { const d = new Date(defaultMs()); setShotForm({ huntId, stand, day: localDay(d), time: localHM(d), status: "hit", weapon: "Bow", dist: 20, deer: "", notes: "" }); }}>🎯 I took a shot</button>}
     </div>
   );
@@ -87,10 +96,12 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
 
   const whereOptions = ["Current location", ...stands.map((s) => `Stand: ${s.name}`)];
   const coords = (label) => { const s = stands.find((x) => `Stand: ${x.name}` === label); return s ? [s.lat, s.lon] : [home.lat, home.lon]; };
+  // "Current location" = where the phone was when the sit started (saved on the sit/hunt), not the property's home spot
+  const ptOf = (label, at) => (label === "Current location" && at?.lat != null ? [at.lat, at.lon] : coords(label));
   const rutFor = (key, lat, lon) => rutPeakFor(key, lat, lon, home.state, localStorage.getItem("deercast.rutOverride"));
 
-  async function buildHunt(where, startMs, endMs, sightings, notes, harvest, id) {
-    const [lat, lon] = coords(where);
+  async function buildHunt(where, startMs, endMs, sightings, notes, harvest, id, at) {
+    const [lat, lon] = ptOf(where, at);
     const rec = { id: id || newId(), date: dateKey(startMs, tz), stand: where, lat, lon, start: isoLocal(startMs, tz), end: isoLocal(endMs, tz),
       sightings, notes, harvest, hours: [], model: MODEL_VERSION, ground_id: ground.id };
     // cameras were being checked this sit → stands with a camera next to them count these hours as watched (Best stand)
@@ -114,6 +125,33 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
     }).catch(() => setLive(null));
   }, [db]);
   const putLive = async (v) => { setLive(v); try { await db.putDoc("active_hunt", v); } catch (e) { toast(`Couldn't save — ${e.message}`); } };
+  // A recovered deer is always a deer seen: if the sit has no sighting near the shot, add one (once per shot).
+  const seenDone = useRef(new Set());
+  useEffect(() => {
+    (async () => {
+      for (const x of shots) {
+        if (x.result !== "recovered" || x.seen_logged || seenDone.current.has(x.id)) continue;
+        const isLive = live?.id === x.hunt_id, hunt = isLive ? live : mine.find((h) => h.id === x.hunt_id);
+        if (!hunt) continue;
+        seenDone.current.add(x.id);
+        const shotMs = Date.parse(x.time_iso || "");
+        const near = (hunt.sightings || []).some((sg) => !isCamera(sg) && Math.abs(Date.parse(sg.time) - shotMs) <= 2 * 3600e3);
+        if (!x.deer && !near && Number.isFinite(shotMs)) {
+          const sex = normalizeTrack(x).recovery?.sex;
+          const kind = sex === "Doe" ? { kind: "Doe" } : sex === "Button buck" ? { kind: "Fawn", fawn: "buck" } : sex === "Buck" ? { kind: "Buck" } : { kind: "Unknown" };
+          const sg = { ...kind, count: 1, activity: "", bait: "", notes: "Added from the recovered deer", group: newId(), time: isoLocal(shotMs, tz) };
+          const sightings = [...(hunt.sightings || []), sg].sort((a, b) => String(a.time).localeCompare(String(b.time)));
+          if (isLive) await putLive({ ...live, sightings });
+          else {
+            const r = await buildHunt(hunt.stand, Date.parse(hunt.start), Date.parse(hunt.end), sightings, hunt.notes || "", true, hunt.id, hunt);
+            await save((d) => d.saveHunt({ ...hunt, ...r }), { reload: "data" });
+          }
+          toast(`Added the ${sg.kind === "Fawn" ? "button buck" : sg.kind.toLowerCase()} you recovered to this hunt's deer seen`);
+        }
+        await db.saveShot({ ...x, seen_logged: true }).catch(() => {});
+      }
+    })().catch(() => {});
+  }, [shots, live?.id, mine]);
   const [where, setWhere] = useState(whereOptions[1] || whereOptions[0]);
   useEffect(() => { if (stands.length && where === "Current location") setWhere(`Stand: ${stands[0].name}`); }, [stands.length]);
   const [notes, setNotes] = useState("");
@@ -123,7 +161,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const addLive = async (recs) => { await putLive({ ...live, notes, sightings: [...live.sightings, ...recs] }); toast(`Saved — ${deerText(recs.map((r) => [r.kind, r.count]))}`); return true; };
   const retime = (list, idx, hhmm, key) => list.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(key, hhmm, tz), tz) } : x));
   const [busy, setBusy] = useState(false);
-  const liveCoords = coords(live?.where || where);
+  const liveCoords = ptOf(live?.where || where, live);
   const [nowFc, setNowFc] = useState(null);
   useEffect(() => {
     if (!live || !shown) return;
@@ -145,7 +183,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
     }
     setBusy(true); setEndAsk(null);
     const endMs = Math.max(endAt ?? Math.floor(Date.now() / 60000) * 60000, startMs + 60000);
-    const rec = await buildHunt(live.where, startMs, endMs, live.sightings, notes, recovered({ id: live.id }), live.id);
+    const rec = await buildHunt(live.where, startMs, endMs, live.sightings, notes, recovered({ id: live.id }), live.id, live);
     if (await save((d) => d.saveHunt(rec), { ok: "Hunt saved — ready for the next one." })) {
       await putLive(null); setNotes("");
     }
@@ -163,7 +201,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const rescore = async () => {
     setBusy(true);
     for (const h of missing) {
-      const r = await buildHunt(h.stand, Date.parse(h.start), Date.parse(h.end), h.sightings || [], h.notes || "", !!h.harvest, h.id);
+      const r = await buildHunt(h.stand, Date.parse(h.start), Date.parse(h.end), h.sightings || [], h.notes || "", !!h.harvest, h.id, h);
       await save((d) => d.saveHunt({ ...h, hours: r.hours, weather: r.weather, model: r.model }), { reload: "none" });
     }
     await save(async () => {}, { ok: "Re-scored" });
@@ -195,8 +233,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
             {t ? <p className="muted small">Trip {n.trips.length} {t.end ? `ended ${fmtDay(Date.parse(t.end), tz)} ${fmtClock(Date.parse(t.end), tz)}` : "still open"}{t.stopped ? ` — ${t.stopped.toLowerCase()}` : ""}{t.notes ? `. ${t.notes}` : ""} · {n.pins.length} pin{n.pins.length === 1 ? "" : "s"}</p>
               : <p className="muted small">No tracking trips logged yet.</p>}
             <div className="btn-row">
-              <button className="btn primary" onClick={() => openTrack(x, centerFor(x), true)}>▶ Pick up the track</button>
-              <button className="btn" onClick={() => openTrack(x, centerFor(x), false)}>🗺️ Map / edit</button>
+              <button className="btn primary" onClick={() => openTrack(x, centerFor(x), true, standOf(x))}>▶ Pick up the track</button>
+              <button className="btn" onClick={() => openTrack(x, centerFor(x), false, standOf(x))}>🗺️ Map / edit</button>
             </div>
           </section>
         );
@@ -214,7 +252,17 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
               </select>
             </label>
             <HuntClock start={null} t={targets(...coords(where), Date.now())} tz={tz} />
-            <button className="btn primary wide" onClick={() => putLive({ id: newId(), where, start: isoLocal(Math.floor(Date.now() / 60000) * 60000, tz), sightings: [], notes: "" })}>
+            <button className="btn primary wide" disabled={busy} onClick={async () => {
+              const start = isoLocal(Math.floor(Date.now() / 60000) * 60000, tz);
+              let at = {};
+              if (where === "Current location") {
+                setBusy(true);
+                try { const p = await myLocation(); at = { lat: Math.round(p.lat * 1e6) / 1e6, lon: Math.round(p.lon * 1e6) / 1e6 }; }
+                catch { toast("Couldn't get your location — using the property's home spot"); }
+                setBusy(false);
+              }
+              putLive({ id: newId(), where, start, sightings: [], notes: "", ...at });
+            }}>
               Start hunt now
             </button>
           </>
@@ -361,7 +409,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                           : isoLocal(atLocal(addDays(f.date, daysBetween(dateKey(s, tz), dateKey(t, tz))), timeOf(t, tz), tz), tz);
                         return withPosition(y, anchor);
                       });
-                      const rec = await buildHunt(f.where, f.startMs, f.endMs, fixed, f.notes, recovered(h), h.id);
+                      const rec = await buildHunt(f.where, f.startMs, f.endMs, fixed, f.notes, recovered(h), h.id, f.where === h.stand ? h : null);
                       const ok = await save((d) => d.saveHunt({ ...rec, id: h.id, ground_id: h.ground_id || ground.id, edited: nowIso().slice(0, 16).replace("T", " ") }),
                         { ok: "Hunt updated" });
                       if (ok) setEditId(null);
@@ -603,7 +651,7 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
 // ---------------------------------------------------------------- shots inside the session
 const WEAPONS = ["Bow", "Crossbow", "Rifle / shotgun slug", "Muzzleloader"];
 /** "I took a shot": hit or miss, when, which deer, how far. */
-function ShotQuick({ initial, deerOpts, onSave, onCancel }) {
+function ShotQuick({ initial, deerOpts, whereOptions, onSave, onCancel }) {
   const [f, setF] = useState(initial);
   const [busy, setBusy] = useState(false);
   const set = (k) => (v) => setF({ ...f, [k]: v });
@@ -617,6 +665,8 @@ function ShotQuick({ initial, deerOpts, onSave, onCancel }) {
       <div className="grid2">
         <label className="field half"><span>Time of shot</span><input type="time" value={f.time} onChange={(e) => e.target.value && set("time")(e.target.value)} /></label>
         <label className="field half"><span>Distance (yd)</span><NumInput min={1} max={400} value={f.dist} onChange={set("dist")} /></label>
+        <label className="field half"><span>Shot from</span><select value={f.stand} onChange={(e) => set("stand")(e.target.value)}>
+          {[...new Set([...whereOptions, f.stand].filter(Boolean))].map((o) => <option key={o} value={o}>{o.replace("Stand: ", "")}</option>)}</select></label>
         <label className="field half"><span>Weapon</span><select value={f.weapon} onChange={(e) => set("weapon")(e.target.value)}>{WEAPONS.map((w) => <option key={w}>{w}</option>)}</select></label>
         {deerOpts.length > 0 && <label className="field half"><span>Which deer</span><select value={f.deer} onChange={(e) => set("deer")(e.target.value)}>
           <option value="">—</option>{[...new Set([...deerOpts, f.deer].filter(Boolean))].map((d) => <option key={d}>{d}</option>)}</select></label>}

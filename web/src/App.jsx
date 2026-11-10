@@ -133,7 +133,7 @@ export default function App() {
   );
   if (me === undefined || grounds === null) return <Splash><p className="muted">Loading your grounds…</p></Splash>;
 
-  const openTrack = (shot, center, live) => setOverlay({ kind: "track", shot, center, live });
+  const openTrack = (shot, center, live, stand) => setOverlay({ kind: "track", shot, center, live, stand });
   const openAnalysis = (shotId) => setOverlay({ kind: "analysis", shotId });
   const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true), openAnalysis, openTrack, shotsV, patchShot,
     setGround: setGid, reloadGrounds: loadGrounds, reloadData: loadData, signOut };
@@ -147,7 +147,7 @@ export default function App() {
       <MoreScreen {...common} active={tab === "more"} />
       <TabBar tab={tab} onTab={onTab} built={BUILT} />
       {overlay?.kind === "analysis" && <div className="overlay"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
-      {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} live={overlay.live}
+      {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} stand={overlay.stand || overlay.center} live={overlay.live}
         onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay}
         onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
       <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}

@@ -86,9 +86,11 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const stands = data?.stands || [];
   const home = ground?.home || { lat: 37.3006, lon: -86.0608 };
   const [src, setSrc] = useState("Current location");
-  useEffect(() => { if (stands.length && src === "Current location") setSrc(`Stand: ${stands[0].name}`); }, [stands.length]);
+  // calculator only: start on the first stand. A saved shot keeps where it was taken from (incl. "Current location").
+  useEffect(() => { if (!openId && stands.length && src === "Current location") setSrc(`Stand: ${stands[0].name}`); }, [stands.length]);
+  const [fromAt, setFromAt] = useState(null); // where the phone was for a "Current location" shot
   const st = stands.find((s) => `Stand: ${s.name}` === src);
-  const from = st ? [st.lat, st.lon] : [home.lat, home.lon];
+  const from = st ? [st.lat, st.lon] : fromAt || [home.lat, home.lon];
   const [toDeer, setToDeer] = useState("N");
   const [ran, setRan] = useState("Unknown");
   const [seen, setSeen] = useState(0);
@@ -121,6 +123,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
     setManual(v.manual); setManualPitch(v.manualPitch); setCross(v.cross); setEvidence(v.evidence); setReaction(v.reaction); setArrow(v.arrow);
     setUseSign(v.useSign); setBoneChoice(v.boneChoice); setToDeer(v.toDeer); setRan(v.ran); setSeen(v.seen);
     if (v.src) setSrc(v.src);
+    setFromAt(rec?.from_lat != null ? [rec.from_lat, rec.from_lon] : null);
     const hp = (rec?.pins || []).find((p) => p.kind === "hit"); // the hit site pinned while tracking beats the estimate
     setHitFix(hp ? { lat: hp.lat, lon: hp.lon } : rec?.hit_fix || null);
   };

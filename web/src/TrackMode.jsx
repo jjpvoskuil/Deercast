@@ -65,7 +65,7 @@ export function normalizeTrack(s) {
   return { ...s, trips, pins, recovery };
 }
 
-export default function TrackMode({ shot: initial, center, live: startLive, onSave, onClose, onAnalysis }) {
+export default function TrackMode({ shot: initial, center, stand, live: startLive, onSave, onClose, onAnalysis }) {
   const [s, setS] = useState(() => normalizeTrack(initial));
   const sRef = useRef(s); sRef.current = s;
   const [live, setLive] = useState(startLive);          // GPS recording on
@@ -108,7 +108,12 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
     const getLock = () => (navigator.wakeLock ? navigator.wakeLock.request("screen").then((l) => { lock = l; setAwake(true); l.addEventListener?.("release", () => setAwake(false)); })
       .catch(() => setAwake(false)) : setAwake(false));
     getLock();
-    const id = navigator.geolocation.watchPosition((p) => {
+    // iPhone Safari can silently stop delivering positions after the app has been in the background (app
+    // switcher, notification, call). So: restart the watch whenever the app comes back, and if no fix arrives
+    // for 20 s while it's on screen.
+    let id = null, lastFix = Date.now();
+    const onPos = (p) => {
+      lastFix = Date.now();
       const pt = [r6(p.coords.latitude), r6(p.coords.longitude)], acc = p.coords.accuracy;
       setMe([...pt, acc]); setGpsMsg("");
       const cur = sRef.current, t = cur.trips.find((x) => !x.end);
@@ -117,14 +122,23 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
       if (last && meters(last, pt) < 4) return;
       const trips = cur.trips.map((x) => (x.id === t.id ? { ...x, path: [...x.path, [...pt, Date.now()]] } : x));
       persist({ ...cur, trips }, false);
-    }, (e) => setGpsMsg(e.code === 1 ? "Location permission is off — allow it for Safari to record your path" : "Looking for GPS…"),
-    { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+    };
+    const onErr = (e) => setGpsMsg(e.code === 1 ? "Location permission is off — allow it for Safari to record your path" : "Looking for GPS…");
+    const startWatch = () => {
+      if (id != null) navigator.geolocation.clearWatch(id);
+      lastFix = Date.now();
+      id = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    };
+    startWatch();
+    const dog = setInterval(() => { if (document.visibilityState === "visible" && Date.now() - lastFix > 20000) { setGpsMsg("Reconnecting GPS…"); startWatch(); } }, 5000);
     const wake = () => {
-      if (document.visibilityState === "visible") getLock();
-      else { clearTimeout(timer.current); onSave({ ...sRef.current, updated: nowIso() }).catch(() => {}); } // phone locked / app switched: save the path so far now
+      if (document.visibilityState === "visible") { getLock(); startWatch(); }
+      else { clearTimeout(timer.current); onSave({ ...sRef.current, updated: nowIso() }).catch(() => {}); } // locked / app switched: save the path so far now
     };
     document.addEventListener("visibilitychange", wake);
-    return () => { navigator.geolocation.clearWatch(id); lock?.release?.().catch(() => {}); document.removeEventListener("visibilitychange", wake); };
+    window.addEventListener("pageshow", wake);
+    return () => { clearInterval(dog); if (id != null) navigator.geolocation.clearWatch(id); lock?.release?.().catch(() => {});
+      document.removeEventListener("visibilitychange", wake); window.removeEventListener("pageshow", wake); };
   }, [live]);
 
   // ---------------------------------------------------------------- pins
@@ -175,12 +189,22 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
   const COLORS = ["#ffd60a", "#ff8c1a", "#52b788", "#3a86ff", "#e76f51", "#c77dff"];
   useEffect(() => {
     const g = lg.current; if (!g) return; g.clearLayers();
-    const all = [center];
-    L.marker(center, { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="stand-pin">S</div>' }), interactive: false }).addTo(g);
+    const st = stand || center, all = [st];
+    L.marker(st, { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="stand-pin">S</div>' }), interactive: false }).addTo(g);
     s.trips.forEach((t, i) => {
       const col = COLORS[i % COLORS.length];
       const pts = t.path.map((p) => [p[0], p[1]]);
-      if (pts.length > 1) L.polyline(pts, { color: col, weight: 4, opacity: 0.9, interactive: false }).addTo(g);
+      // a gap of over a minute between GPS points = app was in the background: draw that stretch as a thin dotted line
+      let seg = [];
+      t.path.forEach((p, j) => {
+        if (j && p[2] && t.path[j - 1][2] && p[2] - t.path[j - 1][2] > 60000) {
+          if (seg.length > 1) L.polyline(seg, { color: col, weight: 4, opacity: 0.9, interactive: false }).addTo(g);
+          L.polyline([[t.path[j - 1][0], t.path[j - 1][1]], [p[0], p[1]]], { color: "#fff", weight: 2, opacity: 0.7, dashArray: "2 8", interactive: false }).addTo(g);
+          seg = [];
+        }
+        seg.push([p[0], p[1]]);
+      });
+      if (seg.length > 1) L.polyline(seg, { color: col, weight: 4, opacity: 0.9, interactive: false }).addTo(g);
       if ((t.drawn || []).length > 1) L.polyline(t.drawn, { color: col, weight: 4, opacity: 0.9, dashArray: "8 8", interactive: false }).addTo(g);
       for (const p of (t.drawn || []).length === 1 ? t.drawn : []) L.circleMarker(p, { radius: 4, color: col, interactive: false }).addTo(g);
       all.push(...pts, ...(t.drawn || []));
