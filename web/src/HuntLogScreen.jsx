@@ -178,7 +178,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
             <div className="sub-h">Deer seen</div>
             <SightingCard baitNames={baitNames} anchor={liveCoords} cameras={cameras} stands={stands} tz={tz} dayKey={dateKey(Date.parse(live.start), tz)} onSave={addLive} />
             <SightingList sightings={live.sightings} tz={tz} onRemove={(idx) => putLive({ ...live, notes, sightings: live.sightings.filter((_, i) => !idx.includes(i)) })}
-              onRetime={(idx, hhmm) => putLive({ ...live, notes, sightings: retime(live.sightings, idx, hhmm, dateKey(Date.parse(live.start), tz)) })} />
+              onRetime={(idx, hhmm) => putLive({ ...live, notes, sightings: retime(live.sightings, idx, hhmm, dateKey(Date.parse(live.start), tz)) })}
+              onShot={(e) => openShot({ huntId: live.id, stand: live.where, time: Date.parse(e.time) })} />
             {!live.sightings.length && <p className="muted small">Nothing saved yet. Each sighting is saved to this sit as soon as you tap Save.</p>}
             <ShotsBox shots={live.id ? shotsFor(live.id) : []} tz={tz}
               onNew={() => openShot({ huntId: live.id, stand: live.where, time: Date.now() })} onOpen={(x) => openShot({ shotId: x.id })} />
@@ -282,6 +283,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   ))}
                   {h.notes && <p className="small"><i>{h.notes}</i></p>}
                   {h.edited && <div className="muted small">Edited {h.edited}</div>}
+                  {!shotsFor(h.id).length && <button className="btn primary wide" onClick={() => openShot({ huntId: h.id, stand: h.stand, time: s })}>🎯 Shot taken on this hunt — enter details</button>}
+                  {shotsFor(h.id).length > 0 && <button className="link" onClick={() => openShot({ huntId: h.id, stand: h.stand, time: s })}>+ Another shot on this hunt</button>}
                   <div className="btn-row">
                     <button className="btn" onClick={() => setEditId(h.id)}>Edit</button>
                     <button className="btn" onClick={() => setConfirmDel(h.id)}>Delete</button>
@@ -491,13 +494,13 @@ function ShotsBox({ shots, tz, onNew, onOpen, hint }) {
         <button key={x.id} className="shot-link" onClick={() => onOpen(x)}>
           🎯 {fmtClock(Date.parse(x.time_iso || x.time), tz)} — {shotStatus(x)}{x.outcome && x.status === "hit" ? ` · ${x.outcome}` : ""} <span className="muted">Open ›</span></button>
       ))}
-      <button className="btn wide" onClick={onNew}>🎯 Shot taken — enter details</button>
-      {hint && shots.length > 0 && <p className="muted small">{hint}</p>}
+      <button className="btn primary wide" onClick={onNew}>🎯 Shot taken — enter details</button>
+      {hint && <p className="muted small">{hint}</p>}
     </div>
   );
 }
 
-function SightingList({ sightings, tz, onRemove, onRetime }) {
+function SightingList({ sightings, tz, onRemove, onRetime, onShot }) {
   const groups = groupSightings(sightings);
   if (!groups.length) return null;
   return (
@@ -510,6 +513,7 @@ function SightingList({ sightings, tz, onRemove, onRetime }) {
               : <b>{fmtClock(Date.parse(e.time), tz)}</b>}
             {" "}— {deerText(e.deer)}{e.source === "camera" ? ` · 📷 ${e.camera || "trail cam"}` : ""}{e.activity ? ` · ${e.activity}` : ""}{e.bait ? ` · at ${e.bait}` : ""}
             {whereText(e) && <div className="muted small">{whereText(e)}</div>}
+            {onShot && e.source !== "camera" && <button className="btn sm shot-this" onClick={() => onShot(e)}>🎯 I shot at {e.deer.length === 1 && e.deer[0][1] === 1 ? "this deer" : "one of these"}</button>}
           </div>
           <button className="x" aria-label="Remove" onClick={() => onRemove(e.idx)}><Icon name="x" size={18} /></button>
         </div>
@@ -533,7 +537,10 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
     try { ok = await onSubmit({ ...f, startMs, endMs }); } catch (e) { setErr(`Couldn't save — ${e.message}`); }
     setBusy(false);
     if (ok && resetAfter) setF({ ...initial, id: newId(), where: f.where });
+    return ok;
   };
+  // the hunt is saved first (so the shot has a hunt to link to and nothing typed here is lost), then the Shot page opens
+  const shotNow = async (ms) => { const id = f.id, where = f.where; if (await submit()) openShot({ huntId: id, stand: where, time: ms }); };
   return (
     <div className="form">
       <label className="field"><span>Where</span>
@@ -547,11 +554,11 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
       <SightingCard key={`${f.date}-${f.start}`} baitNames={baitNames} anchor={coords(f.where)} cameras={cameras} stands={stands} tz={tz} dayKey={f.date} defaultTime={f.start}
         onSave={(recs) => { setF({ ...f, sightings: [...f.sightings, ...recs] }); return true; }} />
       <SightingList sightings={f.sightings} tz={tz} onRemove={(idx) => setF({ ...f, sightings: f.sightings.filter((_, i) => !idx.includes(i)) })}
-        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })} />
+        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })}
+        onShot={(e) => shotNow(Date.parse(e.time))} />
       {!f.sightings.length && <p className="muted small">No deer added — that's fine for a sit where you saw nothing.</p>}
       <ShotsBox shots={shotsFor(f.id)} tz={tz} onOpen={(x) => openShot({ shotId: x.id })}
-        onNew={() => openShot({ huntId: f.id, stand: f.where, time: atLocal(f.date, f.start, tz) })}
-        hint={resetAfter ? "The shot is linked to this hunt — come back and tap Save past hunt when you're done." : null} />
+        onNew={() => shotNow(atLocal(f.date, f.start, tz))} hint="Tapping Shot taken saves this hunt first, then opens the Shot page." />
       <label className="field"><span>Notes</span><textarea rows="2" value={f.notes} onChange={set("notes")} /></label>
       {err && <div className="err small">{err}</div>}
       <div className="btn-row">

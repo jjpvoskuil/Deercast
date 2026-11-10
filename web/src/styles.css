@@ -351,3 +351,4 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .trip { display: block; width: 100%; text-align: left; padding: 10px 0; border-top: 1px solid var(--line); color: inherit; background: none; font: inherit; }
 .trip-form { border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-top: 8px; }
 .trip-form .filter-row { margin: 4px 0; }
+.shot-this { margin-top: 6px; }
