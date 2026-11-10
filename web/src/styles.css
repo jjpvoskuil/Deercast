@@ -393,3 +393,15 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .emoji.pin.sel { font-size: 30px; }
 .log-trip { border-top: 1px solid var(--line); padding: 8px 0; display: flex; flex-direction: column; gap: 2px; }
 .log-pin { text-align: left; background: none; border: 0; padding: 6px 0; font-size: 15px; color: inherit; }
+.track-panel { padding-top: 0; transition: max-height .2s ease; }
+.track-panel.mini { max-height: 132px; overflow: hidden; }
+.track-handle { flex: none; display: flex; justify-content: center; align-items: center; height: 26px; margin: 0 -12px; touch-action: none; cursor: grab; }
+.track-handle .grab { width: 44px; height: 5px; border-radius: 3px; background: var(--muted); opacity: .6; }
+.pin-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.pin-mini { flex: none; width: 54px; height: 54px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 26px; }
+.pin-mini.on { border-color: var(--accent); }
+.mini-label { min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-weight: 600; color: inherit; }
+.track-mode { -webkit-user-select: none; user-select: none; }
+.track-mode input, .track-mode textarea { -webkit-user-select: text; user-select: text; }
+.track-handle { height: 34px; }
+.stand-pin { width: 26px; height: 26px; border-radius: 6px; background: #ff9f1c; color: #1b1b1b; border: 2px solid #fff; font: 700 14px/22px var(--body, sans-serif); text-align: center; box-shadow: 0 1px 3px #0008; }

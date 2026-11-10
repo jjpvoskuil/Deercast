@@ -78,6 +78,8 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
   const [sheet, setSheet] = useState(null);              // "stop" | "found" | "off" | "log" | "trip"
   const [crumbs, setCrumbs] = useState(true);            // breadcrumb path on/off (pause for a break without ending the trip)
   const crumbsRef = useRef(true); crumbsRef.current = crumbs;
+  const [mini, setMini] = useState(false);               // panel pulled down → more map
+  const drag = useRef(null);
   const [fd, setFd] = useState(null);                    // recovery draft while the Found sheet is open
   const openTrip = s.trips.find((t) => !t.end) || null;
   const tripNo = (id) => s.trips.findIndex((t) => t.id === id) + 1;
@@ -171,7 +173,7 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
   useEffect(() => {
     const g = lg.current; if (!g) return; g.clearLayers();
     const all = [center];
-    L.circleMarker(center, { radius: 7, color: "#fff", weight: 2, fillColor: "#1e7bff", fillOpacity: 1, interactive: false }).addTo(g);
+    L.marker(center, { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="stand-pin">S</div>' }), interactive: false }).addTo(g);
     s.trips.forEach((t, i) => {
       const col = COLORS[i % COLORS.length];
       const pts = t.path.map((p) => [p[0], p[1]]);
@@ -194,6 +196,14 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
       L.circleMarker([me[0], me[1]], { radius: 7, color: "#fff", weight: 3, fillColor: "#0a84ff", fillOpacity: 1, interactive: false }).addTo(g);
       if (followRef.current && live) map.current.panTo([me[0], me[1]], { animate: true }); }
   }, [me]);
+  useEffect(() => { setTimeout(() => map.current?.invalidateSize(), 220); }, [mini]);
+  const handle = {
+    onPointerDown: (e) => { drag.current = e.clientY; e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } },
+    onPointerUp: (e) => {
+      const dy = drag.current == null ? 0 : e.clientY - drag.current; drag.current = null;
+      if (dy > 25) setMini(true); else if (dy < -25) setMini(false); else setMini(!mini);
+    },
+  };
   const follow = () => { followRef.current = true; if (me) map.current.setView([me[0], me[1]], Math.max(map.current.getZoom(), 18)); };
 
   // ---------------------------------------------------------------- ending a trip / the track
@@ -224,8 +234,12 @@ export default function TrackMode({ shot: initial, center, live: startLive, onSa
         : <>Tap along the way you walked{s.trips.length ? ` (trip ${s.trips.length})` : ""} — each tap adds a point. <button className="link" onClick={() => { const cur = sRef.current, t = cur.trips.find((x) => !x.end) || cur.trips[cur.trips.length - 1];
           if (t) persist({ ...cur, trips: cur.trips.map((x) => (x.id === t.id ? { ...x, drawn: (x.drawn || []).slice(0, -1) } : x)) }); }}>Undo</button> · <button className="link" onClick={() => setDraw(false)}>Done</button></>}</div>}
 
-      <div className="track-panel">
-        {selPin ? (
+      <div className={`track-panel ${mini ? "mini" : ""}`}>
+        <div className="track-handle" {...handle} role="button" aria-label={mini ? "Pull up the panel" : "Pull down the panel"}><span className="grab" /></div>
+        {mini ? (
+          selPin || sheet ? <button className="mini-label" onClick={() => setMini(false)}>{selPin ? `${PIN_KINDS[selPin.kind]?.[0]} ${PIN_KINDS[selPin.kind]?.[1]} — pull up to edit` : "Pull up to finish"}</button>
+            : <div className="pin-row">{PIN_ORDER.map((k) => <button key={k} className={`pin-mini ${arm === k ? "on" : ""}`} aria-label={PIN_KINDS[k][1]} onClick={() => onPinButton(k)}>{PIN_KINDS[k][0]}</button>)}</div>
+        ) : selPin ? (
           <PinSheet pin={selPin} onChange={(patch) => updPin(selPin.id, patch)} onDelete={() => delPin(selPin.id)} onDone={() => setSel(null)} live={live} />
         ) : sheet === "start" ? (
           <StartSheet n={s.trips.length + 1} onCancel={() => setSheet(null)}
