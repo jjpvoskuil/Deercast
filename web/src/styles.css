@@ -355,3 +355,41 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .open-track { border-color: #c0392b; }
 .details-toggle { margin: 4px 0 12px; }
 .picker-map { margin-top: 6px; }
+
+/* ---- shots in the session + tracking map ---- */
+.overlay { position: absolute; inset: 0; z-index: 1150; background: var(--page); }
+.overlay .page { inset: 0; }
+.overlay-close { margin-bottom: 6px; }
+.stage { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--card); display: flex; flex-direction: column; gap: 6px; }
+.stage.open { border-color: #c0392b; }
+.stage-head { font-size: 15px; }
+.stage-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.danger-text { color: #d9534f !important; }
+.wait { display: flex; flex-direction: column; gap: 6px; }
+.wait .big { font-size: 26px; font-weight: 700; }
+.track-mode { position: absolute; inset: 0; display: flex; flex-direction: column; background: #000; }
+.track-map { flex: 1; min-height: 0; }
+.track-top { position: absolute; top: 0; left: 0; right: 0; z-index: 1000; display: flex; align-items: center; gap: 8px;
+  padding: calc(var(--safe-top) + 8px) 10px 8px; background: linear-gradient(var(--panel), color-mix(in srgb, var(--panel) 70%, transparent)); }
+.track-title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.track-title b { font-size: 16px; }
+.track-top .leaflet-top { top: 60px; }
+.track-me { bottom: auto; top: calc(var(--safe-top) + 120px); }
+.track-hint { position: absolute; left: 10px; right: 10px; top: calc(var(--safe-top) + 64px); z-index: 1000; background: var(--panel);
+  border-radius: 12px; padding: 10px 12px; font-size: 15px; box-shadow: 0 4px 16px var(--shadow); }
+.track-panel { flex: none; max-height: 58%; overflow-y: auto; background: var(--panel); padding: 10px 12px calc(var(--safe-bottom) + 10px);
+  border-radius: 16px 16px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.pin-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.pin-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px; padding: 6px 2px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--card); font-size: 12px; font-weight: 600; line-height: 1.1; text-align: center; color: inherit; }
+.pin-btn .e { font-size: 24px; }
+.pin-btn.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, var(--card)); }
+.track-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.track-tools .seg { flex: 1; }
+.track-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.track-actions .btn { min-height: 52px; padding: 0 4px; font-size: 15px; }
+.pin-sheet { display: flex; flex-direction: column; gap: 4px; }
+.emoji.pin { font-size: 22px; filter: drop-shadow(0 1px 2px #000); }
+.emoji.pin.sel { font-size: 30px; }
+.log-trip { border-top: 1px solid var(--line); padding: 8px 0; display: flex; flex-direction: column; gap: 2px; }
+.log-pin { text-align: left; background: none; border: 0; padding: 6px 0; font-size: 15px; color: inherit; }

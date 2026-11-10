@@ -34,6 +34,7 @@ export default function MoreScreen(props) {
           <section className="card list">
             <button className="nav-row" onClick={() => open("grounds")}><Icon name="ground" /><span>Hunting grounds</span><span className="muted small">{ground?.name}</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("gear")}><Icon name="bow" /><span>Bow setup</span><Icon name="chev" className="icon chev-r" /></button>
+            <button className="nav-row" onClick={() => props.openAnalysis?.(null)}><Icon name="target" /><span>Shot analyzer</span><span className="muted small">calculator</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("regs")}><Icon name="book" /><span>Regulations</span><Icon name="chev" className="icon chev-r" /></button>
             {admin && <button className="nav-row" onClick={() => open("dev")}><Icon name="tools" /><span>Development</span><Icon name="chev" className="icon chev-r" /></button>}
           </section>

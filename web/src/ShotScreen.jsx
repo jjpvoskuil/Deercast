@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import Icon from "./Icon.jsx";
 import NumInput from "./NumInput.jsx";
-import { LeftOff, PointField, TrackMap, Tracks, MARK_KINDS, trackHours, tripMarks, yardsBetween } from "./TrackParts.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { CARDINALS, degToCardinal, destination, YD } from "./lib/geo.js";
 import { newId, nowIso } from "./lib/db.js";
@@ -33,23 +32,13 @@ const RESULTS = [["tracking", "Still tracking"], ["recovered", "Recovered"], ["n
 const DEFAULTS = { yawIdx: 6, side: "Left", buck: true, weapon: "Bow", dist: 20, height: 18, manual: false, manualPitch: 30, cross: null,
   evidence: "(not checked yet)", reaction: "(didn't see)", arrow: ARROW[0], useSign: true, boneChoice: null, toDeer: "N", ran: "Unknown", seen: 0 };
 
-export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save, toast, active, shotCtx, go }) {
+/** Hit analysis: where the shot went → what was hit, wait time, where to search. Opens over the hunt session for one
+ *  shot (shotId) and saves its findings into that shot; without a shot it's just a calculator (More → Shot analyzer). */
+export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save, toast, active, shotId: openId, onClose, patchShot }) {
   // ------------------------------------------------ 0 the record: new or reopened, linked to a sit or not
   const pageRef = useRef(null);
-  const [shotId, setShotId] = useState(null);   // null = not saved yet
-  const [created, setCreated] = useState(null);
-  const [huntId, setHuntId] = useState(null);
-  const [status, setStatus] = useState("hit");  // "hit" | "missed"
-  const [result, setResult] = useState("tracking");
   const [shotDate, setShotDate] = useState(() => localDay(new Date()));
-  const [tracks, setTracks] = useState([]);
-  const [foundYd, setFoundYd] = useState(null);
   const [hitFix, setHitFix] = useState(null);     // exact hit site, if found / marked later
-  const [found, setFound] = useState(null);       // where the deer was recovered
-  const [foundAt, setFoundAt] = useState({ date: "", time: "" });
-  const [actual, setActual] = useState([]);       // what the arrow/bullet actually hit (seen at recovery)
-  const [actualNotes, setActualNotes] = useState("");
-  const [showDetails, setShowDetails] = useState(true); // tracking trips: [{date, from, to, notes}] — e.g. that evening, then again next morning
   // ------------------------------------------------ 1–2 deer position & shot
   const [yawIdx, setYawIdx] = useState(6);
   const yaw = ANGLES[yawIdx][0];
@@ -113,7 +102,6 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   // ------------------------------------------------ 6 timing
   const [shotTime, setShotTime] = useState(() => localHM(new Date()));
   const [note, setNote] = useState("");
-  const [logV, setLogV] = useState(0);
 
   const flip = mirror ? -1 : 1;
   const svgRef = useRef(null);
@@ -127,21 +115,17 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
 
   // ------------------------------------------------ load / reset / save (each stage can be saved and reopened later)
   const apply = (i, rec) => {
-    const v = { ...DEFAULTS, ...i };
+    const v = { ...DEFAULTS, ...Object.fromEntries(Object.entries(i || {}).filter(([, x]) => x != null)) };
     restoring.current = true;
     setYawIdx(v.yawIdx); setSide(v.side); setBuck(v.buck); setWeapon(v.weapon); setDist(v.dist); setHeight(v.height);
     setManual(v.manual); setManualPitch(v.manualPitch); setCross(v.cross); setEvidence(v.evidence); setReaction(v.reaction); setArrow(v.arrow);
     setUseSign(v.useSign); setBoneChoice(v.boneChoice); setToDeer(v.toDeer); setRan(v.ran); setSeen(v.seen);
     if (v.src) setSrc(v.src);
-    setShotId(rec?.id || null); setCreated(rec?.created || null); setHuntId(rec?.hunt_id || null);
-    setStatus(rec?.status || "hit"); setResult(rec?.result || "tracking"); setNote(rec?.notes || ""); setTracks(rec?.tracking || []); setFoundYd(rec?.found_yd ?? null);
-    setHitFix(rec?.hit_fix || null); setFound(rec?.found_lat != null ? { lat: rec.found_lat, lon: rec.found_lon } : null);
-    setFoundAt({ date: rec?.found_date || "", time: rec?.found_time || "" }); setActual(rec?.organs_actual || []); setActualNotes(rec?.found_notes || "");
-    setShowDetails(!(rec?.status === "hit"));
+    const hp = (rec?.pins || []).find((p) => p.kind === "hit"); // the hit site pinned while tracking beats the estimate
+    setHitFix(hp ? { lat: hp.lat, lon: hp.lon } : rec?.hit_fix || null);
   };
   const startNew = ({ huntId: hid = null, stand = null, time = Date.now() } = {}) => {
     apply({ src: stand && stands.some((x) => `Stand: ${x.name}` === stand) ? stand : undefined }, null);
-    setHuntId(hid); setShowDetails(true);
     const d = new Date(time); setShotDate(localDay(d)); setShotTime(localHM(d));
     setTimeout(() => pageRef.current?.scrollTo(0, 0), 0);
   };
@@ -152,76 +136,20 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
     setTimeout(() => pageRef.current?.scrollTo(0, 0), 0);
   };
   useEffect(() => {
-    if (!shotCtx) return;
-    if (shotCtx.shotId) db.listShots().then((all) => { const r = all.find((x) => x.id === shotCtx.shotId); if (r) openRec(r); }).catch(() => {});
-    else startNew(shotCtx);
-  }, [shotCtx?.n]);
+    if (!openId) { startNew(); return; }
+    db.listShots().then((all) => { const r = all.find((x) => x.id === openId); if (r) openRec(r); }).catch(() => {});
+  }, [openId]);
 
-  const linked = huntId ? (data?.hunts || []).find((h) => h.id === huntId) : null;
   const saveShot = async () => {
-    const [y, mo, d] = shotDate.split("-").map(Number), [h, mi] = shotTime.split(":").map(Number);
-    const isHit = status === "hit";
-    const rec = {
-      id: shotId || newId(), created: created || nowIso(), updated: nowIso(), hunt_id: huntId, status, result: isHit ? result : null,
-      time: `${shotDate} ${shotTime}`, time_iso: new Date(y, mo - 1, d, h, mi).toISOString(), stand: src, weapon, angle: ANGLES[yawIdx][1], side, pitch_deg: pitch,
-      distance_yd: dist, outcome: !isHit ? "Missed" : res ? O.title : "Hit — spot not marked", organs: isHit ? (res?.hits || []).map((x) => x.label) : [],
-      evidence, arrow, setup: setup?.name || null, reaction, ran, seen_yd: seen,
-      tracking: isHit ? tracks : [], found_yd: isHit && result !== "tracking" ? (autoYd ?? foundYd) : null, hit_fix: isHit ? hitFix : null,
-      found_lat: isHit && result === "recovered" ? found?.lat ?? null : null, found_lon: isHit && result === "recovered" ? found?.lon ?? null : null,
-      found_date: result === "recovered" ? foundAt.date : "", found_time: result === "recovered" ? foundAt.time : "",
-      organs_actual: result === "recovered" ? actual : [], found_notes: result === "recovered" ? actualNotes : "",
-      hit_lat: isHit ? Math.round(hit[0] * 1e6) / 1e6 : null, hit_lon: isHit ? Math.round(hit[1] * 1e6) / 1e6 : null, ground_id: ground?.id || null, notes: note,
+    const patch = {
+      stand: src, weapon, angle: ANGLES[yawIdx][1], side, pitch_deg: pitch, distance_yd: dist, outcome: res ? O.title : "Hit — spot not marked",
+      organs: (res?.hits || []).map((x) => x.label), evidence, arrow, setup: setup?.name || null, reaction, ran, seen_yd: seen, wait_min: res ? wait : null,
+      hit_lat: Math.round(hitEst[0] * 1e6) / 1e6, hit_lon: Math.round(hitEst[1] * 1e6) / 1e6, analysis_at: nowIso(),
       input: { yawIdx, side, buck, weapon, dist, height, manual, manualPitch, cross, evidence, reaction, arrow, useSign, boneChoice, src, toDeer, ran, seen },
     };
-    const msg = !isHit ? "Miss saved" : result === "tracking" ? "Progress saved — reopen it any time from My shots" : result === "recovered" ? "Saved — congratulations!" : "Saved";
-    if (await save((x) => x.saveShot(rec), { reload: "none", ok: msg })) { setShotId(rec.id); setCreated(rec.created); setLogV((v) => v + 1); }
+    if (await patchShot(openId, patch, res ? `Saved — wait ${fmtWait(wait)} before tracking` : "Saved")) onClose?.();
   };
-  const isHit = status === "hit";
-  const autoYd = found && result === "recovered" ? yardsBetween({ lat: hit[0], lon: hit[1] }, found) : null;
-  const spotCtx = [{ lat: from[0], lon: from[1], emoji: "🔵" }, { lat: hit[0], lon: hit[1], emoji: "🎯" },
-    ...tracks.flatMap((t) => tripMarks(t).map((m) => ({ ...m, emoji: MARK_KINDS[m.kind]?.[0] || "•" })))];
-  const lastSpot = spotCtx[spotCtx.length - 1];
-  const mapCenter = [lastSpot.lat, lastSpot.lon];
-  const topTrack = isHit && !!shotId;
-
-  const ORGAN_LABELS = ORGANS.map((o) => o.label);
-  const trackCard = () => (
-    <section className="card">
-      <span className="h2">Tracking & recovery</span>
-      <TrackMap from={from} hit={hit} tracks={tracks} found={result === "recovered" ? found : null} active={active} />
-      <div className="grid2">
-        <label className="field half"><span>Date of shot</span><input type="date" value={shotDate} onChange={(e) => e.target.value && setShotDate(e.target.value)} /></label>
-        <label className="field half"><span>Time of shot</span><input type="time" value={shotTime} onChange={(e) => e.target.value && setShotTime(e.target.value)} /></label>
-      </div>
-      <PointField label={hitFix ? "Hit site (marked)" : "Hit site — mark it if you found it (otherwise estimated from section 5)"} value={hitFix} onChange={setHitFix}
-        center={[hitEst[0], hitEst[1]]} context={spotCtx.filter((c) => c.emoji !== "🎯")} />
-      <Tracks tracks={tracks} setTracks={setTracks} defaultDate={localDay(new Date())} center={mapCenter} context={spotCtx} />
-      <div className="field"><span>Where things stand</span>
-        <div className="seg">{RESULTS.map(([k, l]) => <button key={k} className={result === k ? "on" : ""} onClick={() => setResult(k)}>{l}</button>)}</div></div>
-      {result === "recovered" && (
-        <div className="form trip-form">
-          <div className="sub-h">🦌 Recovery</div>
-          <div className="grid2">
-            <label className="field half"><span>Found on</span><input type="date" value={foundAt.date} onChange={(e) => setFoundAt({ ...foundAt, date: e.target.value })} /></label>
-            <label className="field half"><span>At</span><input type="time" value={foundAt.time} onChange={(e) => setFoundAt({ ...foundAt, time: e.target.value })} /></label>
-          </div>
-          <PointField label="Where you found it" value={found} onChange={setFound} center={mapCenter} context={spotCtx} />
-          {autoYd != null ? <p className="small">Found <b>{autoYd} yd</b> from the hit site.</p>
-            : <label className="field"><span>Found it this far from the hit site (yd)</span><NumInput empty min={0} max={5000} value={foundYd} onChange={setFoundYd} /></label>}
-          <div className="field"><span>What it actually hit (check when field dressing)</span>
-            <div className="filter-row">{ORGAN_LABELS.map((o) => <button key={o} className={`fchip ${actual.includes(o) ? "on" : ""}`}
-              onClick={() => setActual(actual.includes(o) ? actual.filter((x) => x !== o) : [...actual, o])}>{o}</button>)}</div></div>
-          <label className="field"><span>Entry / exit and shot notes</span><textarea rows="2" value={actualNotes} onChange={(e) => setActualNotes(e.target.value)} /></label>
-          <p className="muted small">Tip: if the real entry was somewhere else, move the crosshair in section 3 so the log shows the true hit.</p>
-        </div>
-      )}
-      {result === "not_found" && <label className="field"><span>Farthest blood from the hit site (yd)</span><NumInput empty min={0} max={5000} value={foundYd} onChange={setFoundYd} /></label>}
-      {!res && <p className="muted small">You can save now and mark the hit spot on the deer (section 3) later.</p>}
-      <label className="field"><span>Notes</span><textarea rows="2" value={note} onChange={(e) => setNote(e.target.value)} /></label>
-      <button className="btn primary wide" onClick={saveShot}>{result === "tracking" ? "Save progress" : "Save"}{shotId ? " (update)" : ""}</button>
-      {huntId && shotId && <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("log")}>Back to Hunt Log</button>}
-    </section>
-  );
+  const isHit = true;
 
   return (
     <div className="page" ref={pageRef} style={{ display: active ? undefined : "none" }}>
@@ -230,24 +158,11 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         <span className="spacer" />
         <ThemeButton theme={theme} />
       </header>
-      <div className="page-title"><span className="label">Estimates are general guidance — every deer is different</span><h1>Shot & Recovery</h1></div>
+      <div className="page-title"><span className="label">Estimates are general guidance — every deer is different</span><h1>Hit analysis</h1></div>
+      {onClose && <button className="btn sm overlay-close" onClick={onClose}><Icon name="x" size={18} /> {openId ? "Back to the hunt" : "Close"}</button>}
+      {!openId && <p className="muted small">Calculator only — to save a shot, use 🎯 I took a shot in the Hunt Log.</p>}
 
-      <section className="card">
-        <span className="h2">The shot</span>
-        {linked && <p className="chip-line">🔗 Linked to your sit — {linked.stand.replace("Stand: ", "")}, {new Date(linked.start).toLocaleDateString([], { month: "short", day: "numeric" })}</p>}
-        {huntId && !linked && <p className="chip-line">🔗 Linked to the sit you're logging</p>}
-        <div className="seg big-seg">
-          <button className={isHit ? "on" : ""} onClick={() => setStatus("hit")}>Shot & hit</button>
-          <button className={!isHit ? "on" : ""} onClick={() => setStatus("missed")}>Shot & missed</button>
-        </div>
-        {isHit && result === "tracking" && <LeftOff tracks={tracks} />}
-        {shotId ? <p className="muted small">Saved shot — changes update it when you save again. <button className="link" onClick={() => startNew()}>Start a new shot</button></p>
-          : <p className="muted small">{isHit ? "Work down the page. Save progress at any point — after the shot, while you wait, or once you've found the deer." : "Note the distance and where you shot from, then save the miss at the bottom."}</p>}
-      </section>
-
-      {topTrack && trackCard()}
-      {topTrack && <button className="btn wide details-toggle" onClick={() => setShowDetails(!showDetails)}>{showDetails ? "Hide" : "Show"} shot details, hit analysis & search map (1–7)</button>}
-      {showDetails && <>
+      <>
       <section className="card">
         <span className="h2">1 · How was the deer standing?</span>
         <label className="field"><span>Deer's angle to you: <b>{ANGLES[yawIdx][1]}</b></span>
@@ -341,7 +256,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
               <label className="field half"><span>Direction the deer ran</span><select value={ran} onChange={(e) => setRan(e.target.value)}>{["Unknown", ...CARDINALS].map((c) => <option key={c}>{c}</option>)}</select></label>
             </div>
             <label className="field"><span>Last saw it this far from where it was hit (yd, 0 = not seen)</span><NumInput min={0} max={1000} value={seen} onChange={setSeen} /></label>
-            <RecoveryMap from={from} hit={hit} yards={yards} runDir={runDir} planKey={planKey} marks={marks} active={active} trail={tracks.filter((t) => t.lat != null)} />
+            <RecoveryMap from={from} hit={hit} yards={yards} runDir={runDir} planKey={planKey} marks={marks} active={active} />
           </section>
 
           <section className="card">
@@ -375,23 +290,11 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         </>
       )}
 
-      </>}
-      {!isHit && (
-        <section className="card">
-          <span className="h2">Save the miss</span>
-          <label className="field"><span>You shot from</span>
-            <select value={src} onChange={(e) => setSrc(e.target.value)}>{["Current location", ...stands.map((x) => `Stand: ${x.name}`)].map((o) => <option key={o} value={o}>{o.replace("Stand: ", "")}</option>)}</select></label>
-          <div className="grid2">
-            <label className="field half"><span>Date</span><input type="date" value={shotDate} onChange={(e) => e.target.value && setShotDate(e.target.value)} /></label>
-            <label className="field half"><span>Time of shot</span><input type="time" value={shotTime} onChange={(e) => e.target.value && setShotTime(e.target.value)} /></label>
-          </div>
-          <label className="field"><span>Notes (high, low, deflected?)</span><textarea rows="2" value={note} onChange={(e) => setNote(e.target.value)} /></label>
-          <button className="btn primary wide" onClick={saveShot}>Save miss{shotId ? " (update)" : ""}</button>
-          {huntId && shotId && <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("log")}>Back to Hunt Log</button>}
-        </section>
-      )}
-      {isHit && !topTrack && trackCard()}
-      <ShotLog db={db} active={active} v={logV} current={shotId} onOpen={openRec} save={save} onDeleted={(id) => { setLogV((v) => v + 1); if (id === shotId) startNew(); }} />
+      </>
+      {openId && <section className="card">
+        <button className="btn primary wide" onClick={saveShot}>Save analysis to this shot</button>
+        <p className="muted small">Saves the hit estimate, wait time and search map inputs. Tracking itself is logged on the tracking map.</p>
+      </section>}
     </div>
   );
 }
@@ -546,28 +449,3 @@ function WeatherAlerts({ hit, wait, active }) {
   return msgs.map((m) => <p key={m} className="confirm small">{m}</p>);
 }
 
-function ShotLog({ db, active, v, current, onOpen, save, onDeleted }) {
-  const [shots, setShots] = useState(null);
-  const [confirm, setConfirm] = useState(null);
-  useEffect(() => { if (active) db.listShots().then(setShots).catch(() => setShots([])); }, [db, active, v]);
-  if (!shots?.length) return null;
-  const label = (x) => (x.status === "missed" ? "Missed" : x.status === "hit" ? { tracking: "Hit — tracking", recovered: "Hit — recovered", not_found: "Hit — not found" }[x.result] || "Hit" : "Shot");
-  return (
-    <section className="card">
-      <span className="h2">My shots ({shots.length})</span>
-      <p className="muted small">Tap a shot to reopen it and keep going.</p>
-      {[...shots].sort((a, b) => String(b.time).localeCompare(String(a.time))).map((x) => (
-        <div key={x.id} className={`rank-row ${x.id === current ? "current" : ""}`}>
-          <button className="shot-open" onClick={() => onOpen(x)}>
-            <div className="name">{label(x)}{x.status !== "missed" && x.outcome ? ` · ${x.outcome}` : ""}</div>
-            <div className="muted small">{x.time} · {x.weapon} · {x.distance_yd} yd{x.hunt_id ? " · 🔗 sit" : ""}{x.notes ? ` — ${x.notes}` : ""}</div>
-            {(x.tracking || []).length > 0 && <div className="muted small">Tracked {x.tracking.length} trip{x.tracking.length === 1 ? "" : "s"}, {trackHours(x.tracking).toFixed(1)} h{x.found_yd ? ` · ${x.result === "recovered" ? "found" : "blood to"} ${x.found_yd} yd` : ""}{x.tracking[0].blood_look ? ` · blood: ${x.tracking[0].blood_look.toLowerCase()}` : ""}</div>}
-          </button>
-          {confirm === x.id
-            ? <button className="btn sm danger" onClick={async () => { if (await save((d) => d.deleteShot(x.id), { reload: "none", ok: "Shot deleted" })) { setConfirm(null); onDeleted(x.id); } }}>Delete?</button>
-            : <button className="x" aria-label="Delete shot" onClick={() => setConfirm(x.id)}><Icon name="x" size={18} /></button>}
-        </div>
-      ))}
-    </section>
-  );
-}

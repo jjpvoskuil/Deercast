@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Icon from "./Icon.jsx";
 import NumInput from "./NumInput.jsx";
+import { normalizeTrack } from "./TrackMode.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { CARDINALS_8, degToCardinal } from "./lib/geo.js";
 import { newId, nowIso } from "./lib/db.js";
@@ -19,6 +20,8 @@ const pad = (n) => String(n).padStart(2, "0");
 const timeOf = (ms, tz) => { const p = parts(ms, tz); return `${pad(p.h)}:${pad(p.mi)}`; };
 const atLocal = (key, hhmm, tz) => { const [h, m] = hhmm.split(":").map(Number); const t = midnight(key, tz) + (h * 60 + m) * 60000; return t; };
 const fmtClock = (ms, tz) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz });
+const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const localHM = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const fmtDay = (ms, tz) => new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: tz });
 
 // ---------------------------------------------------------------- scoring a sit (same as log.py scored_day/build_hunt)
@@ -34,7 +37,7 @@ async function scoredDay(lat, lon, key, rutPeak) {
   return v;
 }
 
-export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openShot }) {
+export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, shotsV }) {
   const home = ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" };
   const stands = data?.stands || [];
   const baits = (data?.features || []).filter((f) => BAIT_TYPES.has(f.type));
@@ -42,9 +45,41 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const cameras = (data?.features || []).filter((f) => f.type === "camera");
   // my shots, so each sit shows the shots taken during it (shots are edited on the Shot tab → reload when shown)
   const [shots, setShots] = useState([]);
-  useEffect(() => { if (shown) db.listShots().then(setShots).catch(() => setShots([])); }, [db, shown]);
+  const loadShots = () => db.listShots().then(setShots).catch(() => setShots([]));
+  useEffect(() => { if (shown) loadShots(); }, [db, shown, shotsV]);
   const shotsFor = (id) => shots.filter((x) => x.hunt_id === id).sort((a, b) => String(a.time).localeCompare(String(b.time)));
   const recovered = (h) => !!h.harvest || shotsFor(h.id).some((x) => x.result === "recovered");
+  const [shotForm, setShotForm] = useState(null); // { huntId, stand, day, time, … id? } — the "I took a shot" form
+  const centerFor = (x) => {
+    const hp = (x.pins || []).find((p) => p.kind === "hit");
+    if (hp) return [hp.lat, hp.lon];
+    if (x.hit_lat != null) return [x.hit_lat, x.hit_lon];
+    return coords(x.stand || "");
+  };
+  const saveShotBasics = async (f) => {
+    const cur = f.id ? shots.find((x) => x.id === f.id) : null;
+    const rec = { ...(cur || { id: newId(), created: nowIso(), trips: [], pins: [] }), hunt_id: f.huntId, ground_id: ground.id, status: f.status,
+      result: f.status === "hit" ? cur?.result || "tracking" : null, time: `${f.day} ${f.time}`, time_iso: new Date(`${f.day}T${f.time}`).toISOString(),
+      stand: f.stand, weapon: f.weapon, distance_yd: f.dist, deer: f.deer || "", notes: f.notes, updated: nowIso() };
+    const ok = await save((d) => d.saveShot(rec), { reload: "none", ok: f.status === "hit" ? "Shot saved — let it lie before you track" : "Miss logged" });
+    if (ok) { await loadShots(); setShotForm(null); }
+    return ok;
+  };
+  const delShot = async (id) => { if (await save((d) => d.deleteShot(id), { reload: "none", ok: "Shot deleted" })) loadShots(); };
+  /** Shots of one hunt, each at its stage (missed / waiting / tracking / paused / done), + "I took a shot". */
+  const shotPanel = (huntId, stand, defaultMs, deerOpts, live) => (
+    <div className="shots-box">
+      {shotsFor(huntId).map((x) => shotForm?.id === x.id
+        ? <ShotQuick key={x.id} initial={shotForm} deerOpts={deerOpts} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
+        : <ShotStage key={x.id} x={x} live={live}
+            onEdit={() => { const [day, time] = String(x.time).split(" "); setShotForm({ id: x.id, huntId, stand: x.stand || stand, day, time, status: x.status, weapon: x.weapon || "Bow", dist: x.distance_yd || 20, deer: x.deer || "", notes: x.notes || "" }); }}
+            onDelete={() => delShot(x.id)} onAnalysis={() => openAnalysis(x.id)}
+            onTrack={(gps) => openTrack(x, centerFor(x), gps)} />)}
+      {shotForm && !shotForm.id && shotForm.huntId === huntId
+        ? <ShotQuick initial={shotForm} deerOpts={deerOpts} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
+        : <button className="btn wide" onClick={() => { const d = new Date(defaultMs()); setShotForm({ huntId, stand, day: localDay(d), time: localHM(d), status: "hit", weapon: "Bow", dist: 20, deer: "", notes: "" }); }}>🎯 I took a shot</button>}
+    </div>
+  );
   const mine = useMemo(() => (data?.hunts || []).filter((h) => !h.owner || h.owner === db.email)
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start)), [data, db.email]);
   const [tz, setTz] = useState("America/Chicago");
@@ -152,14 +187,17 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
 
       {/* ------------------------------------------------ open tracks: deer hit but not yet recovered */}
       {shots.filter((x) => x.status === "hit" && (!x.result || x.result === "tracking")).map((x) => {
-        const t = (x.tracking || [])[x.tracking?.length - 1];
+        const n = normalizeTrack(x), t = n.trips[n.trips.length - 1];
         return (
           <section key={x.id} className="card open-track">
             <span className="h2">🩸 Open track</span>
             <p className="small">Shot {x.time}{x.stand ? ` from ${x.stand.replace("Stand: ", "")}` : ""} · {x.outcome}</p>
-            {t ? <p className="muted small">Last trip {t.date} until {t.to || "?"}{t.stopped ? ` — ${t.stopped.toLowerCase()}` : ""}{t.notes ? `. ${t.notes}` : ""}</p>
+            {t ? <p className="muted small">Trip {n.trips.length} {t.end ? `ended ${fmtDay(Date.parse(t.end), tz)} ${fmtClock(Date.parse(t.end), tz)}` : "still open"}{t.stopped ? ` — ${t.stopped.toLowerCase()}` : ""}{t.notes ? `. ${t.notes}` : ""} · {n.pins.length} pin{n.pins.length === 1 ? "" : "s"}</p>
               : <p className="muted small">No tracking trips logged yet.</p>}
-            <button className="btn primary wide" onClick={() => openShot({ shotId: x.id })}>Pick up the track ›</button>
+            <div className="btn-row">
+              <button className="btn primary" onClick={() => openTrack(x, centerFor(x), true)}>▶ Pick up the track</button>
+              <button className="btn" onClick={() => openTrack(x, centerFor(x), false)}>🗺️ Map / edit</button>
+            </div>
           </section>
         );
       })}
@@ -193,10 +231,9 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
             <SightingCard baitNames={baitNames} anchor={liveCoords} cameras={cameras} stands={stands} tz={tz} dayKey={dateKey(Date.parse(live.start), tz)} onSave={addLive} />
             <SightingList sightings={live.sightings} tz={tz} onRemove={(idx) => putLive({ ...live, notes, sightings: live.sightings.filter((_, i) => !idx.includes(i)) })}
               onRetime={(idx, hhmm) => putLive({ ...live, notes, sightings: retime(live.sightings, idx, hhmm, dateKey(Date.parse(live.start), tz)) })}
-              onShot={(e) => openShot({ huntId: live.id, stand: live.where, time: Date.parse(e.time) })} />
+              onShot={(e) => { const d = new Date(Date.parse(e.time)); setShotForm({ huntId: live.id, stand: live.where, day: localDay(d), time: localHM(d), status: "hit", weapon: "Bow", dist: 20, deer: deerText(e.deer), notes: "" }); }} />
             {!live.sightings.length && <p className="muted small">Nothing saved yet. Each sighting is saved to this sit as soon as you tap Save.</p>}
-            <ShotsBox shots={live.id ? shotsFor(live.id) : []} tz={tz}
-              onNew={() => openShot({ huntId: live.id, stand: live.where, time: Date.now() })} onOpen={(x) => openShot({ shotId: x.id })} />
+            {shotPanel(live.id, live.where, () => Date.now(), groupSightings(live.sightings).map((g) => deerText(g.deer)), true)}
             <label className="field"><span>Notes for this sit</span><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)}
               onBlur={() => notes !== (live.notes || "") && putLive({ ...live, notes })} /></label>
             <div className="btn-row">
@@ -229,7 +266,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
         <button className="row-toggle" onClick={() => setPastOpen(!pastOpen)}><span className="h2">Add a past hunt</span><Icon name="chev" /></button>
         {pastOpen && <HuntForm key="past" tz={tz} whereOptions={whereOptions} baitNames={baitNames} coords={coords} today={today}
           initial={{ id: newId(), where: whereOptions[1] || whereOptions[0], date: today, start: "06:15", end: "09:30", sightings: [], notes: "", harvest: false }}
-          shotsFor={shotsFor} openShot={openShot} cameras={cameras} stands={stands}
+          cameras={cameras} stands={stands} onShotAfter={(id, where, ms) => { setPastOpen(false); setOpenId(id); const d = new Date(ms); setShotForm({ huntId: id, stand: where, day: localDay(d), time: localHM(d), status: "hit", weapon: "Bow", dist: 20, deer: "", notes: "" }); }}
           submitLabel="Save past hunt"
           onSubmit={async (f) => {
             const rec = await buildHunt(f.where, f.startMs, f.endMs, f.sightings, f.notes, f.harvest || recovered({ id: f.id }), f.id);
@@ -291,14 +328,9 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   {groupSightings(h.sightings).map((g) => (
                     <div key={g.group} className="small">• {fmtClock(Date.parse(g.time), tz)} — {deerText(g.deer)}{g.source === "camera" ? ` (📷 ${g.camera || "trail cam"})` : ""}{g.activity ? `, ${g.activity}` : ""}{g.bait ? `, at ${g.bait}` : ""}{whereText(g) ? ` (${whereText(g)})` : ""}</div>
                   ))}
-                  {shotsFor(h.id).map((x) => (
-                    <button key={x.id} className="shot-link" onClick={() => openShot({ shotId: x.id })}>
-                      🎯 {fmtClock(Date.parse(x.time_iso || x.time), tz)} — {shotStatus(x)}{x.outcome && x.status === "hit" ? ` · ${x.outcome}` : ""} <span className="muted">Open ›</span></button>
-                  ))}
                   {h.notes && <p className="small"><i>{h.notes}</i></p>}
                   {h.edited && <div className="muted small">Edited {h.edited}</div>}
-                  {!shotsFor(h.id).length && <button className="btn primary wide" onClick={() => openShot({ huntId: h.id, stand: h.stand, time: s })}>🎯 Shot taken on this hunt — enter details</button>}
-                  {shotsFor(h.id).length > 0 && <button className="link" onClick={() => openShot({ huntId: h.id, stand: h.stand, time: s })}>+ Another shot on this hunt</button>}
+                  {shotPanel(h.id, h.stand, () => s, groupSightings(h.sightings).map((g) => deerText(g.deer)), false)}
                   <div className="btn-row">
                     <button className="btn" onClick={() => setEditId(h.id)}>Edit</button>
                     <button className="btn" onClick={() => setConfirmDel(h.id)}>Delete</button>
@@ -315,7 +347,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                 <div className="hunt-body">
                   <HuntForm key={`ed-${h.id}`} tz={tz} whereOptions={whereOptions.includes(h.stand) ? whereOptions : [...whereOptions, h.stand]}
                     baitNames={baitNames} coords={coords} today={today} submitLabel="Save changes" onCancel={() => setEditId(null)}
-                    shotsFor={shotsFor} openShot={openShot} cameras={cameras} stands={stands}
+                    cameras={cameras} stands={stands}
                     initial={{ id: h.id, where: h.stand, date: dateKey(s, tz), start: timeOf(s, tz), end: timeOf(e, tz),
                       sightings: (h.sightings || []).map((x) => ({ ...x })), notes: h.notes || "", harvest: !!h.harvest }}
                     onSubmit={async (f) => {
@@ -500,20 +532,6 @@ function shotText(list, harvest) {
   return harvest ? " · harvest" : "";
 }
 
-/** Shots taken during this sit (linked by hunt id) + "Shot taken" → the Shot page. */
-function ShotsBox({ shots, tz, onNew, onOpen, hint }) {
-  return (
-    <div className="shots-box">
-      {shots.map((x) => (
-        <button key={x.id} className="shot-link" onClick={() => onOpen(x)}>
-          🎯 {fmtClock(Date.parse(x.time_iso || x.time), tz)} — {shotStatus(x)}{x.outcome && x.status === "hit" ? ` · ${x.outcome}` : ""} <span className="muted">Open ›</span></button>
-      ))}
-      <button className="btn primary wide" onClick={onNew}>🎯 Shot taken — enter details</button>
-      {hint && <p className="muted small">{hint}</p>}
-    </div>
-  );
-}
-
 function SightingList({ sightings, tz, onRemove, onRetime, onShot }) {
   const groups = groupSightings(sightings);
   if (!groups.length) return null;
@@ -537,7 +555,7 @@ function SightingList({ sightings, tz, onRemove, onRetime, onShot }) {
 }
 
 /** Past-hunt entry and inline edit share this form. */
-function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmit, onCancel, submitLabel, resetAfter, shotsFor, openShot, cameras, stands }) {
+function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmit, onCancel, submitLabel, resetAfter, cameras, stands, onShotAfter }) {
   const [f, setF] = useState(initial);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -554,7 +572,7 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
     return ok;
   };
   // the hunt is saved first (so the shot has a hunt to link to and nothing typed here is lost), then the Shot page opens
-  const shotNow = async (ms) => { const id = f.id, where = f.where; if (await submit()) openShot({ huntId: id, stand: where, time: ms }); };
+  const shotNow = async () => { const id = f.id, where = f.where, ms = atLocal(f.date, f.start, tz); if (await submit()) onShotAfter(id, where, ms); };
   return (
     <div className="form">
       <label className="field"><span>Where</span>
@@ -568,17 +586,98 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
       <SightingCard key={`${f.date}-${f.start}`} baitNames={baitNames} anchor={coords(f.where)} cameras={cameras} stands={stands} tz={tz} dayKey={f.date} defaultTime={f.start}
         onSave={(recs) => { setF({ ...f, sightings: [...f.sightings, ...recs] }); return true; }} />
       <SightingList sightings={f.sightings} tz={tz} onRemove={(idx) => setF({ ...f, sightings: f.sightings.filter((_, i) => !idx.includes(i)) })}
-        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })}
-        onShot={(e) => shotNow(Date.parse(e.time))} />
+        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })} />
       {!f.sightings.length && <p className="muted small">No deer added — that's fine for a sit where you saw nothing.</p>}
-      <ShotsBox shots={shotsFor(f.id)} tz={tz} onOpen={(x) => openShot({ shotId: x.id })}
-        onNew={() => shotNow(atLocal(f.date, f.start, tz))} hint="Tapping Shot taken saves this hunt first, then opens the Shot page." />
+      {!onShotAfter && <p className="muted small">Shots for this hunt are listed under it — save, then use 🎯 there.</p>}
       <label className="field"><span>Notes</span><textarea rows="2" value={f.notes} onChange={set("notes")} /></label>
       {err && <div className="err small">{err}</div>}
       <div className="btn-row">
         <button className="btn primary" disabled={busy} onClick={submit}>{busy ? "Saving…" : submitLabel}</button>
+        {onShotAfter && <button className="btn" disabled={busy} onClick={shotNow}>Save & add a shot</button>}
         {onCancel && <button className="btn" onClick={onCancel}>Cancel</button>}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- shots inside the session
+const WEAPONS = ["Bow", "Crossbow", "Rifle / shotgun slug", "Muzzleloader"];
+/** "I took a shot": hit or miss, when, which deer, how far. */
+function ShotQuick({ initial, deerOpts, onSave, onCancel }) {
+  const [f, setF] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (v) => setF({ ...f, [k]: v });
+  return (
+    <div className="form trip-form shot-quick">
+      <div className="sub-h">🎯 {f.id ? "Edit shot" : "I took a shot"}</div>
+      <div className="seg big-seg">
+        <button className={f.status === "hit" ? "on" : ""} onClick={() => set("status")("hit")}>Hit it</button>
+        <button className={f.status === "missed" ? "on" : ""} onClick={() => set("status")("missed")}>Missed</button>
+      </div>
+      <div className="grid2">
+        <label className="field half"><span>Time of shot</span><input type="time" value={f.time} onChange={(e) => e.target.value && set("time")(e.target.value)} /></label>
+        <label className="field half"><span>Distance (yd)</span><NumInput min={1} max={400} value={f.dist} onChange={set("dist")} /></label>
+        <label className="field half"><span>Weapon</span><select value={f.weapon} onChange={(e) => set("weapon")(e.target.value)}>{WEAPONS.map((w) => <option key={w}>{w}</option>)}</select></label>
+        {deerOpts.length > 0 && <label className="field half"><span>Which deer</span><select value={f.deer} onChange={(e) => set("deer")(e.target.value)}>
+          <option value="">—</option>{[...new Set([...deerOpts, f.deer].filter(Boolean))].map((d) => <option key={d}>{d}</option>)}</select></label>}
+      </div>
+      <label className="field"><span>Notes (optional)</span><input value={f.notes} onChange={(e) => set("notes")(e.target.value)} placeholder={f.status === "hit" ? "reaction, where you think you hit" : "high, low, deflected?"} /></label>
+      <div className="btn-row">
+        <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); await onSave(f); setBusy(false); }}>{busy ? "Saving…" : f.status === "hit" ? "Save — I hit it" : "Save — missed"}</button>
+        <button className="btn" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+const fmtMin = (m) => (m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${String(Math.round(m % 60)).padStart(2, "0")} min`);
+/** One shot at its stage: missed · let it lie (timer) · tracking · paused · recovered / not found. */
+function ShotStage({ x, onEdit, onDelete, onAnalysis, onTrack }) {
+  const [now, setNow] = useState(Date.now());
+  const [confirm, setConfirm] = useState(false);
+  const n = normalizeTrack(x), t = n.trips[n.trips.length - 1];
+  const waiting = x.status === "hit" && (x.result || "tracking") === "tracking" && !n.trips.length;
+  useEffect(() => { if (!waiting) return; const i = setInterval(() => setNow(Date.now()), 15000); return () => clearInterval(i); }, [waiting]);
+  const since = (now - Date.parse(x.time_iso || "")) / 60000;
+  const head = (
+    <div className="stage-head">🎯 <b>{x.status === "missed" ? "Missed" : "Hit"}</b> · {x.time_iso ? new Date(x.time_iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : String(x.time).slice(11)}{x.deer ? ` · ${x.deer}` : ""}{x.distance_yd ? ` · ${x.distance_yd} yd` : ""}
+      {x.status === "hit" && x.outcome && x.outcome !== "Hit — spot not marked" ? <div className="muted small">Hit analysis: {x.outcome}</div> : null}</div>
+  );
+  const links = (
+    <div className="stage-links">
+      <button className="link" onClick={onEdit}>Edit shot</button>
+      {x.status === "hit" && <button className="link" onClick={onAnalysis}>Hit analysis</button>}
+      {confirm ? <button className="link danger-text" onClick={onDelete}>Delete it?</button> : <button className="link" onClick={() => setConfirm(true)}>Delete</button>}
+    </div>
+  );
+  if (x.status === "missed") return <div className="stage">{head}{x.notes && <div className="muted small">{x.notes}</div>}{links}</div>;
+  const done = x.result === "recovered" || x.result === "not_found";
+  return (
+    <div className={`stage ${done ? "" : "open"}`}>
+      {head}
+      {waiting && (
+        <div className="wait">
+          {Number.isFinite(since) && since >= 0 && since < 48 * 60 && <div><span className="big">{fmtMin(since)}</span> <span className="muted">since the shot</span></div>}
+          {x.wait_min != null
+            ? <div className="small">Recommended wait for this hit: <b>{fmtMin(x.wait_min)}</b>{Number.isFinite(since) && since < x.wait_min ? ` — ${fmtMin(x.wait_min - since)} to go` : " — OK to start"}</div>
+            : <div className="small">Let it lie: about 30–60 min for a good double-lung hit, 4+ h for liver or if unsure, 8–12 h for a gut hit. <button className="link" onClick={onAnalysis}>Hit analysis</button> gives a wait for your shot.</div>}
+          <button className="btn primary wide" onClick={() => onTrack(true)}>▶ Start tracking (records your path)</button>
+          <button className="link" onClick={() => onTrack(false)}>Log it on the map without GPS (recreating it later)</button>
+        </div>
+      )}
+      {!waiting && !done && (
+        <>
+          <div className="small">{t?.end ? `⏸ Paused — trip ${n.trips.length} ended ${new Date(t.end).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}${t.stopped ? ` (${t.stopped.toLowerCase()})` : ""}` : `Tracking — trip ${n.trips.length} is open`} · {n.pins.length} pin{n.pins.length === 1 ? "" : "s"}</div>
+          {t?.notes && <div className="muted small">{t.notes}</div>}
+          <div className="btn-row"><button className="btn primary" onClick={() => onTrack(true)}>▶ {t?.end ? "Pick up the track" : "Back to tracking"}</button>
+            <button className="btn" onClick={() => onTrack(false)}>🗺️ Map / edit</button></div>
+        </>
+      )}
+      {x.result === "recovered" && <><div className="small">🦌 Recovered{n.recovery?.sex ? ` — ${n.recovery.sex}${n.recovery.points ? `, ${n.recovery.points} pts` : ""}` : ""}{x.found_yd ? ` · ${x.found_yd} yd from the hit` : ""} · {n.trips.length} trip{n.trips.length === 1 ? "" : "s"}</div>
+        <button className="btn" onClick={() => onTrack(false)}>🗺️ Track map & log</button></>}
+      {x.result === "not_found" && <><div className="small">✖ Not found{x.found_yd ? ` · blood to ${x.found_yd} yd` : ""} · {n.trips.length} trip{n.trips.length === 1 ? "" : "s"}</div>
+        <button className="btn" onClick={() => onTrack(false)}>🗺️ Track map & log</button></>}
+      {links}
     </div>
   );
 }

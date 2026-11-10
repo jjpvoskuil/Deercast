@@ -7,7 +7,8 @@ import MoreScreen from "./MoreScreen.jsx";
 import ShotScreen from "./ShotScreen.jsx";
 import { Menu, TabBar } from "./Shell.jsx";
 import { demoSeed } from "./demo.js";
-import { demoDb, supabaseDb } from "./lib/db.js";
+import { demoDb, nowIso, supabaseDb } from "./lib/db.js";
+import TrackMode from "./TrackMode.jsx";
 import { resolveTheme } from "./lib/theme.js";
 
 const LAST_GROUND = "deercast.ground";
@@ -32,8 +33,8 @@ function useTheme(place) {
   };
 }
 
-const TAB_IDS = ["forecast", "map", "log", "shot", "more"];
-const BUILT = ["forecast", "map", "log", "shot", "more"];
+const TAB_IDS = ["forecast", "map", "log", "more"];
+const BUILT = ["forecast", "map", "log", "more"];
 
 export default function App() {
   const demo = !configured || new URLSearchParams(location.search).has("demo"); // ?demo = made-up data only
@@ -46,7 +47,9 @@ export default function App() {
   const [tab, setTabState] = useState(() => { const h = location.hash.slice(1).split("/")[0]; return TAB_IDS.includes(h) ? h : "forecast"; });
   const [menu, setMenu] = useState(false);
   const [pin, setPin] = useState(null); // "Forecast this pin" from the map
-  const [shotCtx, setShotCtx] = useState(null); // "Shot taken" from the Hunt Log → open the Shot page linked to that sit
+  // over the hunt session: the tracking map for a shot, or the hit analysis for a shot (shotId null = calculator)
+  const [overlay, setOverlay] = useState(null); // { kind: "track", shot, center, live } | { kind: "analysis", shotId }
+  const [shotsV, setShotsV] = useState(0);      // bumped when an overlay closes → Hunt Log re-reads shots
   const [toast, setToast] = useState("");
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2600); return () => clearTimeout(t); }, [toast]);
   const go = (id) => { setTabState(id); history.replaceState(null, "", `#${id}`); };
@@ -102,6 +105,14 @@ export default function App() {
     } catch (e) { setToast(`Couldn't save — ${e.message}`); return false; }
   }, [db, loadData, loadGrounds]);
 
+  /** Merge fields into a saved shot (hit analysis saves this way so it never overwrites tracking). */
+  const patchShot = useCallback((id, patch, ok) => save(async (d) => {
+    const cur = (await d.listShots()).find((x) => x.id === id);
+    if (!cur) throw new Error("that shot wasn't found");
+    await d.saveShot({ ...cur, ...patch, updated: nowIso() });
+  }, { reload: "none", ok }), [save]);
+  const closeOverlay = () => { setOverlay(null); setShotsV((v) => v + 1); };
+
   const signIn = () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin + import.meta.env.BASE_URL } });
   const signOut = () => { if (!demo) supabase.auth.signOut(); localStorage.removeItem(LAST_GROUND); if (demo) location.reload(); };
 
@@ -122,18 +133,23 @@ export default function App() {
   );
   if (me === undefined || grounds === null) return <Splash><p className="muted">Loading your grounds…</p></Splash>;
 
-  const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true),
+  const openTrack = (shot, center, live) => setOverlay({ kind: "track", shot, center, live });
+  const openAnalysis = (shotId) => setOverlay({ kind: "analysis", shotId });
+  const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true), openAnalysis, openTrack, shotsV, patchShot,
     setGround: setGid, reloadGrounds: loadGrounds, reloadData: loadData, signOut };
   return (
     <>
       {ground ? <>
         <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
         <MapScreen {...common} active={tab === "map"} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
-        <HuntLogScreen {...common} active={tab === "log"} key={`l-${ground.id}`} openShot={(c) => { setShotCtx({ ...c, n: Date.now() }); go("shot"); }} />
-        <ShotScreen {...common} active={tab === "shot"} shotCtx={shotCtx} />
+        <HuntLogScreen {...common} active={tab === "log" && !overlay} key={`l-${ground.id}`} />
       </> : tab !== "more" && <NoGround go={go} />}
       <MoreScreen {...common} active={tab === "more"} />
       <TabBar tab={tab} onTab={onTab} built={BUILT} />
+      {overlay?.kind === "analysis" && <div className="overlay"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
+      {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} live={overlay.live}
+        onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay}
+        onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
       <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
         email={session.user.email} onSignOut={signOut} onManage={() => { setMenu(false); go("more"); history.replaceState(null, "", "#more/grounds"); }} />
       {toast && <div className="toast" role="status">{toast}</div>}
