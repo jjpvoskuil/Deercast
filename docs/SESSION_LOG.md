@@ -263,3 +263,6 @@ John's first test sit (John's Stand, 3:17–7:49 PM, 74°F, wind SE 1 mph, score
 - Model weights are literature/hunter-knowledge priors, not yet calibrated — Hunt Log now collects the data; fit weights once ~30+ hours are logged.
 - Possible next: bait-site activity stats from the log (which feeder/pile draws deer at what hours); flag bait sites not filled in N days.
 - Live weather wasn't reachable from Claude's sandbox; first real-data check happens on Streamlit.
+
+## 2026-11-11 — new home-screen icon
+- New icon (John picked it in the Fishin Magician session): Voskuil Outdoors patch look shared by both apps — dark forest field, orange band with stars, cream "VO" medallion, the same deer without its old ring. Generator lives in Voskuil-Fishin-Magician `web/tools/make_icons.py`. Copied into `web/public/` (192/512/180/64) and `static/`.
