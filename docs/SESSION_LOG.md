@@ -19,6 +19,8 @@ John: Hit analysis → recovery sometimes put the probable spots out on Nolin La
 - Tests: `tests/water_cases.py` (made-up lake split into 3 ways with an island; facing the lake, far bank, lake behind, on the island, stream + small pond + water mark, Overpass failed → bundled Nolin, Overpass + bundled), `tests/test_recovery_water.py` (15) and the JS parity test (fixtures `water` in `shot.fixtures.json`). 56 py + 30 JS passing.
 - Screenshot checked with Playwright: a made-up stand ~300 yd inland of Nolin's shore, synthetic Overpass (and Overpass returning 504), mocked tiles and elevation. Shading stops at the shoreline and the top 3 spots are on the shore.
 
+- Hunt Log "Deer seen": the "At bait" drop-down (which feeder or pile) is now an **At a feeder?** on/off toggle (John: which one doesn't matter). It stores `bait: "feeder"` or `""`, and older sightings with a bait name still show it.
+
 **Open / next**
 - Lake level: the outlines are at summer pool, and in hunting season Nolin is drawn down, so exposed flats still count as water. A possible next step: shoreline at the live USGS level from the lidar contours (as Fishin Magician does).
 - John to test on his phone (below) and report any spot that still lands in water.

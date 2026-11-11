@@ -511,13 +511,13 @@ function WhereFields({ value, onChange }) {
   );
 }
 
-function Extras({ act, setAct, bait, setBait, baitNames }) {
+function Extras({ act, setAct, bait, setBait }) {
   return (
     <div className="grid2">
       <label className="field half"><span>Doing (optional)</span>
         <select value={act} onChange={(e) => setAct(e.target.value)}><option value="">—</option>{ACTIVITIES.map((a) => <option key={a}>{a}</option>)}</select></label>
-      <label className="field half"><span>At bait (optional)</span>
-        <select value={bait} onChange={(e) => setBait(e.target.value)}><option value="">—</option>{baitNames.map((a) => <option key={a}>{a}</option>)}</select></label>
+      <div className="field half"><span>At a feeder?</span>
+        <label className="toggle"><input type="checkbox" checked={!!bait} onChange={(e) => setBait(e.target.checked ? "feeder" : "")} /><span className="track"><span className="knob" /></span><span>{bait ? "Yes" : "No"}</span></label></div>
     </div>
   );
 }
