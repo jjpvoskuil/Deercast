@@ -230,19 +230,22 @@ bias = recovery.DOWNHILL_BIAS.get(plan_key, 0.0)
 elev = elevations(tuple([(hit_lat, hit_lon)] + [c["center"] for c in cells])) if bias > 0 else None
 w = recovery.weight_cells(cells, yards, run_dir, elev[1:] if elev else None, elev[0] if elev else None, bias)
 marks = [f for f in ui.load("features", []) if f["type"] in ("water", "cover", "bedding")]
-osm = osm_features(round(hit_lat, 4), round(hit_lon, 4), yards[2] * 0.9144 * 1.2)
+osm = recovery.merge_features(osm_features(round(hit_lat, 4), round(hit_lon, 4), yards[2] * 0.9144 * 1.2),
+                               recovery.bundled_water(hit_lat, hit_lon))
 wb, cb = recovery.WATER_BIAS.get(plan_key, 0.5), recovery.COVER_BIAS.get(plan_key, 0.7)
 habitat_used = bool((osm and (osm["water"] or osm["cover"])) or marks)
 if habitat_used:
     w = w * recovery.habitat_multiplier(recovery.feature_distances(cells, hit_lat, hit_lon, osm, marks), wb, cb)
     w = w / w.sum()
+# open water: never a probable spot, no swimming across — that share goes to the shore
+w, water_removed = recovery.apply_water(w, cells, recovery.water_mask(cells, hit_lat, hit_lon, osm))
 
 m = folium.Map(location=[hit_lat, hit_lon], zoom_start=17, tiles=None, control_scale=True)
 folium.TileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                  attr="Esri, Maxar, Earthstar Geographics", name="Satellite", max_zoom=21, max_native_zoom=19).add_to(m)
 folium.TileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attr="OpenTopoMap (CC-BY-SA)", name="Topo",
                  max_zoom=21, max_native_zoom=17, show=False).add_to(m)
-wmax = w.max() if len(w) else 1
+wmax = w.max() if len(w) and w.max() > 0 else 1
 for c, wi in zip(cells, w):
     a = float(wi / wmax)
     if a < 0.08:
@@ -257,7 +260,7 @@ folium.Marker([hit_lat, hit_lon], tooltip="Hit site — start here",
 if run_dir is not None:
     folium.PolyLine([[hit_lat, hit_lon], destination(hit_lat, hit_lon, run_dir, 40)], color="#ff8c1a", weight=4,
                     tooltip=f"Ran {ran}").add_to(m)
-for rank, k in enumerate(np.argsort(w)[::-1][:3], 1):
+for rank, k in enumerate([k for k in np.argsort(w)[::-1] if w[k] > 0][:3], 1):
     folium.Marker(cells[k]["center"], tooltip=f"#{rank} most likely area · {cells[k]['dist_yd']:.0f} yd "
                   f"{deg_to_cardinal(cells[k]['bearing'])}",
                   icon=folium.DivIcon(html=f'<div style="background:#ffd60a;color:#111;border-radius:50%;width:22px;'
@@ -275,6 +278,8 @@ for f in marks:
 hab.add_to(m)
 Compass().add_to(m)
 folium.LayerControl(collapsed=True).add_to(m)
+if water_removed >= recovery.REMOVED_NOTE:
+    st.info("Spots over the lake were removed — the deer most likely went down along the shore.")
 st_folium(m, height=460, use_container_width=True, returned_objects=[], key="recmap")
 st.caption("Red shading = relative chance the deer is there, from typical travel distance for this hit"
            + (", the direction it ran" if run_dir is not None else "")

@@ -4,6 +4,25 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-11 — Session 5: recovery map kept out of the lake (v0.8.2)
+John: Hit analysis → recovery sometimes put the probable spots out on Nolin Lake.
+- **Cause (confirmed):** water was only ever an *attraction* (meters to the nearest water line, boosted within ~100 yd). Nothing asked whether a cell was *in* the water, so a cell out on the lake still counted as "close to water" and got boosted. Nolin's OSM multipolygon members were also used as separate lines, never joined into rings, and if Overpass failed there was no water data at all.
+- **New water rule** (`deercast/recovery.py` + `web/src/lib/recovery.js`, documented in `docs/SHOT_MODEL.md`):
+  - `parse_osm`/`parseOsm` + `assemble_rings` join member ways into closed rings, read even-odd (outer minus inner), so islands are land.
+  - Open water = `natural=water` / `waterway=riverbank` / `landuse=reservoir`, excluding intermittent ponds. A cell whose center is in open water gets 0.
+  - No swimming: if the straight line from the hit site crosses more than 50 m of open water (`SWIM_MAX_M`, computed exactly from ring crossings), the cell gets 0.
+  - The zeroed share moves to the last dry, reachable cell on the same bearing (`apply_water`), so a deer running at the lake piles up along the shore. Streams stay attractor lines, wetlands stay passable, and the hunter's water marks (circles) stay attractors. The water pull for shore cells is distance to the shoreline (lake and island rings are in the water lines).
+- **Bundled Nolin shoreline** `web/public/data/nolin_water.json` (169 KB, fetched only within 5 km of the lake; built by `tools/make_nolin_water.py`). It is the 514-ft lidar contour from the Fishin Magician depth build: a 5,070-acre ring with 6 islands. It is merged as a union with Overpass, and used alone when Overpass fails.
+  - Not used: `data/nolin_shoreline.geojson` (1966 topo digitization). It is 1,366 fragments covering only ~37% of the lake.
+  - Limit: the lidar box ends at lat 37.388 / lon −86.098. Upstream of that, the Nolin River and east arms come only from OSM.
+- **Map:** no shading over open water. Shore cells are drawn as their dry 5×5 sub-strips (`dryPieces`). If at least 15% of the probability was over water, one line shows: "Spots over the lake were removed — the deer most likely went down along the shore." ("pond / bank" for small water). If the hit site plots in the water, the map says to check distance and direction. The Streamlit page got the same rule.
+- Tests: `tests/water_cases.py` (made-up lake split into 3 ways with an island; facing the lake, far bank, lake behind, on the island, stream + small pond + water mark, Overpass failed → bundled Nolin, Overpass + bundled), `tests/test_recovery_water.py` (15) and the JS parity test (fixtures `water` in `shot.fixtures.json`). 56 py + 30 JS passing.
+- Screenshot checked with Playwright: a made-up stand ~300 yd inland of Nolin's shore, synthetic Overpass (and Overpass returning 504), mocked tiles and elevation. Shading stops at the shoreline and the top 3 spots are on the shore.
+
+**Open / next**
+- Lake level: the outlines are at summer pool, and in hunting season Nolin is drawn down, so exposed flats still count as water. A possible next step: shoreline at the live USGS level from the lidar contours (as Fishin Magician does).
+- John to test on his phone (below) and report any spot that still lands in water.
+
 ## 2026-11-10 — Session 4b: fixes from John's first live tracking test
 - **"Current location" now means the phone's GPS position.** Before, it silently used the ground's home spot. The Hit analysis also switched it to the first stand and saved that back to the shot. Now starting a sit from Current location saves `lat/lon` on the live sit. Shots get `from_lat/from_lon` (the sit spot → else trip 1's first GPS point → else home). TrackMode takes a separate `stand` point, so the orange S is where you shot from, not the hit site. ShotScreen keeps a shot's own "shot from" (the first-stand default applies to the calculator only). Edit shot has a "Shot from" picker.
 - **A recovered deer is logged as a deer seen.** If the sit has no stand sighting within 2 h of the shot (and the shot doesn't name one), a sighting from the recovery's sex is added (Buck / Doe / Button buck → Fawn+buck / else Unknown, note "Added from the recovered deer"). Saved hunts are re-scored. This runs once per shot (`seen_logged`), so it also back-fills John's test hunt the next time he opens the Hunt Log.

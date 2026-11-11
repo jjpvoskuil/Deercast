@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -51,7 +53,8 @@ def search_grid(lat: float, lon: float, yards: tuple, run_dir: float | None, rin
                    [destination(lat, lon, b, max(r0, 0.5) * YD) for b in arc[::-1]]
             rc, bc = (r0 + r1) / 2, (b0 + b1) / 2
             cells.append({"poly": poly, "center": destination(lat, lon, bc, rc * YD), "dist_yd": rc,
-                          "bearing": bc % 360})
+                          "bearing": bc % 360, "ring": i, "sector": j,
+                          "r0": float(r0), "r1": float(r1), "b0": float(b0), "b1": float(b1)})
     return cells
 
 
@@ -92,22 +95,98 @@ COVER_BIAS = {"liver": 1.4, "paunch": 1.5, "single_lung": 1.2, "kidneys": 1.0, "
               "neck_vessels": 0.8, "femoral": 0.6, "double_lung": 0.5, "heart": 0.5, "aorta": 0.5}
 
 
-def fetch_osm_features(lat: float, lon: float, radius_m: float) -> dict | None:
-    """Water (streams, ponds, lakes, wetlands) and cover (woods, scrub, wetland) from OpenStreetMap.
+def _same(a, b):
+    return abs(a[0] - b[0]) < 1e-9 and abs(a[1] - b[1]) < 1e-9
 
-    Returns {"water": [[(lat, lon), ...], ...], "cover": [[...], ...]} — each item a line or closed ring.
-    """
+
+def assemble_rings(ways):
+    """Join a multipolygon's member ways end-to-end into closed rings (OSM splits big lakes into many ways).
+
+    Ways may run either direction. Chains that can't be closed are left out (they still count as shoreline)."""
+    rings, open_ = [], []
+    for w in ways:
+        w = [tuple(p) for p in w]
+        if len(w) < 2:
+            continue
+        (rings if len(w) >= 4 and _same(w[0], w[-1]) else open_).append(w)
+    while open_:
+        cur = open_.pop(0)
+        grew = True
+        while grew and not _same(cur[0], cur[-1]):
+            grew = False
+            for i, w in enumerate(open_):
+                if _same(cur[-1], w[0]):
+                    cur = cur + w[1:]
+                elif _same(cur[-1], w[-1]):
+                    cur = cur + w[::-1][1:]
+                elif _same(cur[0], w[-1]):
+                    cur = w + cur[1:]
+                elif _same(cur[0], w[0]):
+                    cur = w[::-1] + cur[1:]
+                else:
+                    continue
+                open_.pop(i)
+                grew = True
+                break
+        if len(cur) >= 4 and _same(cur[0], cur[-1]):
+            rings.append(cur)
+    return rings
+
+
+def _is_open_water(t: dict) -> bool:
+    """Lakes, ponds, reservoirs and river areas — places a deer can't go down. Seasonal (intermittent) ponds don't count."""
+    if t.get("intermittent") == "yes" or t.get("seasonal") == "yes":
+        return False
+    return t.get("natural") == "water" or t.get("waterway") == "riverbank" or t.get("landuse") == "reservoir"
+
+
+def parse_osm(elements: list) -> dict:
+    """Overpass elements → {"water": lines, "cover": lines/rings, "lakes": [[ring, ...], ...]}.
+
+    water = streams + every shoreline (lake rings and island rings too) — what the 'head for water' pull measures to.
+    lakes = open-water areas, each a list of closed rings read even-odd (outer rings minus inner rings = islands).
+    Coordinates are (lat, lon)."""
+    out = {"water": [], "cover": [], "lakes": []}
+    for el in elements:
+        t = el.get("tags", {})
+        if el.get("type") == "relation":
+            mem = [(m.get("role", ""), [(g["lat"], g["lon"]) for g in m.get("geometry", [])])
+                   for m in el.get("members", []) if m.get("type", "way") == "way"]
+            outer = [g for r, g in mem if r in ("outer", "") and len(g) >= 2]
+            inner = [g for r, g in mem if r == "inner" and len(g) >= 2]
+        else:
+            g = [(p["lat"], p["lon"]) for p in el.get("geometry", [])]
+            outer, inner = ([g] if len(g) >= 2 else []), []
+        water_area = _is_open_water(t)
+        if "waterway" in t and t.get("waterway") != "riverbank" or water_area or t.get("natural") == "wetland":
+            out["water"] += outer + inner
+        if water_area:
+            rings = assemble_rings(outer) + assemble_rings(inner)
+            if rings:
+                out["lakes"].append(rings)
+        if t.get("natural") == "wetland":
+            out["cover"] += outer
+        if t.get("natural") in ("wood", "scrub", "heath") or t.get("landuse") == "forest":
+            rings = assemble_rings(outer) if el.get("type") == "relation" else []
+            out["cover"] += rings if rings else outer
+    return out
+
+
+def fetch_osm_features(lat: float, lon: float, radius_m: float) -> dict | None:
+    """Water (streams, ponds, lakes, wetlands) and cover (woods, scrub, wetland) from OpenStreetMap — see parse_osm."""
     r = int(min(max(radius_m, 200), 2500))
     q = f"""
     [out:json][timeout:20];
     (
-      way(around:{r},{lat},{lon})["waterway"~"^(stream|river|brook|ditch|canal|drain)$"];
+      way(around:{r},{lat},{lon})["waterway"~"^(stream|river|brook|ditch|canal|drain|riverbank)$"];
       way(around:{r},{lat},{lon})["natural"="water"];
+      way(around:{r},{lat},{lon})["landuse"="reservoir"];
       way(around:{r},{lat},{lon})["natural"="wetland"];
       way(around:{r},{lat},{lon})["natural"~"^(wood|scrub|heath)$"];
       way(around:{r},{lat},{lon})["landuse"="forest"];
       relation(around:{r},{lat},{lon})["natural"~"^(water|wetland|wood)$"];
-      relation(around:{r},{lat},{lon})["landuse"="forest"];
+      relation(around:{r},{lat},{lon})["landuse"~"^(forest|reservoir)$"];
+      relation(around:{r},{lat},{lon})["waterway"="riverbank"];
     );
     out tags geom;
     """
@@ -115,27 +194,42 @@ def fetch_osm_features(lat: float, lon: float, radius_m: float) -> dict | None:
         resp = requests.post(OVERPASS_URL, data={"data": q}, timeout=25,
                              headers={"User-Agent": "Deercast/0.3 (deer recovery map)"})
         resp.raise_for_status()
-        out = {"water": [], "cover": []}
-        for el in resp.json().get("elements", []):
-            t = el.get("tags", {})
-            if el.get("type") == "relation":  # multipolygons (big lakes, forests): use outer member rings
-                geoms = [[(g["lat"], g["lon"]) for g in mbr.get("geometry", [])]
-                         for mbr in el.get("members", []) if mbr.get("role") in ("outer", "")]
-            else:
-                geoms = [[(g["lat"], g["lon"]) for g in el.get("geometry", [])]]
-            for geom in geoms:
-                if len(geom) < 2:
-                    continue
-                if "waterway" in t or t.get("natural") == "water":
-                    out["water"].append(geom)
-                if t.get("natural") == "wetland":
-                    out["water"].append(geom)
-                    out["cover"].append(geom)
-                if t.get("natural") in ("wood", "scrub", "heath") or t.get("landuse") == "forest":
-                    out["cover"].append(geom)
-        return out
+        return parse_osm(resp.json().get("elements", []))
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------- bundled lake shorelines (work without Overpass)
+BUNDLED_WATER = Path(__file__).resolve().parents[1] / "web/public/data/nolin_water.json"
+NEAR_BUNDLED_M = 5000  # use the bundled lake when the hit is within ~3 miles of its bounding box
+
+
+def near_bbox(lat: float, lon: float, bbox, margin_m: float = NEAR_BUNDLED_M) -> bool:
+    s, w, n, e = bbox
+    dlat = max(s - lat, 0, lat - n) * 110_540
+    dlon = max(w - lon, 0, lon - e) * 111_320 * math.cos(math.radians(lat))
+    return math.hypot(dlat, dlon) <= margin_m
+
+
+def bundled_water(lat: float, lon: float, data: dict | None = None) -> dict | None:
+    """Nolin River Lake from the bundled lidar shoreline, if the hit is near it."""
+    if data is None:
+        try:
+            data = json.loads(BUNDLED_WATER.read_text())
+        except Exception:
+            return None
+    if not near_bbox(lat, lon, data["bbox"]):
+        return None
+    lakes = [[[tuple(p) for p in r] for r in f] for f in data["lakes"]]
+    return {"water": [r for f in lakes for r in f], "cover": [], "lakes": lakes}
+
+
+def merge_features(*feats) -> dict | None:
+    """Combine OSM + bundled data (water = union of both)."""
+    got = [f for f in feats if f]
+    if not got:
+        return None
+    return {k: [g for f in got for g in f.get(k, [])] for k in ("water", "cover", "lakes")}
 
 
 def _xy(lat0: float, lon0: float, pts):
@@ -207,3 +301,88 @@ def habitat_multiplier(dists, water_bias: float, cover_bias: float):
             f *= 1 + 1.5 * cover_bias * math.exp(-bed / 40)
         m.append(f)
     return np.array(m)
+
+
+# ---------------------------------------------------------------- open water: no-go, and no swimming across
+SWIM_MAX_M = 50  # a straight run through more open water than this means the deer would have had to swim
+REMOVED_NOTE = 0.15  # tell the hunter when at least this share of the probability was over water
+
+
+def _seg_crossings(P, ring):
+    """t in (0, 1) where the segment origin→P crosses the ring's edges."""
+    A = ring[:-1] if len(ring) > 1 and (np.abs(ring[0] - ring[-1]) < 1e-8).all() else ring
+    B = np.roll(A, -1, axis=0)
+    E = B - A
+    den = P[0] * E[:, 1] - P[1] * E[:, 0]
+    ok = np.abs(den) > 1e-12
+    t = (A[ok, 0] * E[ok, 1] - A[ok, 1] * E[ok, 0]) / den[ok]
+    u = (A[ok, 0] * P[1] - A[ok, 1] * P[0]) / den[ok]
+    return t[(t > 0) & (t < 1) & (u >= 0) & (u < 1)]
+
+
+def water_mask(cells, lat0: float, lon0: float, feats: dict | None):
+    """Per cell: (center is in open water, meters of open water on the straight line from the hit site to it)."""
+    lakes = []
+    for f in (feats or {}).get("lakes", []):
+        rings = [_xy(lat0, lon0, r) for r in f if len(r) >= 4]
+        if rings:
+            allp = np.vstack(rings)
+            start = sum(_inside((0.0, 0.0), r) for r in rings) % 2 == 1
+            lakes.append((rings, allp.min(0), allp.max(0), start))
+    centers = _xy(lat0, lon0, [c["center"] for c in cells])
+    out = []
+    for P in centers:
+        lo, hi = np.minimum(P, 0), np.maximum(P, 0)
+        spans, wet = [], False
+        for rings, bmin, bmax, start in lakes:
+            if (bmax < lo).any() or (bmin > hi).any():
+                continue
+            ts = np.sort(np.concatenate([_seg_crossings(P, r) for r in rings]))
+            edges = [0.0, *ts.tolist(), 1.0]
+            state = start
+            for a, b in zip(edges[:-1], edges[1:]):
+                if state:
+                    spans.append((a, b))
+                state = not state
+            if (len(ts) % 2 == 1) != start:
+                wet = True
+        spans.sort()
+        length, cur = 0.0, None
+        for a, b in spans:  # union of wet stretches (OSM and bundled lakes overlap)
+            if cur and a <= cur[1]:
+                cur[1] = max(cur[1], b)
+            else:
+                if cur:
+                    length += cur[1] - cur[0]
+                cur = [a, b]
+        if cur:
+            length += cur[1] - cur[0]
+        out.append((wet, float(length * np.hypot(*P))))
+    return out
+
+
+def apply_water(w, cells, mask):
+    """Cells in open water, or only reachable by swimming, get zero. Their share goes to the last cell on dry,
+    reachable ground along the same bearing — the deer ran that way and went down along the shore.
+
+    Returns (normalized weights, share of the probability that was over / across water)."""
+    w = np.asarray(w, float)
+    total = w.sum()
+    out = w.copy()
+    removed = 0.0
+    sectors = {}
+    for k, c in enumerate(cells):
+        sectors.setdefault(c["sector"], []).append(k)
+    for ks in sectors.values():
+        shore = None
+        for k in sorted(ks, key=lambda k: cells[k]["ring"]):
+            wet, water_m = mask[k]
+            if not wet and water_m <= SWIM_MAX_M:
+                shore = k
+                continue
+            removed += w[k]
+            out[k] = 0.0
+            if shore is not None:
+                out[shore] += w[k]
+    s = out.sum()
+    return (out / s if s > 0 else out), (removed / total if total > 0 else 0.0)

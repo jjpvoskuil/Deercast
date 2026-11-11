@@ -29,6 +29,39 @@ for yards, run in (((30, 80, 150), None), ((80, 200, 400), 45.0), ((100, 500, 15
     rec.append({"yards": yards, "run": run, "centers": [list(c["center"]) for c in cells], "dist": [c["dist_yd"] for c in cells],
                 "bearing": [c["bearing"] for c in cells], "elev": elev, "w": list(map(float, w)), "osm": osm, "marks": marks,
                 "fd": [[x if math.isfinite(x) else None for x in d] for d in dist], "hab": list(map(float, hab))})
-Path(ROOT / "web/src/lib/shot.fixtures.json").write_text(json.dumps({"traces": traces, "rec": rec,
+
+# ---- open water (made-up lake near a made-up hit site — never real stand coordinates)
+sys.path.insert(0, str(ROOT / "tests"))
+from water_cases import LAT as WLAT, LON as WLON, cases as water_cases
+nolin = json.loads(recovery.BUNDLED_WATER.read_text())
+
+
+def jsonable(x):
+    if isinstance(x, (list, tuple)):
+        return [jsonable(v) for v in x]
+    if isinstance(x, dict):
+        return {k: jsonable(v) for k, v in x.items()}
+    if isinstance(x, (float, np.floating)):
+        return float(x) if math.isfinite(x) else None
+    return x
+
+
+water = []
+for case in water_cases():
+    hit, yards, run = case["hit"], case["yards"], case["run"]
+    osm = recovery.parse_osm(case["elements"]) if case["elements"] is not None else None
+    feats = recovery.merge_features(osm, recovery.bundled_water(*hit, nolin) if case.get("bundled") else None)
+    cells = recovery.search_grid(*hit, yards, run)
+    w = recovery.weight_cells(cells, yards, run, None, None, 0)
+    fd = recovery.feature_distances(cells, *hit, feats, case.get("marks", []))
+    w = w * recovery.habitat_multiplier(fd, 1.2, 1.4); w = w / w.sum()
+    mask = recovery.water_mask(cells, *hit, feats)
+    w2, removed = recovery.apply_water(w, cells, mask)
+    water.append(jsonable({"name": case["name"], "hit": hit, "yards": yards, "run": run, "elements": case["elements"],
+                           "bundled": bool(case.get("bundled")), "marks": case.get("marks", []), "parsed": osm,
+                           "fd": fd, "w": list(map(float, w)), "mask": mask, "w2": list(map(float, w2)), "removed": removed}))
+    print(f"  {case['name']}: removed {removed:.2f}, wet {sum(m[0] for m in mask)}")
+
+Path(ROOT / "web/src/lib/shot.fixtures.json").write_text(json.dumps({"traces": traces, "rec": rec, "water": water,
     "angles": [[h, d, shot.stand_angle(h, d)] for h, d in ((18, 20), (0, 30), (25, 10), (12, 0))]}))
 print("ok", len(traces), "traces")

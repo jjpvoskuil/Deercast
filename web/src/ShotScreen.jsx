@@ -9,7 +9,7 @@ import { defaultWeaponId, findWeapon, weaponIdFor, weaponOptions } from "./lib/g
 import { atRange, DEER_FTLB } from "./lib/ballistics.js";
 import { summary } from "./lib/archery.js";
 import { BODY, DECOR, EVIDENCE, ORGANS, OUTCOMES, REACTION, VIEW, classify, depth, outline, project, standAngle, trace, viewBasis } from "./lib/shot.js";
-import { COVER_BIAS, DOWNHILL_BIAS, WATER_BIAS, featureDistances, fetchOsm, habitatMultiplier, searchGrid, weightCells } from "./lib/recovery.js";
+import { COVER_BIAS, DOWNHILL_BIAS, REMOVED_NOTE, WATER_BIAS, applyWater, dryPieces, featureDistances, fetchBundledWater, fetchOsm, habitatMultiplier, lakesXY, mergeFeatures, searchGrid, waterMask, weightCells } from "./lib/recovery.js";
 import { elevations, fetchForecast } from "./lib/weather.js";
 
 const ANGLES = [[-90, "Facing you"], [-75, "Facing you (slight)"], [-60, "Hard quartering toward"], [-45, "Quartering toward"], [-30, "Slight quartering toward"],
@@ -403,20 +403,26 @@ function RecoveryMap({ from, hit, yards, runDir, planKey, marks, active, trail =
       let elev = null;
       if (bias > 0) { try { elev = await elevations([hit, ...cells.map((c) => c.center)]); } catch { elev = null; } }
       let w = weightCells(cells, yards, runDir, elev ? elev.slice(1) : null, elev ? elev[0] : null, bias);
-      const osm = await fetchOsm(+hit[0].toFixed(4), +hit[1].toFixed(4), yards[2] * YD * 1.2);
+      const [ovp, bundled] = await Promise.all([fetchOsm(+hit[0].toFixed(4), +hit[1].toFixed(4), yards[2] * YD * 1.2), fetchBundledWater(hit[0], hit[1])]);
+      const osm = mergeFeatures(ovp, bundled);
       const habitat = !!((osm && (osm.water.length || osm.cover.length)) || marks.length);
       if (habitat) {
         const hm = habitatMultiplier(featureDistances(cells, hit[0], hit[1], osm, marks), WATER_BIAS[planKey] ?? 0.5, COVER_BIAS[planKey] ?? 0.7);
         w = w.map((x, i) => x * hm[i]); const s = w.reduce((a, b) => a + b, 0); w = w.map((x) => x / s);
       }
+      // open water: never a probable spot, and the deer didn't swim across — its share goes to the shore
+      const lakes = lakesXY(hit[0], hit[1], osm);
+      const water = applyWater(w, cells, waterMask(cells, hit[0], hit[1], osm));
+      w = water.w;
+      const big = Math.max(0, ...lakes.map((l) => l.area)) >= 80000; // ~20 acres
       if (stale || !layer.current) return;
       const lg = layer.current; lg.clearLayers();
       const wmax = Math.max(...w);
       cells.forEach((c, i) => {
-        const a = w[i] / wmax;
+        const a = wmax > 0 ? w[i] / wmax : 0;
         if (a < 0.08) return;
-        L.polygon(c.poly, { stroke: false, fillColor: "#ff3b30", fillOpacity: 0.08 + 0.45 * a })
-          .bindPopup(`${Math.round(c.dist_yd)} yd ${degToCardinal(c.bearing)} · relative chance ${Math.round(a * 100)}%`).addTo(lg);
+        const tip = `${Math.round(c.dist_yd)} yd ${degToCardinal(c.bearing)} · relative chance ${Math.round(a * 100)}%`;
+        for (const poly of dryPieces(c, hit, lakes)) L.polygon(poly, { stroke: false, fillColor: "#ff3b30", fillOpacity: 0.08 + 0.45 * a }).bindPopup(tip).addTo(lg);
       });
       L.circle(hit, { radius: yards[1] * YD, color: "#ffd60a", weight: 1.5, fill: false, dashArray: "6" }).bindPopup(`Typical distance ~${yards[1]} yd`).addTo(lg);
       for (const g of osm?.water || []) L.polyline(g, { color: "#3a86ff", weight: 3, opacity: 0.8, interactive: false }).addTo(lg);
@@ -430,19 +436,21 @@ function RecoveryMap({ from, hit, yards, runDir, planKey, marks, active, trail =
         trail.forEach((t, i) => L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12], html: '<div class="emoji">🩸</div>' }) })
           .bindPopup(`Trip ${i + 1}: left off here (${t.date} ${t.to || ""})`).addTo(lg));
       }
-      [...w.keys()].sort((a, b) => w[b] - w[a]).slice(0, 3).forEach((k, n) => {
+      [...w.keys()].filter((k) => w[k] > 0).sort((a, b) => w[b] - w[a]).slice(0, 3).forEach((k, n) => {
         L.marker(cells[k].center, { icon: L.divIcon({ className: "", iconSize: [24, 24], iconAnchor: [12, 12], html: `<div class="rank-pin">${n + 1}</div>` }) })
           .bindPopup(`#${n + 1} most likely area · ${Math.round(cells[k].dist_yd)} yd ${degToCardinal(cells[k].bearing)}`).addTo(lg);
       });
-      map.current.fitBounds(L.latLngBounds([from, hit, ...trail.map((t) => [t.lat, t.lon]), ...cells.filter((c, i) => w[i] / wmax >= 0.08).map((c) => c.center)]).pad(0.1), { maxZoom: 18 });
-      setInfo({ elev: !!elev, habitat, marks: marks.length > 0 });
+      map.current.fitBounds(L.latLngBounds([from, hit, ...trail.map((t) => [t.lat, t.lon]), ...cells.filter((c, i) => wmax > 0 && w[i] / wmax >= 0.08).map((c) => c.center)]).pad(0.1), { maxZoom: 18 });
+      setInfo({ elev: !!elev, habitat, marks: marks.length > 0, lakes: lakes.length > 0, removed: water.removed, big, allWet: !(wmax > 0) });
     })();
     return () => { stale = true; };
   }, [key]);
   return (
     <>
       <div ref={el} className="rec-map" />
-      <p className="muted small">Red shading = relative chance the deer is there, from typical travel distance for this hit{runDir != null ? ", the direction it ran" : ""}{info.elev ? ", terrain (downhill)" : ""}{info.habitat ? `, and nearby water & heavy cover (blue = water, green dashes = woods${info.marks ? ", circles = your marks" : ""})` : ""}. Numbers 1–3 = best places to search first.</p>
+      <p className="muted small">Red shading = relative chance the deer is there, from typical travel distance for this hit{runDir != null ? ", the direction it ran" : ""}{info.elev ? ", terrain (downhill)" : ""}{info.habitat ? `, and nearby water & heavy cover (blue = water, green dashes = woods${info.marks ? ", circles = your marks" : ""})` : ""}.{info.lakes ? " Open water is never shaded — a hit deer goes down on land, and isn't assumed to swim across." : ""} Numbers 1–3 = best places to search first.</p>
+      {info.allWet && <p className="confirm small">The hit site is out in the water on the map — check the shot distance and direction.</p>}
+      {!info.allWet && info.removed >= REMOVED_NOTE && <p className="confirm small">{info.big ? "Spots over the lake were removed — the deer most likely went down along the shore." : "Spots over the pond were removed — the deer most likely went down along the bank."}</p>}
       {!info.habitat && <p className="muted small">No water/cover data found here. Mark creeks, ponds, thickets and bedding areas on the Map (tap → Add mark) and they'll be weighted in.</p>}
     </>
   );
