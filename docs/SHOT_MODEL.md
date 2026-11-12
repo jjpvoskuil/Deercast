@@ -98,9 +98,9 @@ from typical cases, so the hunter's physical sign (blood, hair, arrow) should ta
   and for temperatures of 50°F or more during waits of 4 hours or longer (meat spoilage).
 
 ## Known limits / next steps
-- **Lake level:** the open-water outlines are at summer pool (OSM and the bundled 514-ft line). In fall and winter,
-  Nolin is drawn down (the winter lidar flights found it at ~496–499 ft), so exposed flats and banks still count as water. A level-aware
-  shoreline (the live USGS level × the lidar contours, as Fishin Magician does) is a possible next step.
+- **Lake level — decided (John, 11-11): stay at summer pool.** Nolin is drawn down in hunting season, so exposed flats
+  count as water. John: a deer is unlikely to run out on a flat to die, and if one does it's easy to spot from the
+  summer-pool shoreline. Don't build a level-aware shoreline.
 - OSM cover mapping in rural Kentucky is coarse (large woodlots only; it misses cedar thickets and CRP), so the hunter's own marks are the most reliable input. Trails, fences and pressure are not modeled.
 - Organ sizes are fixed. A future option could scale them by deer size (doe, yearling, mature buck).
 - Saved shots go to `shots.json` in the private data repo. Recording the recovery outcome later

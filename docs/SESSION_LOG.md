@@ -24,8 +24,8 @@ John: Hit analysis → recovery sometimes put the probable spots out on Nolin La
 - Hit analysis → Arrow: new choice **"Pulled out of deer — no pass-through"** (arrow found, partial penetration). It is handled like "stayed in the deer": less-blood note, bone stop by default, and long waits on lethal hits increased by half. The note says to read the penetration depth and blood color off the shaft. The "Exit is low/high" line is now hidden for both of these choices, since there's no exit hole.
 
 **Open / next**
-- Lake level: the outlines are at summer pool, and in hunting season Nolin is drawn down, so exposed flats still count as water. A possible next step: shoreline at the live USGS level from the lidar contours (as Fishin Magician does).
-- John to test on his phone (below) and report any spot that still lands in water.
+- Decided (John): keep the lake outline at summer pool. A deer rarely dies out on a drawn-down flat, and one that does is easy to spot from the summer shoreline. No level-aware shoreline.
+- John tested all three changes on his phone: looks good.
 
 ## 2026-11-10 — Session 4b: fixes from John's first live tracking test
 - **"Current location" now means the phone's GPS position.** Before, it silently used the ground's home spot. The Hit analysis also switched it to the first stand and saved that back to the shot. Now starting a sit from Current location saves `lat/lon` on the live sit. Shots get `from_lat/from_lon` (the sit spot → else trip 1's first GPS point → else home). TrackMode takes a separate `stand` point, so the orange S is where you shot from, not the hit site. ShotScreen keeps a shot's own "shot from" (the first-stand default applies to the calculator only). Edit shot has a "Shot from" picker.
