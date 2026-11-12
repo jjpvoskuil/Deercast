@@ -1,20 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { CARDINALS_8, degToCardinal, destination, driftCone, scentCone, windOkForStand, YD } from "./lib/geo.js";
+import { degToCardinal, destination, driftCone, scentCone, windOkForStand, YD } from "./lib/geo.js";
 import { combine, describe, gridSlopes, slopeFrom, slopePoints, thermalPhase } from "./lib/terrain.js";
 import { currentWind, elevations, hourlyWind } from "./lib/weather.js";
 import Icon from "./Icon.jsx";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { SiteLists, TapActions } from "./MapEdit.jsx";
 
-const KIND_COLOR = { Buck: "#ff6b1a", Doe: "#ffd60a", Fawn: "#f5deb3", Unknown: "#c0c0c0" };
-const FEATURE = {
+export const FEATURE = {
   water: ["#3a86ff", "💧", "Water"], cover: ["#2d6a4f", "🌲", "Thick cover"], bedding: ["#ffb703", "🛏️", "Bedding area"],
   feeder: ["#f4a261", "🛢️", "Broadcast corn feeder"], corn_shelled: ["#e9c46a", "🌽", "Shelled corn pile"],
   corn_ear: ["#e9c46a", "🌽", "Ear corn pile"], food_other: ["#90be6d", "🍎", "Other food / plot"],
   camera: ["#8d99ae", "📷", "Trail camera"],
 };
-const BAIT = new Set(["feeder", "corn_shelled", "corn_ear", "food_other"]);
+export const BAIT = new Set(["feeder", "corn_shelled", "corn_ear", "food_other"]);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const fmtHour = (d) => d.toLocaleString([], { weekday: "short", hour: "numeric" });
 
@@ -22,21 +21,6 @@ function useStored(key, initial) {
   const [v, setV] = useState(() => { try { const s = localStorage.getItem(key); return s === null ? initial : JSON.parse(s); } catch { return initial; } });
   useEffect(() => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* ignore */ } }, [key, v]);
   return [v, setV];
-}
-
-/** Deer seen together (same `group`) shown as one entry. */
-function groupSightings(hunts) {
-  const out = [];
-  for (const h of hunts) {
-    const by = new Map();
-    (h.sightings || []).forEach((s, i) => {
-      if (s.lat == null) return;
-      const k = s.group || `_${i}`;
-      if (!by.has(k)) { by.set(k, { ...s, deer: [] }); out.push(by.get(k)); }
-      by.get(k).deer.push([s.kind, s.count || 1]);
-    });
-  }
-  return out;
 }
 
 const TREE = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l5 7h-3l4 6H6l4-6H7l5-7z"/><path d="M12 16v5"/></svg>';
@@ -76,10 +60,9 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
     const labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
       { maxZoom: 21, maxNativeZoom: 19 });
     const g = (on = true) => { const lg = L.layerGroup(); if (on) lg.addTo(m); return lg; };
-    layers.current = { field: g(), cones: g(), marks: g(), bait: g(), sightings: g(), stands: g(), tap: g(), me: g() };
+    layers.current = { field: g(), cones: g(), marks: g(), bait: g(), stands: g(), tap: g(), me: g() };
     L.control.layers({ Satellite: sat, Topo: topo, Streets: streets },
-      { Labels: labels, "Bait & food": layers.current.bait, "Water / cover / bedding": layers.current.marks,
-        "Deer sightings": layers.current.sightings }, { position: "topleft", collapsed: true }).addTo(m);
+      { Labels: labels, "Bait & food": layers.current.bait, "Water / cover / bedding": layers.current.marks }, { position: "topleft", collapsed: true }).addTo(m);
     m.attributionControl.setPrefix(false);
     m.on("click", (e) => setTapped([e.latlng.lat, e.latlng.lng]));
     m.on("moveend", () => { const c = m.getCenter(); setCenter([c.lat, c.lng]); });
@@ -199,35 +182,6 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
       }
     });
   }, [features]);
-
-  // ------------------------------------------------------------- draw: deer sightings (everyone's, this ground)
-  const sightings = useMemo(() => groupSightings(data?.hunts || []), [data]);
-  useEffect(() => {
-    const lg = layers.current.sightings; if (!lg) return;
-    lg.clearLayers();
-    sightings.forEach((e) => {
-      const kinds = e.deer.map(([k]) => k);
-      const col = KIND_COLOR[kinds.includes("Buck") ? "Buck" : kinds[0]] || "#ccc";
-      const pt = [e.lat, e.lon];
-      const deer = e.deer.map(([k, n]) => `${n} ${k.toLowerCase()}${n > 1 && k !== "Unknown" ? "s" : ""}`).join(" + ");
-      const when = new Date(e.time).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-      const tip = `${when} — ${deer}${e.activity ? ` · ${e.activity}` : ""}${e.came_from ? ` · came from ${e.came_from}` : ""}${e.went_to ? ` · went ${e.went_to}` : ""}`;
-      if (CARDINALS_8.includes(e.came_from)) {
-        const end = destination(e.lat, e.lon, CARDINALS_8.indexOf(e.came_from) * 45, 30 * YD);
-        L.polyline([end, pt], { color: col, weight: 3, opacity: 0.9, dashArray: "4 4", interactive: false }).addTo(lg);
-      }
-      if (CARDINALS_8.includes(e.went_to)) {
-        const b = CARDINALS_8.indexOf(e.went_to) * 45;
-        const end = destination(e.lat, e.lon, b, 30 * YD);
-        L.polyline([pt, end], { color: col, weight: 3, opacity: 0.9, interactive: false }).addTo(lg);
-        L.marker(end, { interactive: false, icon: L.divIcon({ className: "", iconSize: [14, 14], iconAnchor: [7, 7],
-          html: `<div class="arrowhead" style="transform:rotate(${b}deg);border-bottom-color:${col}"></div>` }) }).addTo(lg);
-      }
-      const cam = e.source === "camera";
-      L.circleMarker(pt, cam ? { radius: 6, color: col, weight: 3, fillColor: "#111", fillOpacity: 0.6 } : { radius: 7, color: "#111", weight: 1, fillColor: col, fillOpacity: 0.95 })
-        .bindPopup(esc(cam ? `📷 ${e.camera || "Trail camera"} · ${tip}` : tip)).addTo(lg);
-    });
-  }, [sightings]);
 
   // ------------------------------------------------------------- draw: tapped test point
   useEffect(() => {
@@ -360,11 +314,10 @@ export default function MapScreen({ ground, data, demo, theme, onMenu, active, s
               <p>Tap anywhere to test a spot (yellow cone) — then forecast it, or add a stand or mark there. Tap the red dot to clear it.</p>
               <p>Drift field arrows: orange = wind-driven, purple = thermal-driven, yellow = thermals switching.</p>
               <p>🛢️🌽🍎 bait &amp; food · 💧 water · 🌲 cover · 🛏️ bedding (circles).</p>
-              <p>Deer: <span style={{ color: KIND_COLOR.Buck }}>●</span> buck <span style={{ color: KIND_COLOR.Doe }}>●</span> doe <span style={{ color: KIND_COLOR.Fawn }}>●</span> fawn — dashed = came from, solid arrow = went.</p>
+              <p>Deer you've seen are on each hunt's own map: Hunt Log → open a hunt → 🗺️ Map this hunt.</p>
               <p className="muted">Wind is one value for the area (forecast models don't resolve wind inside a property); terrain is what varies.</p>
             </div>
           )}
-          <div className="foot muted small">{sightings.length} logged sightings on this ground</div>
         </div>
       </section>
 

@@ -9,6 +9,8 @@ import { Menu, TabBar } from "./Shell.jsx";
 import { demoSeed } from "./demo.js";
 import { demoDb, nowIso, supabaseDb } from "./lib/db.js";
 import TrackMode from "./TrackMode.jsx";
+import HuntMap from "./HuntMap.jsx";
+import { shotSighting } from "./lib/huntmap.js";
 import { resolveTheme } from "./lib/theme.js";
 
 const LAST_GROUND = "deercast.ground";
@@ -133,9 +135,10 @@ export default function App() {
   );
   if (me === undefined || grounds === null) return <Splash><p className="muted">Loading your grounds…</p></Splash>;
 
-  const openTrack = (shot, center, live, stand) => setOverlay({ kind: "track", shot, center, live, stand });
+  const openTrack = (shot, center, live, stand, sighting = null) => setOverlay({ kind: "track", shot, center, live, stand, sighting });
   const openAnalysis = (shotId) => setOverlay({ kind: "analysis", shotId });
-  const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true), openAnalysis, openTrack, shotsV, patchShot,
+  const openHuntMap = (hunt, shots, tz) => setOverlay({ kind: "huntmap", hunt, shots, tz });
+  const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true), openAnalysis, openTrack, openHuntMap, shotsV, patchShot,
     setGround: setGid, reloadGrounds: loadGrounds, reloadData: loadData, signOut };
   return (
     <>
@@ -148,8 +151,11 @@ export default function App() {
       <TabBar tab={tab} onTab={onTab} built={BUILT} />
       {overlay?.kind === "analysis" && <div className="overlay"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
       {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} stand={overlay.stand || overlay.center} live={overlay.live}
+        sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === overlay.shot.hunt_id), overlay.shot)}
         onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay}
         onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
+      {overlay?.kind === "huntmap" && <div className="overlay"><HuntMap hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
+        stands={data?.stands || []} features={data?.features || []} onClose={closeOverlay} /></div>}
       <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
         email={session.user.email} onSignOut={signOut} onManage={() => { setMenu(false); go("more"); history.replaceState(null, "", "#more/grounds"); }} />
       {toast && <div className="toast" role="status">{toast}</div>}

@@ -4,6 +4,22 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-12 — Session 6: hunt map; sightings off the main Map
+John: deer trails were cluttering the Map. He wanted them on a map per hunt in the log instead, along with the wind cones at the time, pins, tracking trail and the shot deer's trail, each as a layer he can toggle. He also wanted the shot deer's "where I think it went" shown when tracking.
+- **Main Map:** the deer sightings layer (dots and came-from/went trails) is removed. The map key now points to the hunt map.
+- **Hunt map** (`web/src/HuntMap.jsx`; Hunt Log → open a logged hunt → **🗺️ Map this hunt**, App overlay `huntmap`). Layer chips, with their on/off state remembered in `deercast.huntmapLayers`:
+  - 💨 Wind: the cone at your spot, with an hour slider across the sit. It opens on the hour of the first shot, else the first deer seen. Hourly wind comes from `weather.fetchRange` and the cone is bent by thermals when elevation loads. If hourly wind fails, it uses the start wind logged with the hunt.
+  - 🦌 Deer seen: grouped sightings with dashed came-from and went arrows.
+  - 🎯 Shot deer: a thin dashed line from the stand to the hit site, then a red dashed arrow (~80 yd) for where it ran. The direction is the hit analysis "ran", else the "went toward" of the matching Deer-seen entry (the shot's `deer` text = `deerText`). The hit site is the tracking hit pin, else the hit analysis, else the sighting spot.
+  - 👣 Tracking: GPS and drawn trips.
+  - 📍 Pins: tracking pins with their details, plus the recovery spot.
+  - 🌲 Stands & bait: other stands, bait, cameras and marks. Your sit spot is always shown.
+  - The map falls back to the stand's position for hunts saved without a lat/lon.
+- **Tracking map:** the same red "Where it ran" arrow, with an on/off chip (remembered in `deercast.trackRun`). It is found from the analysis or the sighting, including during a live sit (`HuntLogScreen` passes the sighting to `openTrack`).
+- Shared Leaflet drawing in `web/src/mapdraw.js` (sightings, shot run, trips). Trip colors now start with cyan and purple, so they don't look like doe yellow or buck orange. Pure helpers in `web/src/lib/huntmap.js`, tested in `huntmap.test.js` (33 JS tests).
+- Fixed in passing: `shotPanel`'s `live` parameter hid the live-sit state (now `isLive`), and a dev-mode Leaflet resize after unmount.
+- Checked with Playwright on `?demo`: a made-up shot on the demo buck with a tracking trip, blood pins and a recovery; mocked Open-Meteo hourly wind and elevation.
+
 ## 2026-11-11 — Session 5: recovery map kept out of the lake (v0.8.2)
 John: Hit analysis → recovery sometimes put the probable spots out on Nolin Lake.
 - **Cause (confirmed):** water was only ever an *attraction* (meters to the nearest water line, boosted within ~100 yd). Nothing asked whether a cell was *in* the water, so a cell out on the lake still counted as "close to water" and got boosted. Nolin's OSM multipolygon members were also used as separate lines, never joined into rings, and if Overpass failed there was no water data at all.

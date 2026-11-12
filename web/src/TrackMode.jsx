@@ -8,6 +8,8 @@ import NumInput from "./NumInput.jsx";
 import { newId, nowIso } from "./lib/db.js";
 import { ORGANS } from "./lib/shot.js";
 import { EARTH_R, YD } from "./lib/geo.js";
+import { shotRun } from "./lib/huntmap.js";
+import { RUN_COLOR, drawShotRun, drawTrips } from "./mapdraw.js";
 
 const SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
@@ -65,7 +67,7 @@ export function normalizeTrack(s) {
   return { ...s, trips, pins, recovery };
 }
 
-export default function TrackMode({ shot: initial, center, stand, live: startLive, onSave, onClose, onAnalysis }) {
+export default function TrackMode({ shot: initial, center, stand, sighting = null, live: startLive, onSave, onClose, onAnalysis }) {
   const [s, setS] = useState(() => normalizeTrack(initial));
   const sRef = useRef(s); sRef.current = s;
   const [live, setLive] = useState(startLive);          // GPS recording on
@@ -82,6 +84,8 @@ export default function TrackMode({ shot: initial, center, stand, live: startLiv
   const [mini, setMini] = useState(false);               // panel pulled down → more map
   const drag = useRef(null);
   const [fd, setFd] = useState(null);                    // recovery draft while the Found sheet is open
+  const [showRun, setShowRun] = useState(() => localStorage.getItem("deercast.trackRun") !== "0"); // the deer's run arrow
+  useEffect(() => { try { localStorage.setItem("deercast.trackRun", showRun ? "1" : "0"); } catch { /* ignore */ } }, [showRun]);
   const openTrip = s.trips.find((t) => !t.end) || null;
   const tripNo = (id) => s.trips.findIndex((t) => t.id === id) + 1;
 
@@ -186,29 +190,13 @@ export default function TrackMode({ shot: initial, center, stand, live: startLiv
     }
   };
   useEffect(() => { const m = map.current; const f = (e) => tapRef.current(e.latlng); m.on("click", f); return () => m.off("click", f); }, []);
-  const COLORS = ["#ffd60a", "#ff8c1a", "#52b788", "#3a86ff", "#e76f51", "#c77dff"];
   useEffect(() => {
     const g = lg.current; if (!g) return; g.clearLayers();
     const st = stand || center, all = [st];
     L.marker(st, { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="stand-pin">S</div>' }), interactive: false }).addTo(g);
-    s.trips.forEach((t, i) => {
-      const col = COLORS[i % COLORS.length];
-      const pts = t.path.map((p) => [p[0], p[1]]);
-      // a gap of over a minute between GPS points = app was in the background: draw that stretch as a thin dotted line
-      let seg = [];
-      t.path.forEach((p, j) => {
-        if (j && p[2] && t.path[j - 1][2] && p[2] - t.path[j - 1][2] > 60000) {
-          if (seg.length > 1) L.polyline(seg, { color: col, weight: 4, opacity: 0.9, interactive: false }).addTo(g);
-          L.polyline([[t.path[j - 1][0], t.path[j - 1][1]], [p[0], p[1]]], { color: "#fff", weight: 2, opacity: 0.7, dashArray: "2 8", interactive: false }).addTo(g);
-          seg = [];
-        }
-        seg.push([p[0], p[1]]);
-      });
-      if (seg.length > 1) L.polyline(seg, { color: col, weight: 4, opacity: 0.9, interactive: false }).addTo(g);
-      if ((t.drawn || []).length > 1) L.polyline(t.drawn, { color: col, weight: 4, opacity: 0.9, dashArray: "8 8", interactive: false }).addTo(g);
-      for (const p of (t.drawn || []).length === 1 ? t.drawn : []) L.circleMarker(p, { radius: 4, color: col, interactive: false }).addTo(g);
-      all.push(...pts, ...(t.drawn || []));
-    });
+    // where you think the shot deer went (hit analysis 'ran', else its 'Deer seen' 'went toward') — under the tracks
+    if (showRun) all.push(...drawShotRun(g, shotRun(s, sighting, st), { hitMarker: !s.pins.some((p) => p.kind === "hit") }));
+    all.push(...drawTrips(g, s.trips));
     for (const p of s.pins) {
       L.marker([p.lat, p.lon], { icon: pinIcon(PIN_KINDS[p.kind]?.[0] || "📌", p.id === sel) }).on("click", () => setSel(p.id)).addTo(g);
       all.push([p.lat, p.lon]);
@@ -216,7 +204,7 @@ export default function TrackMode({ shot: initial, center, stand, live: startLiv
     if (fd?.lat != null && sheet === "found") L.marker([fd.lat, fd.lon], { icon: pinIcon("🦌", true) }).addTo(g);
     if (s.recovery?.lat != null) { L.marker([s.recovery.lat, s.recovery.lon], { icon: pinIcon("🦌") }).bindPopup("Recovered here").addTo(g); all.push([s.recovery.lat, s.recovery.lon]); }
     if (!fitted.current && all.length > 1) { map.current.fitBounds(L.latLngBounds(all).pad(0.3), { maxZoom: 19 }); fitted.current = true; }
-  }, [s, sel, fd, sheet]);
+  }, [s, sel, fd, sheet, showRun]);
   useEffect(() => {
     const g = meLayer.current; if (!g) return; g.clearLayers();
     if (me) { L.circle([me[0], me[1]], { radius: me[2], color: "#4da3ff", weight: 1, fillOpacity: 0.12, interactive: false }).addTo(g);
@@ -243,6 +231,7 @@ export default function TrackMode({ shot: initial, center, stand, live: startLiv
   const walked = openTrip ? pathYards(openTrip.path.map((p) => [p[0], p[1]])) : 0;
   const lastPin = s.pins[s.pins.length - 1];
   const hitPin = s.pins.find((p) => p.kind === "hit");
+  const hasRun = shotRun(s, sighting, stand || center).bearing != null;
 
   return (
     <div className="track-mode">
@@ -256,6 +245,8 @@ export default function TrackMode({ shot: initial, center, stand, live: startLiv
         {live && openTrip && <button className={`btn sm ${crumbs ? "" : "primary"}`} onClick={() => setCrumbs(!crumbs)}>{crumbs ? "Pause" : "Resume"}</button>}
         <button className="btn sm" onClick={() => setSheet(sheet === "log" ? null : "log")}>Log</button>
       </div>
+      {hasRun && !(arm || draw) && <button className={`map-toggle ${showRun ? "on" : ""}`} aria-pressed={showRun} onClick={() => setShowRun(!showRun)}>
+        <span className="sw" style={{ background: RUN_COLOR }} /> Where it ran</button>}
       {live && <button className="fab track-me" aria-label="Center on me" onClick={follow}><Icon name="locate" /></button>}
       {live && awake === false && !mini && <div className="track-hint warn">This phone may auto-lock and pause your path. Set Settings → Display & Brightness → Auto-Lock → <b>Never</b> while tracking. <button className="link" onClick={() => setAwake(null)}>OK</button></div>}
       {(arm || draw) && <div className="track-hint">{arm ? <>Tap the map where {arm === "found" ? "the deer lay" : `the ${PIN_KINDS[arm][1].toLowerCase()} was`}. <button className="link" onClick={() => setArm(null)}>Cancel</button></>

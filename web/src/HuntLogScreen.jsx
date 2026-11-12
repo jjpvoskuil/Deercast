@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import NumInput from "./NumInput.jsx";
 import { normalizeTrack } from "./TrackMode.jsx";
+import { shotSighting } from "./lib/huntmap.js";
 import { defaultWeaponId, findWeapon, weaponIdFor, weaponOptions } from "./lib/gear.js";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { CARDINALS_8, degToCardinal } from "./lib/geo.js";
@@ -39,7 +40,7 @@ async function scoredDay(lat, lon, key, rutPeak) {
   return v;
 }
 
-export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, shotsV }) {
+export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, openHuntMap, shotsV }) {
   const home = ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" };
   const stands = data?.stands || [];
   const baits = (data?.features || []).filter((f) => BAIT_TYPES.has(f.type));
@@ -80,14 +81,14 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   };
   const delShot = async (id) => { if (await save((d) => d.deleteShot(id), { reload: "none", ok: "Shot deleted" })) loadShots(); };
   /** Shots of one hunt, each at its stage (missed / waiting / tracking / paused / done), + "I took a shot". */
-  const shotPanel = (huntId, stand, defaultMs, deerOpts, live) => (
+  const shotPanel = (huntId, stand, defaultMs, deerOpts, isLive) => (
     <div className="shots-box">
       {shotsFor(huntId).map((x) => shotForm?.id === x.id
         ? <ShotQuick key={x.id} initial={shotForm} deerOpts={deerOpts} whereOptions={whereOptions} wOpts={wOpts} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
-        : <ShotStage key={x.id} x={x} live={live}
+        : <ShotStage key={x.id} x={x} live={isLive}
             onEdit={() => { const [day, time] = String(x.time).split(" "); setShotForm({ id: x.id, huntId, stand: x.stand || stand, day, time, status: x.status, weapon_id: weaponIdFor(gear, x), dist: x.distance_yd || 20, deer: x.deer || "", notes: x.notes || "" }); }}
             onDelete={() => delShot(x.id)} onAnalysis={() => openAnalysis(x.id)}
-            onTrack={(gps) => openTrack(x, centerFor(x), gps, standOf(x))} />)}
+            onTrack={(gps) => openTrack(x, centerFor(x), gps, standOf(x), shotSighting(live?.id === huntId ? live : mine.find((h) => h.id === huntId), x))} />)}
       {shotForm && !shotForm.id && shotForm.huntId === huntId
         ? <ShotQuick initial={shotForm} deerOpts={deerOpts} whereOptions={whereOptions} wOpts={wOpts} onSave={saveShotBasics} onCancel={() => setShotForm(null)} />
         : <button className="btn wide" onClick={() => { const d = new Date(defaultMs()); setShotForm({ huntId, stand, day: localDay(d), time: localHM(d), status: "hit", weapon_id: huntWeapon(huntId), dist: 20, deer: "", notes: "" }); }}>🎯 I took a shot</button>}
@@ -391,6 +392,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   ))}
                   {h.notes && <p className="small"><i>{h.notes}</i></p>}
                   {h.edited && <div className="muted small">Edited {h.edited}</div>}
+                  <button className="btn wide" onClick={() => openHuntMap(h, shotsFor(h.id), tz)}>🗺️ Map this hunt</button>
                   {shotPanel(h.id, h.stand, () => s, groupSightings(h.sightings).map((g) => deerText(g.deer)), false)}
                   <div className="btn-row">
                     <button className="btn" onClick={() => setEditId(h.id)}>Edit</button>

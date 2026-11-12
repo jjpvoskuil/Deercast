@@ -410,3 +410,21 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .hours-grid.four { grid-template-columns: 1.3fr 1fr 1.1fr 0.9fr; }
 .warn-text { color: #d9534f; }
 .toggle.off { opacity: .45; }
+
+/* map layer toggles (hunt map chips; tracking map 'Where it ran') */
+.map-toggle { position: absolute; left: 10px; top: calc(var(--safe-top) + 66px); z-index: 1000; display: flex; align-items: center; gap: 6px;
+  min-height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: inherit;
+  font-size: 14px; font-weight: 600; opacity: .75; box-shadow: 0 2px 8px var(--shadow); }
+.map-toggle.on, .layer-chip.on { opacity: 1; border-color: var(--accent); }
+.sw { width: 14px; height: 4px; border-radius: 2px; display: inline-block; flex: none; }
+.layer-chips { position: absolute; left: 0; right: 0; top: calc(var(--safe-top) + 62px); z-index: 1000; display: flex; gap: 6px;
+  overflow-x: auto; padding: 0 10px 4px; scrollbar-width: none; }
+.layer-chip { flex: none; display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); color: inherit; font-size: 14px; font-weight: 600; opacity: .6;
+  box-shadow: 0 2px 8px var(--shadow); }
+.layer-chip .e { font-size: 16px; }
+.hunt-map-panel { max-height: 40%; }
+.hour-row { display: flex; align-items: center; gap: 10px; }
+.hour-row input[type=range] { flex: 1; accent-color: var(--accent); }
+.hour-row b { min-width: 76px; text-align: right; }
+.stand-pin.sm { width: 22px; height: 22px; font-size: 12px; line-height: 18px; opacity: .85; }
