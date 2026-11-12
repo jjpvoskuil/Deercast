@@ -21,6 +21,8 @@ John: Hit analysis → recovery sometimes put the probable spots out on Nolin La
 
 - Hunt Log "Deer seen": the "At bait" drop-down (which feeder or pile) is now an **At a feeder?** on/off toggle (John: which one doesn't matter). It stores `bait: "feeder"` or `""`, and older sightings with a bait name still show it.
 
+- Hit analysis → Arrow: new choice **"Pulled out of deer — no pass-through"** (arrow found, partial penetration). It is handled like "stayed in the deer": less-blood note, bone stop by default, and long waits on lethal hits increased by half. The note says to read the penetration depth and blood color off the shaft. The "Exit is low/high" line is now hidden for both of these choices, since there's no exit hole.
+
 **Open / next**
 - Lake level: the outlines are at summer pool, and in hunting season Nolin is drawn down, so exposed flats still count as water. A possible next step: shoreline at the live USGS level from the lidar contours (as Fishin Magician does).
 - John to test on his phone (below) and report any spot that still lands in water.

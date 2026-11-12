@@ -34,8 +34,8 @@ from typical cases, so the hunter's physical sign (blood, hair, arrow) should ta
 
 ## Arrow outcome & bow setup (v0.5)
 - **Arrow** input (bow and crossbow only). The options are: pass-through and recovered, pass-through but not found,
-  stayed in the deer / partial penetration, or not sure.
-  - **Stayed in the deer:** the "stopped at bone" answer is selected by default when the path hits bone.
+  stayed in the deer / partial penetration, found after it pulled out of the deer (not a pass-through), or not sure.
+  - **Stayed in the deer** or **pulled out (not a pass-through)**: the "stopped at bone" answer is selected by default when the path hits bone.
     Expect less blood, since there's no exit hole. Waits of 2 hours or more for lethal hits are increased by half.
   - **Pass-through:** the "broke through the bone" answer is selected by default.
 - **Bow Setup page** (`deercast/archery.py`, stored in `gear.json`):

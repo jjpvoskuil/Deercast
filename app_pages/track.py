@@ -106,9 +106,10 @@ evidence = e1.selectbox("What did you find? (arrow / impact site)", list(shot.EV
 reaction = e2.selectbox("Deer's reaction", list(shot.REACTION), key="shot_reaction")
 sign = shot.EVIDENCE[evidence]
 ARROW = ["(not checked yet)", "Pass-through — arrow recovered", "Pass-through — arrow not found",
-         "Arrow stayed in deer / partial penetration", "Arrow not recovered — not sure if it passed through"]
+         "Arrow stayed in deer / partial penetration",
+         "Pulled out of deer — no pass-through", "Arrow not recovered — not sure if it passed through"]
 arrow = st.selectbox("Arrow", ARROW, key="shot_arrow") if is_bow else ARROW[0]
-partial = arrow.startswith("Arrow stayed")
+partial = arrow.startswith(("Arrow stayed", "Pulled out"))
 
 plan_key = primary
 if sign and sign != primary:
@@ -161,7 +162,7 @@ for nt in notes:
     st.caption("• " + nt)
 if not res.missed:
     exit_z = res.exit[2]
-    if weapon in ("Bow", "Crossbow"):
+    if weapon in ("Bow", "Crossbow") and not partial:
         st.caption(("• Exit is **low** on the body — usually a better blood trail."
                     if exit_z < -3 else "• Exit is high on the body — blood may be slow to hit the ground at first."))
     st.markdown(f"**Blood sign to expect:** {O['blood']}")
@@ -171,6 +172,8 @@ ARROW_NOTES = {
     "confirm the hit.",
     "Arrow stayed in deer / partial penetration": "No exit hole → expect **much less blood**, and often high on "
     "the body. The arrow may work out or break off in the first 50–150 yards — look for it on the trail. "
+    + ("Wait time increased by half for this hit." if O["lethal"] and O["wait_min"] >= 120 else ""),
+    "Pulled out of deer — no pass-through": "Partial penetration, no exit hole → expect less blood, and often high on the body. Check how far up the shaft the blood goes — that's how deep it went — and use the blood color on it for 'What did you find?'. "
     + ("Wait time increased by half for this hit." if O["lethal"] and O["wait_min"] >= 120 else ""),
     "Arrow not recovered — not sure if it passed through": "Look for the arrow and sign at the impact site before "
     "anything else; a pass-through gives a better blood trail than an arrow still in the deer.",

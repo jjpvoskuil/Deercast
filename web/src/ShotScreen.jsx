@@ -16,10 +16,11 @@ const ANGLES = [[-90, "Facing you"], [-75, "Facing you (slight)"], [-60, "Hard q
   [-15, "Nearly broadside"], [0, "Broadside"], [15, "Nearly broadside"], [30, "Slight quartering away"], [45, "Quartering away"], [60, "Hard quartering away"],
   [75, "Facing away (slight)"], [90, "Facing away"]];
 const WEAPONS = ["Bow", "Crossbow", "Rifle / shotgun slug", "Muzzleloader"];
-const ARROW = ["(not checked yet)", "Pass-through — arrow recovered", "Pass-through — arrow not found", "Arrow stayed in deer / partial penetration", "Arrow not recovered — not sure if it passed through"];
+const ARROW = ["(not checked yet)", "Pass-through — arrow recovered", "Pass-through — arrow not found", "Arrow stayed in deer / partial penetration", "Pulled out of deer — no pass-through", "Arrow not recovered — not sure if it passed through"];
 const ARROW_NOTES = {
   "Pass-through — arrow not found": "Arrow passed through but wasn't found — search past where the deer stood, along the line of the shot (a light helps). Without the arrow, use hair and blood at the impact site to confirm the hit.",
   "Arrow stayed in deer / partial penetration": "No exit hole → expect much less blood, and often high on the body. The arrow may work out or break off in the first 50–150 yards — look for it on the trail.",
+  "Pulled out of deer — no pass-through": "Partial penetration, no exit hole → expect less blood, and often high on the body. Check how far up the shaft the blood goes — that's how deep it went — and use the blood color on it for \"What did you find?\".",
   "Arrow not recovered — not sure if it passed through": "Look for the arrow and sign at the impact site before anything else; a pass-through gives a better blood trail than an arrow still in the deer.",
 };
 const DIRS = Object.fromEntries(CARDINALS.map((c, i) => [c, i * 22.5]));
@@ -81,7 +82,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
   const [boneChoice, setBoneChoice] = useState(null); // null = default
   const [primary, stopped, notes] = res ? classify(res, weapon) : ["miss", null, []];
   const sign = EVIDENCE[evidence];
-  const partial = arrow.startsWith("Arrow stayed");
+  const partial = arrow.startsWith("Arrow stayed") || arrow.startsWith("Pulled out");
   const passed = arrow.startsWith("Pass-through");
   let planKey = primary;
   if (sign && sign !== primary && useSign) planKey = sign;
@@ -254,7 +255,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
           )}
           {notes.map((n) => <p key={n} className="muted small">• {n}</p>)}
           {!res.missed && <>
-            {isBow && <p className="muted small">• {res.exit[2] < -3 ? "Exit is low on the body — usually a better blood trail." : "Exit is high on the body — blood may be slow to hit the ground at first."}</p>}
+            {isBow && !partial && <p className="muted small">• {res.exit[2] < -3 ? "Exit is low on the body — usually a better blood trail." : "Exit is high on the body — blood may be slow to hit the ground at first."}</p>}
             <p><b>Blood sign to expect:</b> {O.blood}</p>
           </>}
           {ARROW_NOTES[arrow] && <p className="confirm small">{ARROW_NOTES[arrow]}{partial && O.lethal && O.wait_min >= 120 ? " Wait time increased by half for this hit." : ""}</p>}
