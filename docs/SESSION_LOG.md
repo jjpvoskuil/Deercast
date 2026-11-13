@@ -11,6 +11,7 @@ Newest first. Each session: what changed, decisions made, and what's open.
   - iOS may keep the old style until the app is removed and re-added to the home screen.
   - Fallback while the bug is present (gap 20–100 px **and** safe top > 20): `html.ios-short` colors the strip like the tab bar and drops the tab bar's home-indicator padding. More shows "short page" then.
 - Open: John to update and report. If the strip is still there, remove and re-add Deercast to the home screen (data stays — it's in Supabase; he'll sign in again).
+- 8:48: John re-added the app and the tab bar now reaches the bottom. But tapping right on a tab icon doesn't register; tapping a little above it does (touch offset?). Added **More → Tap test** (main.jsx `__tapTest`): a red dot where the phone says the touch landed, plus y, page height, tab bar top–bottom and the element hit. Waiting on John's numbers.
 
 ## 2026-11-13 — Session 7d: tab bar gap (iPhone bug), Update button, Chat
 - **Tab bar "still high" — cause found from John's screenshot** (taken on the 7:28 build). There's a strip of page *below* the tab bar. This is the WebKit home-screen web-app bug: with `apple-mobile-web-app-status-bar-style: black-translucent` + `viewport-fit=cover`, the page comes out shorter than the screen by about the status-bar height, so `bottom: 0` sits ~60 pt above the real bottom.

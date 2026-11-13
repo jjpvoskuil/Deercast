@@ -53,6 +53,7 @@ export default function MoreScreen(props) {
             <div className="muted small">Deercast {MODEL_VERSION} · updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}{demo ? " · demo data" : ""}
 </div>
             {(() => { const i = window.__screenInfo?.(); return i ? <div className="muted small">Screen {i.screen} · page {i.inner} · view {i.vv} · safe top {i.top} / bottom {i.bottom}{i.standalone ? " · home-screen app" : ""}{document.documentElement.classList.contains("ios-short") ? " · short page" : ""}</div> : null; })()}
+            <TapTest />
           </section>
         </>
       )}
@@ -65,6 +66,12 @@ export default function MoreScreen(props) {
       {page === "dev" && (admin ? <DevPage {...props} /> : <p className="muted">Admins only.</p>)}
     </div>
   );
+}
+
+function TapTest() {
+  const [on, setOn] = useState(false);
+  useEffect(() => () => window.__tapTest?.(false), []);
+  return <button className="link small" onClick={() => { window.__tapTest?.(!on); setOn(!on); }}>{on ? "Stop tap test" : "Tap test"}</button>;
 }
 
 // ================================================================ grounds

@@ -33,6 +33,28 @@ function measureGap() {
   document.documentElement.classList.toggle("ios-short", gap > 20 && gap <= 100 && safeTop > 20);
 }
 measureGap();
+
+// More → "Tap test": shows where the phone says each touch landed (to find iPhone touch offsets)
+window.__tapTest = (on) => {
+  if (window.__tapOff) { window.__tapOff(); window.__tapOff = null; }
+  if (!on) return;
+  const box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:8px;right:8px;top:40%;z-index:9999;background:#000c;color:#fff;font:14px/1.4 system-ui;padding:8px 10px;border-radius:10px;pointer-events:none";
+  box.textContent = "Tap test on — tap the middle of a tab bar icon.";
+  document.body.appendChild(box);
+  const f = (e) => {
+    const t = e.changedTouches?.[0] || e;
+    const dot = document.createElement("div");
+    dot.style.cssText = `position:fixed;left:${t.clientX - 9}px;top:${t.clientY - 9}px;width:18px;height:18px;border-radius:50%;background:#e5372b;z-index:9999;pointer-events:none;box-shadow:0 0 0 2px #fff`;
+    document.body.appendChild(dot); setTimeout(() => dot.remove(), 2500);
+    const bar = document.querySelector(".tabbar")?.getBoundingClientRect();
+    const hit = document.elementFromPoint(t.clientX, t.clientY);
+    box.textContent = `${e.type}: y ${Math.round(t.clientY)} (screen ${Math.round(t.screenY ?? 0)}) · page height ${innerHeight} · tab bar ${bar ? `${Math.round(bar.top)}–${Math.round(bar.bottom)}` : "—"} · hit: ${hit?.closest(".tabbar button")?.innerText || hit?.tagName || "nothing"}`;
+  };
+  document.addEventListener("touchstart", f, true);
+  document.addEventListener("click", f, true);
+  window.__tapOff = () => { document.removeEventListener("touchstart", f, true); document.removeEventListener("click", f, true); box.remove(); };
+};
 addEventListener("resize", measureGap);
 addEventListener("orientationchange", () => setTimeout(measureGap, 300));
 
