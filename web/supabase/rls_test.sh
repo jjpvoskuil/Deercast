@@ -33,8 +33,9 @@ insert into public.grounds (id, name, owner, members) values ('g1', 'Lewis/Klein
 insert into public.stands values ('g2:s1', 'g2', '{}');
 insert into public.hunts values ('matt@x.com:h1', 'g2', 'matt@x.com', '{}'), ('john@x.com:h2', 'g1', 'john@x.com', '{}');
 insert into public.shots values ('matt@x.com:x1', 'g2', 'matt@x.com', '{}');
-insert into public.user_docs values ('matt@x.com', 'active_hunt', '{"ground_id": "g1"}'), ('matt@x.com', 'gear', '{}'),
-  ('eve@x.com', 'active_hunt', '{"ground_id": "g9"}');
+insert into public.user_docs values ('matt@x.com', 'active_hunt', '{"ground_id": "g2", "photos": [{"path": "g2/matt@x.com/m.jpg"}]}'),
+  ('matt@x.com', 'gear', '{}'), ('eve@x.com', 'active_hunt', '{"ground_id": "g9"}');
+insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g2/matt@x.com/m_t.jpg'), ('hunt-photos', 'g2/matt@x.com/old.jpg');
 insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g1/john@x.com/a.jpg'), ('hunt-photos', 'none/john@x.com/b.jpg'),
   ('hunt-photos', 'g1/matt@x.com/c.jpg'), ('hunt-photos', 'g2/matt@x.com/m.jpg'), ('other', 'g1/john@x.com/z.jpg');
 SQL
@@ -49,9 +50,9 @@ SQL
 }
 FAILED=0
 S="select string_agg(name, ',' order by name) from storage.objects;"
-check "admin sees own photos (ground + none), member's on shared ground, other grounds'" john@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,g2/matt@x.com/m.jpg,none/john@x.com/b.jpg"
-check "member sees ground photos, not owner's 'none' ones" matt@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,g2/matt@x.com/m.jpg"
-check "approved non-member sees nothing" eve@x.com "$S" ""
+check "admin sees own photos (ground + none), member's on shared ground, other grounds'" john@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,g2/matt@x.com/m.jpg,g2/matt@x.com/m_t.jpg,g2/matt@x.com/old.jpg,none/john@x.com/b.jpg"
+check "member sees ground photos, not owner's 'none' ones" matt@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,g2/matt@x.com/m.jpg,g2/matt@x.com/m_t.jpg,g2/matt@x.com/old.jpg"
+check "approved non-member sees only photos on a live sit" eve@x.com "$S" "g2/matt@x.com/m.jpg,g2/matt@x.com/m_t.jpg"
 check "unapproved sees nothing" stranger@x.com "$S" ""
 check "add own photo on own ground" matt@x.com "insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g1/matt@x.com/d.jpg'); select 'ok';" "ok"
 check "add own photo, no ground" eve@x.com "insert into storage.objects (bucket_id, name) values ('hunt-photos', 'none/eve@x.com/e.jpg'); select 'ok';" "ok"
@@ -76,7 +77,10 @@ check "admin can't change someone else's shot" john@x.com "delete from public.sh
 check "admin can't rename someone else's ground" john@x.com "update public.grounds set name = 'x' where id = 'g2'; reset role; select name from public.grounds where id = 'g2';" "Luke's farm"
 check "admin can log own hunt on another ground" john@x.com "insert into public.hunts values ('john@x.com:h3', 'g2', 'john@x.com', '{}'); select 'ok';" "ok"
 L="select string_agg(owner || '/' || name, ',' order by owner, name) from public.user_docs;"
-check "member sees a ground-mate's live sit, not their gear" john@x.com "$L" "matt@x.com/active_hunt"
-check "live sit on a ground you're not on stays private" eve@x.com "$L" "eve@x.com/active_hunt"
-check "can't change someone's live sit" john@x.com "update public.user_docs set data = '{}' where owner = 'matt@x.com'; reset role; select data ->> 'ground_id' from public.user_docs where owner = 'matt@x.com' and name = 'active_hunt';" "g1"
+check "approved user sees everyone's live sits, not their gear" eve@x.com "$L" "eve@x.com/active_hunt,matt@x.com/active_hunt"
+check "unapproved sees no live sits" stranger@x.com "$L" ""
+check "non-member sees photos on a live sit (+ thumb), not other photos" eve@x.com "select string_agg(name, ',' order by name) from storage.objects where name like 'g2/%';" "g2/matt@x.com/m.jpg,g2/matt@x.com/m_t.jpg"
+check "can't add a photo to someone's live sit" eve@x.com "insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g2/matt@x.com/q.jpg'); select 'ok';" 'ERROR:  new row violates row-level security policy for table "objects"'
+check "unapproved can't see live-sit photos" stranger@x.com "select count(*) from storage.objects where name like 'g2/%';" "0"
+check "can't change someone's live sit" john@x.com "update public.user_docs set data = '{}' where owner = 'matt@x.com'; reset role; select data ->> 'ground_id' from public.user_docs where owner = 'matt@x.com' and name = 'active_hunt';" "g2"
 exit $FAILED

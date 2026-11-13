@@ -26,9 +26,9 @@
   --head: "Barlow Condensed", "Arial Narrow", sans-serif;
   --body: "Barlow", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* tab bar sits low: its buttons may reach 14px into the home-indicator strip (John, 11-13 — the old extra room was for Netlify's badge) */
-  --tab-pad: max(var(--safe-bottom) - 14px, 4px);
-  --tabbar: calc(54px + var(--tab-pad));
+  /* tab bar sits low: its buttons reach 22px into the home-indicator strip (John, 11-13 — the old extra room was for Netlify's badge) */
+  --tab-pad: max(var(--safe-bottom) - 22px, 6px);
+  --tabbar: calc(52px + var(--tab-pad));
   font-family: var(--body); color: var(--text); background: var(--page);
   -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
 }

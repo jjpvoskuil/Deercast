@@ -12,7 +12,8 @@
 --   * Admins (11-13, John) see every ground and are treated as a member of each (its stands, marks, everyone's hunts,
 --     photos) and can read everyone's shots; they still edit only their own hunts, and only a ground's owner renames,
 --     changes members or deletes it.
---   * A sit in progress (user_docs 'active_hunt', with its ground_id) is visible read-only to that ground's members.
+--   * A sit in progress (user_docs 'active_hunt') can be watched read-only by every approved user, whatever ground it's
+--     on (More → Who's hunting), along with the photos on it. Nobody can change someone else's sit.
 
 create table if not exists public.app_users (email text primary key, name text, role text not null default 'member');
 create table if not exists public.grounds (id text primary key, name text not null, owner text not null,
@@ -77,9 +78,9 @@ create policy "hunts del"   on public.hunts for delete to authenticated using (p
 create policy "shots own"     on public.shots     for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 create policy "shots admin read" on public.shots  for select to authenticated using (public.is_admin());
 create policy "docs own"      on public.user_docs for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
--- "Who's hunting" (11-13, John): a sit in progress can be seen (not changed) by the members of its ground
+-- "Who's hunting" (11-13, John): any approved user can watch (not change) anyone's sit in progress, on any ground
 create policy "docs live sit" on public.user_docs for select to authenticated
-  using (name = 'active_hunt' and public.is_member(data ->> 'ground_id'));
+  using (name = 'active_hunt' and public.is_approved());
 create policy "punch admins"  on public.punchlist for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 revoke execute on function public.is_member(text), public.is_approved(), public.is_admin(), public.leave_ground(text) from anon;
@@ -93,9 +94,16 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 drop policy if exists "hunt photos read" on storage.objects;
 drop policy if exists "hunt photos add" on storage.objects;
 drop policy if exists "hunt photos delete" on storage.objects;
+-- also: a photo on someone's sit in progress (listed in their active_hunt doc), for Who's hunting
+create or replace function public.on_live_sit(obj text) returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_approved() and exists (select 1 from public.user_docs d where d.name = 'active_hunt'
+    and d.owner = (storage.foldername(obj))[2]
+    and d.data -> 'photos' @> jsonb_build_array(jsonb_build_object('path', regexp_replace(obj, '_t\.jpg$', '.jpg')))) $$;
+revoke execute on function public.on_live_sit(text) from anon;
 create policy "hunt photos read" on storage.objects for select to authenticated using (
   bucket_id = 'hunt-photos' and (public.is_member((storage.foldername(name))[1])
-    or (public.is_approved() and (storage.foldername(name))[2] = public.me())));
+    or (public.is_approved() and (storage.foldername(name))[2] = public.me())
+    or public.on_live_sit(name)));
 create policy "hunt photos add" on storage.objects for insert to authenticated with check (
   bucket_id = 'hunt-photos' and public.is_approved() and (storage.foldername(name))[2] = public.me()
   and ((storage.foldername(name))[1] = 'none' or public.is_member((storage.foldername(name))[1])));

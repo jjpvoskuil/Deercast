@@ -4,6 +4,13 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-13 — Session 7c: Who's hunting moved to More (any ground), tab bar lower still
+- John: the tab bar still looked high. His "screenshot" attachment was actually schema.sql, so I couldn't see it. Lowered further anyway: 52 px + (home-indicator inset − 22 px), about 62 px on an iPhone vs 98 px originally. Asked John to check the build time (a home-screen app can keep an old copy until it's reopened).
+- **Who's hunting is now a page: More → 🟢 Who's hunting** (`web/src/WhosHunting.jsx`). It lists everyone else with a sit going on **any ground**: name, stand, ground, time on stand, deer. Tap a name to **watch**: hunt clock, deer seen (newest first), photos and notes, refreshed every 30 s, nothing editable. The card on the Hunt tab is gone.
+  - Live sits now save `ground_name` and `spot` (stand or GPS) so watchers off that ground get the right sun times. `HuntClock`/`fmtClock` exported from HuntLogScreen.
+  - `schema.sql`: "docs live sit" = any approved user can read any `active_hunt` (was: ground members). New `on_live_sit(obj)` lets approved users read just the photos listed on someone's live sit (and their `_t` thumbnails), not their other photos. 31 rls checks pass.
+  - **John must run schema.sql again.**
+
 ## 2026-11-13 — Session 7b: Hunt / Hunt history split, tab bar everywhere, recovery photos, admin sees all grounds (v0.8.3)
 John's asks (11-13 morning):
 - **Tab bar on the Shot analyzer.** The Shot analyzer and the hunt map now keep the tab bar under them. Tapping a tab closes the overlay and goes there. The Shot analyzer also got a Close / Back to the hunt button at the bottom. The **tracking map stays full-screen** (my call): a stray tap on a tab there would stop GPS path recording. Every More sub-page already had the tab bar.

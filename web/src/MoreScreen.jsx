@@ -9,8 +9,9 @@ import { countyFor, geocodePlace, myLocation, normalizeCounty, REG_DATA } from "
 import { dailyAstro } from "./lib/model/astro.js";
 import { dateKey, daysBetween } from "./lib/model/tz.js";
 import { MODEL_VERSION } from "./HuntLogScreen.jsx";
+import WhosHunting from "./WhosHunting.jsx";
 
-const PAGES = { grounds: "Hunting grounds", gear: "Bow setup", gun: "Gun setup", regs: "Regulations", dev: "Development" };
+const PAGES = { who: "Who's hunting", grounds: "Hunting grounds", gear: "Bow setup", gun: "Gun setup", regs: "Regulations", dev: "Development" };
 
 export default function MoreScreen(props) {
   const { active, me, ground, demo, theme, onMenu, signOut, open } = props;
@@ -29,6 +30,7 @@ export default function MoreScreen(props) {
       {!page && (
         <>
           <section className="card list">
+            <button className="nav-row" onClick={() => open("who")}><span style={{ fontSize: 18, width: 24, textAlign: "center" }}>🟢</span><span>Who's hunting</span><span className="muted small">watch a sit</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("grounds")}><Icon name="ground" /><span>Hunting grounds</span><span className="muted small">{ground?.name}</span><Icon name="chev" className="icon chev-r" /></button>
             {ground && <button className="nav-row" onClick={() => open("history")}><Icon name="log" /><span>Hunt history</span><span className="muted small">past hunts</span><Icon name="chev" className="icon chev-r" /></button>}
             <button className="nav-row" onClick={() => open("gear")}><Icon name="bow" /><span>Bow setup</span><Icon name="chev" className="icon chev-r" /></button>
@@ -44,6 +46,7 @@ export default function MoreScreen(props) {
           </section>
         </>
       )}
+      {page === "who" && <WhosHunting db={props.db} ground={ground} active={active} />}
       {page === "grounds" && <GroundsPage {...props} />}
       {page === "gear" && <GearPage {...props} />}
       {page === "gun" && <GunPage {...props} />}

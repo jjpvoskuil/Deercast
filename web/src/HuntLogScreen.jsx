@@ -24,7 +24,7 @@ const tone = (s) => Math.min(4, Math.floor(s / 2));
 const pad = (n) => String(n).padStart(2, "0");
 const timeOf = (ms, tz) => { const p = parts(ms, tz); return `${pad(p.h)}:${pad(p.mi)}`; };
 const atLocal = (key, hhmm, tz) => { const [h, m] = hhmm.split(":").map(Number); const t = midnight(key, tz) + (h * 60 + m) * 60000; return t; };
-const fmtClock = (ms, tz) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz });
+export const fmtClock = (ms, tz) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz });
 const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const localHM = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const fmtDay = (ms, tz) => new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: tz });
@@ -147,7 +147,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   useEffect(() => {
     db.getDoc("active_hunt", null).then((v) => {
       if (v && !v.id) { v = { ...v, id: newId() }; db.putDoc("active_hunt", v).catch(() => {}); } // sits started before shots could be linked
-      if (v && !v.ground_id) { v = { ...v, ground_id: ground.id }; db.putDoc("active_hunt", v).catch(() => {}); } // so ground-mates see it (Who's hunting)
+      if (v && (!v.ground_id || (!v.ground_name && v.ground_id === ground.id))) { v = { ground_id: ground.id, ground_name: ground.name, ...v }; db.putDoc("active_hunt", v).catch(() => {}); } // so others see it (Who's hunting)
       setLive(v);
     }).catch(() => setLive(null));
   }, [db]);
@@ -225,19 +225,6 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
     setBusy(false);
   };
 
-  // ---------------------------------------------------------------- who's hunting (others' sits on this ground, read-only)
-  const [others, setOthers] = useState([]);
-  const [peek, setPeek] = useState(null);
-  useEffect(() => {
-    if (!shown || isHistory || !db.listLiveSits) return;
-    const load = () => Promise.all([db.listLiveSits(ground.id), db.listUsers().catch(() => [])])
-      .then(([xs, us]) => { setOthers(xs); setNames((n) => ({ ...n, ...Object.fromEntries(us.map((u) => [u.email, u.name || u.email])) })); })
-      .catch(() => setOthers([]));
-    load();
-    const i = setInterval(load, 60e3);
-    return () => clearInterval(i);
-  }, [shown, isHistory, ground?.id]);
-
   // ---------------------------------------------------------------- validation + log
   const v = useMemo(() => validation(mine), [mine]);
   const missing = mine.filter((h) => !(h.hours || []).length);
@@ -291,39 +278,6 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
       })}
 
       {/* ------------------------------------------------ who's hunting */}
-      {/* shown only while someone else on this ground is sitting; otherwise one quiet line under the sit */}
-      {others.length > 0 && <section className="card">
-        <span className="h2">Who's hunting</span>
-        {others.map((o) => {
-          const n = (o.sightings || []).reduce((k, x) => k + (+x.count || 1), 0), open = peek === o.owner;
-          const at = o.lat != null ? [o.lat, o.lon] : coords(o.where);
-          return (
-            <div key={o.owner} className="hunt">
-              <button className="hunt-row" onClick={() => setPeek(open ? null : o.owner)} aria-expanded={open}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="name">🟢 {names[o.owner] || o.owner}</div>
-                  <div className="muted small">{String(o.where || "").replace("Stand: ", "")} · since {fmtClock(Date.parse(o.start), tz)} · {n} deer seen</div>
-                </div>
-                <Icon name="chev" />
-              </button>
-              {open && (
-                <div className="hunt-body">
-                  <HuntClock start={Date.parse(o.start)} t={targets(...at, Date.parse(o.start))} tz={tz} />
-                  {o.weapon && <p className="muted small">Hunting with {o.weapon}</p>}
-                  {groupSightings(o.sightings || []).map((g) => (
-                    <div key={g.group} className="small">• {fmtClock(Date.parse(g.time), tz)} — {deerText(g.deer)}{g.source === "camera" ? ` (📷 ${g.camera || "trail cam"})` : ""}{g.activity ? `, ${g.activity}` : ""}{whereText(g) ? ` (${whereText(g)})` : ""}</div>
-                  ))}
-                  {!(o.sightings || []).length && <p className="muted small">No deer logged yet.</p>}
-                  {(o.photos || []).length > 0 && <PhotoStrip db={db} photos={o.photos} sightings={o.sightings || []} groundId={ground.id} tz={tz} canEdit={false} />}
-                  {o.notes && <p className="small"><i>{o.notes}</i></p>}
-                  <p className="muted small">View only · updates every minute.</p>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </section>}
-
       {/* ------------------------------------------------ in the stand */}
       <section className="card">
         <span className="h2">In the stand</span>
@@ -347,7 +301,10 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                 catch { toast("Couldn't get your location — using the property's home spot"); }
                 setBusy(false);
               }
-              putLive({ id: newId(), ground_id: ground.id, where, start, sightings: [], notes: "", weapon_id: wid, weapon: findWeapon(gear, wid)?.label || null, ...at });
+              // ground name + spot let others watch it from More → Who's hunting, even off this ground
+              const [slat, slon] = coords(where);
+              putLive({ id: newId(), ground_id: ground.id, ground_name: ground.name, where, start, sightings: [], notes: "", weapon_id: wid,
+                weapon: findWeapon(gear, wid)?.label || null, spot: at.lat != null ? [at.lat, at.lon] : [slat, slon], ...at });
             }}>
               Start hunt now
             </button>
@@ -399,7 +356,6 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
         )}
       </section>
 
-      {!others.length && <p className="muted small">Who's hunting: nobody else on {ground?.name} has a sit going right now.</p>}
       <button className="nav-row card" onClick={openHistory}><Icon name="log" /><span>Hunt history</span>
         <span className="muted small">{mine.length} hunt{mine.length === 1 ? "" : "s"}</span><Icon name="chev" className="icon chev-r" /></button>
       </>}
@@ -556,7 +512,7 @@ function BandChart({ bands }) {
 
 /** Live hunt clock: time on stand (counts up every second) and countdowns to legal light & sunrise (morning)
  *  or sunset & end of legal light (evening). Same rules as deercast/clock.py. */
-function HuntClock({ start, t, tz }) {
+export function HuntClock({ start, t, tz }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, []);
   const ref = start ?? now;
