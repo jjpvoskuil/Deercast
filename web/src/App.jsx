@@ -49,6 +49,9 @@ export default function App() {
   const [tab, setTabState] = useState(() => { const h = location.hash.slice(1).split("/")[0]; return TAB_IDS.includes(h) ? h : "forecast"; });
   const [menu, setMenu] = useState(false);
   const [pin, setPin] = useState(null); // "Forecast this pin" from the map
+  // Screens under an open overlay are hidden (display:none), not just covered: on iPhone Safari two stacked
+  // fixed scrolling layers can send taps to the hidden one underneath — the app looked frozen (scroll worked,
+  // buttons didn't) and a tap in the Shot analyzer opened More → Gun setup underneath it.
   // over the hunt session: the tracking map for a shot, or the hit analysis for a shot (shotId null = calculator)
   const [overlay, setOverlay] = useState(null); // { kind: "track", shot, center, live } | { kind: "analysis", shotId }
   const [shotsV, setShotsV] = useState(0);      // bumped when an overlay closes → Hunt Log re-reads shots
@@ -143,12 +146,12 @@ export default function App() {
   return (
     <>
       {ground ? <>
-        <ForecastScreen {...common} active={tab === "forecast"} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
-        <MapScreen {...common} active={tab === "map"} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
+        <ForecastScreen {...common} active={tab === "forecast" && !overlay} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
+        <MapScreen {...common} active={tab === "map" && !overlay} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
         <HuntLogScreen {...common} active={tab === "log" && !overlay} key={`l-${ground.id}`} />
       </> : tab !== "more" && <NoGround go={go} />}
-      <MoreScreen {...common} active={tab === "more"} />
-      <TabBar tab={tab} onTab={onTab} built={BUILT} />
+      <MoreScreen {...common} active={tab === "more" && !overlay} />
+      {!overlay && <TabBar tab={tab} onTab={onTab} built={BUILT} />}
       {overlay?.kind === "analysis" && <div className="overlay"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
       {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} stand={overlay.stand || overlay.center} live={overlay.live}
         sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === overlay.shot.hunt_id), overlay.shot)}

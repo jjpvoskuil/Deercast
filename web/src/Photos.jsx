@@ -31,6 +31,14 @@ export default function PhotoStrip({ db, photos = [], sightings = [], groundId, 
   const [draft, setDraft] = useState(null);   // { file, preview, caption, group }
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState(null);     // photo being viewed
+  // While the photo sheet/viewer is up, the app under it can't take taps (iPhone Safari sometimes sends taps
+  // through to the scrolling page underneath — the "frozen buttons" problem).
+  useEffect(() => {
+    const root = document.getElementById("root");
+    if (!root || !(draft || view)) return;
+    root.inert = true;
+    return () => { root.inert = false; };
+  }, [!!(draft || view)]);
   const [confirmDel, setConfirmDel] = useState(false);
   const groups = groupSightings(sightings);
   const url = usePhotoUrls(db, photos.flatMap((p) => [thumbPath(p.path)]));

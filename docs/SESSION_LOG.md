@@ -4,6 +4,14 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-13 — Session 7: frozen buttons, Shot analyzer → Gun setup, time boxes overlapping
+John (11-12 night, iPhone): the app froze — scrolling worked but no button did. Around the same time More → Shot analyzer took him to Gun setup. Time boxes run over the text next to them (Shot analyzer step 6, maybe more).
+- **Cause (likely, not reproduced — the sandbox has no iPhone Safari):** the Shot analyzer, tracking map and hunt map open as an overlay *on top of* the current screen, which stayed mounted and visible underneath. Every screen is its own fixed, touch-scrolling layer, and iPhone Safari is known to hit-test stacked fixed scrolling layers wrongly — taps go to the layer underneath. "Gun setup" sits right above "Shot analyzer" on More, so a tap meant for the analyzer opened Gun setup underneath; the same mix-up makes buttons look dead while scrolling still works.
+- **Fix:** while any overlay is open, the screens under it (Forecast, Map, More — Hunt Log already did) and the tab bar are hidden (`display:none`), not just covered. `.overlay` is now `position: fixed`. While the photo sheet/viewer is up, the app under it is made `inert` (`Photos.jsx`), since that sheet is see-through.
+- **Time/date boxes:** iPhone Safari gives native time/date inputs a built-in width that ignores `width:100%`, so in the 2-column rows they ran over the neighbor. Global CSS now drops the native look for `input[type=time|date|datetime-local]` (`appearance:none`, `max-width:100%`, left-aligned value). Fixes every spot at once: Shot analyzer step 6, shot form "Time of shot", the long-sit "When did you climb down?" date/time, tracking manual date/time, and the rest.
+- Checked in Chromium (Playwright, iPhone-size, `?demo`): More hidden and tab bar gone under the analyzer, Close returns to the More menu, step 6 time box stays inside its column.
+- **Open:** John to confirm on his phone (check the build time under More first). If the freeze happens again, note which screen and what was open just before.
+
 ## 2026-11-12 — Session 6b: hunt photos
 John: wanted to take a picture of a deer (or anything interesting) during a sit and keep it with the hunt log.
 - **Photos on a hunt** (`web/src/Photos.jsx`):
