@@ -12,7 +12,7 @@ Newest first. Each session: what changed, decisions made, and what's open.
 - **Chat** (More → 💬 Chat, `Chat.jsx`): one room for every approved user. Bubbles with names and times; Enter or Send posts; tap your own message to delete it (admins: any). Polls every 8 s while open. The More-tab dot also lights for chat messages newer than when you last opened Chat (checked every minute; `deercast.chatRead`).
   - `schema.sql`: new `chat` table (`id, created, author, body` 1–2000 chars) with RLS: approved users read; post only as yourself; delete own (admin any). 8 new checks, 39 pass.
   - Not live/instant: polling, no push notifications.
-- **John must run schema.sql again** (adds the chat table). Until then Chat shows an error. His first run (8:24) had used an older copy without the chat table. schema.sql now ends with `notify pgrst, 'reload schema'` so the API sees new tables at once.
+- **John must run schema.sql again** (adds the chat table). Until then Chat shows an error. His first run (8:24) had used an older copy without the chat table. schema.sql now ends with `notify pgrst, 'reload schema'` so the API sees new tables at once. **8:29: John ran the current schema.sql, no errors; Chat opens.**
 - Backup: `deercast-data/backup/backup.py` lists tables by name, so **`chat` is not backed up yet**. With John's OK it was pushed (11-13 8:25): added `"chat": "created,id"` to `TABLES`, skipped without failing on 404 until the table exists. Tested against a fake REST server, with and without the table. `make_restore.py` (this repo) restores `chat` now.
 
 ## 2026-11-13 — Session 7c: Who's hunting moved to More (any ground), tab bar lower still
