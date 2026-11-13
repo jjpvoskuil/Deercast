@@ -48,6 +48,9 @@ export function supabaseDb(sb, email) {
     putDoc: async (name, data) => (data == null
       ? ok(await sb.from("user_docs").delete().eq("owner", me).eq("name", name))
       : ok(await sb.from("user_docs").upsert({ owner: me, name, data }))),
+    // other people's sits in progress on a ground ("Who's hunting"; read-only by row-level security)
+    listLiveSits: async (gid) => ok(await sb.from("user_docs").select("owner,data").eq("name", "active_hunt").neq("owner", me))
+      .filter((r) => r.data?.ground_id === gid).map((r) => ({ ...r.data, owner: r.owner })),
     // punch list (admins)
     listPunch: async () => rows(await sb.from("punchlist").select("data")),
     savePunch: async (p) => ok(await sb.from("punchlist").upsert({ id: p.id, data: p })),
@@ -91,6 +94,7 @@ export function demoDb(seed) {
     saveHunt: async (h) => up(st.hunts, { ...clone(h), owner: me }),
     deleteHunt: async (id) => del(st.hunts, (h) => h.id === id && h.owner === me),
     listShots: async () => clone(st.shots),
+    listLiveSits: async (gid) => clone((st.liveOthers || []).filter((h) => h.ground_id === gid)),
     listGroundShots: async (gid) => clone(st.shots.filter((s) => s.ground_id === gid).map((s) => ({ owner: me, ...s }))),
     saveShot: async (s) => up(st.shots, clone(s)),
     deleteShot: async (id) => del(st.shots, (s) => s.id === id),

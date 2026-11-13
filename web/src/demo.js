@@ -19,6 +19,9 @@ export function demoSeed() {
       start: "2026-11-01T06:20:00-05:00", end: "2026-11-01T09:00:00-05:00", notes: "Partner's sit", harvest: false, hours: [],
       sightings: [{ kind: "Doe", count: 2, activity: "", bait: "", group: "gp1", time: "2026-11-01T07:10:00-05:00" }] }]),
     shots: [], docs: {},
+    // a partner sitting right now (Who's hunting)
+    liveOthers: [{ id: "lp1", owner: "partner@example.com", ground_id: "demo", where: "Stand: Creek Blind", start: new Date(Date.now() - 95 * 60e3).toISOString(),
+      notes: "Wind's good", weapon_id: null, sightings: [{ kind: "Doe", count: 2, activity: "Feeding", bait: "", group: "lg1", time: new Date(Date.now() - 40 * 60e3).toISOString() }], photos: [] }],
     punch: [{ id: "p1", title: "Example punch-list item", category: "Feature", priority: "Medium", status: "Open", details: "", created: "2026-11-01 10:00", updated: "2026-11-01 10:00" }],
   };
 }

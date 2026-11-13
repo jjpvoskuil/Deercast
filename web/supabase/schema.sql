@@ -12,6 +12,7 @@
 --   * Admins (11-13, John) see every ground and are treated as a member of each (its stands, marks, everyone's hunts,
 --     photos) and can read everyone's shots; they still edit only their own hunts, and only a ground's owner renames,
 --     changes members or deletes it.
+--   * A sit in progress (user_docs 'active_hunt', with its ground_id) is visible read-only to that ground's members.
 
 create table if not exists public.app_users (email text primary key, name text, role text not null default 'member');
 create table if not exists public.grounds (id text primary key, name text not null, owner text not null,
@@ -76,6 +77,9 @@ create policy "hunts del"   on public.hunts for delete to authenticated using (p
 create policy "shots own"     on public.shots     for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 create policy "shots admin read" on public.shots  for select to authenticated using (public.is_admin());
 create policy "docs own"      on public.user_docs for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
+-- "Who's hunting" (11-13, John): a sit in progress can be seen (not changed) by the members of its ground
+create policy "docs live sit" on public.user_docs for select to authenticated
+  using (name = 'active_hunt' and public.is_member(data ->> 'ground_id'));
 create policy "punch admins"  on public.punchlist for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 revoke execute on function public.is_member(text), public.is_approved(), public.is_admin(), public.leave_ground(text) from anon;

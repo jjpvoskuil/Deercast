@@ -33,6 +33,8 @@ insert into public.grounds (id, name, owner, members) values ('g1', 'Lewis/Klein
 insert into public.stands values ('g2:s1', 'g2', '{}');
 insert into public.hunts values ('matt@x.com:h1', 'g2', 'matt@x.com', '{}'), ('john@x.com:h2', 'g1', 'john@x.com', '{}');
 insert into public.shots values ('matt@x.com:x1', 'g2', 'matt@x.com', '{}');
+insert into public.user_docs values ('matt@x.com', 'active_hunt', '{"ground_id": "g1"}'), ('matt@x.com', 'gear', '{}'),
+  ('eve@x.com', 'active_hunt', '{"ground_id": "g9"}');
 insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g1/john@x.com/a.jpg'), ('hunt-photos', 'none/john@x.com/b.jpg'),
   ('hunt-photos', 'g1/matt@x.com/c.jpg'), ('hunt-photos', 'g2/matt@x.com/m.jpg'), ('other', 'g1/john@x.com/z.jpg');
 SQL
@@ -73,4 +75,8 @@ check "admin can't edit someone else's hunt" john@x.com "update public.hunts set
 check "admin can't change someone else's shot" john@x.com "delete from public.shots; reset role; select count(*) from public.shots;" "1"
 check "admin can't rename someone else's ground" john@x.com "update public.grounds set name = 'x' where id = 'g2'; reset role; select name from public.grounds where id = 'g2';" "Luke's farm"
 check "admin can log own hunt on another ground" john@x.com "insert into public.hunts values ('john@x.com:h3', 'g2', 'john@x.com', '{}'); select 'ok';" "ok"
+L="select string_agg(owner || '/' || name, ',' order by owner, name) from public.user_docs;"
+check "member sees a ground-mate's live sit, not their gear" john@x.com "$L" "matt@x.com/active_hunt"
+check "live sit on a ground you're not on stays private" eve@x.com "$L" "eve@x.com/active_hunt"
+check "can't change someone's live sit" john@x.com "update public.user_docs set data = '{}' where owner = 'matt@x.com'; reset role; select data ->> 'ground_id' from public.user_docs where owner = 'matt@x.com' and name = 'active_hunt';" "g1"
 exit $FAILED

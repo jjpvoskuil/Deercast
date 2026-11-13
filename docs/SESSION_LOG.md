@@ -17,8 +17,14 @@ John's asks (11-13 morning):
 - Demo: a second ground "Partner's Farm" (admin not a member) and a partner hunt.
 - Checked with Playwright on `?demo`: Hunt tab, history + Everyone, back to More, Partner's Farm in the ground menu, tab bar under the analyzer + tab closes it, live sit → shot ("Track and recover") → analysis → map without GPS → Found it → photo saved → shows on the live sit.
 
+- **Who's hunting** (John, same morning): the Hunt tab shows a "Who's hunting" card while anyone else on the ground has a sit going. It shows name, stand, since when and deer seen. Tap to view the sit read-only: hunt clock, deer seen, photos and notes, refreshed every minute. When nobody is sitting, it's one quiet line.
+  - Live sits now carry `ground_id` (backfilled on load for a sit already running) and the weapon label.
+  - `schema.sql`: new "docs live sit" select policy. A user_docs `active_hunt` row is readable by members of its `ground_id` (admins: all). Gear stays private and nobody can change another's sit (3 new rls_test checks, 28 pass).
+  - `db.listLiveSits(gid)`. Demo has a partner sitting on Creek Blind.
+
 **Open**
-- John: run schema.sql. Then check Luke's farm appears in the ground menu and the tab bar height on the phone.
+- John: run schema.sql (covers both admin visibility and Who's hunting). Then check Luke's farm appears in the ground menu and the tab bar height on the phone.
+- Matt (and Luke) need the new build before their sits show up for others. An older build doesn't save `ground_id` until the sit is reopened in the new one.
 
 ## 2026-11-13 — Session 7: frozen buttons, Shot analyzer → Gun setup, time boxes overlapping
 John (11-12 night, iPhone): the app froze — scrolling worked but no button did. Around the same time More → Shot analyzer took him to Gun setup. Time boxes run over the text next to them (Shot analyzer step 6, maybe more).

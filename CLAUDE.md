@@ -52,7 +52,8 @@ doesn't need to run anything locally. Design for phone screens first.
   (`morePage`). The tab bar stays under the Shot analyzer and hunt map overlays (tapping a tab closes them); the tracking map
   stays full-screen. Screens under an overlay are `display:none` (iPhone taps went through stacked fixed layers).
   **Admins** see every ground and act as a member of each (schema.sql `is_member`), read everyone's shots, edit only their own.
-  Recovery photos: TrackMode Found sheet → `hunt.photos[]` with `shot: <shot id>`. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
+  Recovery photos: TrackMode Found sheet → `hunt.photos[]` with `shot: <shot id>`. **Who's hunting** card on the Hunt tab: other
+  members' `active_hunt` docs (with `ground_id`) read-only via `db.listLiveSits` + "docs live sit" policy, polled every 60 s. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
 - All logic ported from Python lives in `web/src/lib/` with **parity tests** against Python fixtures
   (`cd web && npm test`): geo/terrain, model/ (scoring, astro, rut, beststand), huntlog, archery, shot, recovery.
   Change both sides, then regenerate: `python web/supabase/make_fixtures.py`, `make_model_fixtures.py`,
