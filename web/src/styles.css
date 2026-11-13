@@ -486,3 +486,7 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .nav-row .dot { width: 10px; height: 10px; border-radius: 50%; background: #e5372b; flex: none; }
 .update-row { color: var(--accent-text); font-weight: 700; }
 .nav-row .emoji { font-style: normal; font-size: 18px; width: 24px; text-align: center; flex: none; }
+
+/* iPhone home-screen bug (main.jsx): page shorter than the screen → the strip under it shows the root background */
+html.ios-short, html.ios-short body { background: var(--tab); }
+html.ios-short { --tab-pad: 0px; }

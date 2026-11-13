@@ -4,6 +4,14 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-13 — Session 7e: the strip under the tab bar, measured
+- The 7d `--ios-gap` shift made the tab bar **disappear** on John's iPhone: iOS doesn't draw fixed elements below the page it thinks it has. Reverted (8:36). `--ios-gap` stays 0. More now shows screen measurements.
+- John's iPhone (home-screen app): screen 402×874, page 402×812, safe top 62 / bottom 34. The page is short by exactly the status-bar height, the WebKit bug with `apple-mobile-web-app-status-bar-style: black-translucent` + `viewport-fit=cover`.
+- Fix: the status bar style is now **`default`**. The page should start under the status bar and end at the real bottom (safe top 0). The status bar color is then iOS's own (theme-color is still updated by theme).
+  - iOS may keep the old style until the app is removed and re-added to the home screen.
+  - Fallback while the bug is present (gap 20–100 px **and** safe top > 20): `html.ios-short` colors the strip like the tab bar and drops the tab bar's home-indicator padding. More shows "short page" then.
+- Open: John to update and report. If the strip is still there, remove and re-add Deercast to the home screen (data stays — it's in Supabase; he'll sign in again).
+
 ## 2026-11-13 — Session 7d: tab bar gap (iPhone bug), Update button, Chat
 - **Tab bar "still high" — cause found from John's screenshot** (taken on the 7:28 build). There's a strip of page *below* the tab bar. This is the WebKit home-screen web-app bug: with `apple-mobile-web-app-status-bar-style: black-translucent` + `viewport-fit=cover`, the page comes out shorter than the screen by about the status-bar height, so `bottom: 0` sits ~60 pt above the real bottom.
   - Fix: `main.jsx` measures the gap (standalone iPhone only: screen height − innerHeight, 0–100 px, ignored while the keyboard is up) into `--ios-gap`. The tab bar, `.screen` (Map) and overlays extend down by it. `--tabbar` is now "page bottom → tab bar top" (`--tab-h − --ios-gap`), so every offset that used it stays right.

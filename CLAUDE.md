@@ -55,7 +55,8 @@ doesn't need to run anything locally. Design for phone screens first.
   Recovery photos: TrackMode Found sheet → `hunt.photos[]` with `shot: <shot id>`. **Who's hunting** (More, `WhosHunting.jsx`): everyone
   else's `active_hunt` on any ground, watch read-only (30 s refresh) via `db.listLiveSits` + "docs live sit" / `on_live_sit` photo policy.
   **Chat** (More, `Chat.jsx`, table `chat`, 8 s polling). **Update**: `version.json` per build + `lib/update.js` → dot on More.
-  iPhone home-screen viewport bug: `--ios-gap` (main.jsx) — anchor bottom things with `--tabbar` / `--ios-gap`, not a bare `bottom: 0`. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
+  iPhone home-screen viewport bug (black-translucent status bar → page short by the status-bar height; nothing draws in the strip):
+  status bar style is `default` since 11-13; `html.ios-short` (main.jsx) blends the strip if it's still there. Don't move fixed things below the page. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
 - All logic ported from Python lives in `web/src/lib/` with **parity tests** against Python fixtures
   (`cd web && npm test`): geo/terrain, model/ (scoring, astro, rut, beststand), huntlog, archery, shot, recovery.
   Change both sides, then regenerate: `python web/supabase/make_fixtures.py`, `make_model_fixtures.py`,
