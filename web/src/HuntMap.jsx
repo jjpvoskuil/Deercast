@@ -12,17 +12,19 @@ import { rowAt, shotRun, shotSighting, sitHours, startHourIdx } from "./lib/hunt
 import { combine, slopeFrom, slopePoints, thermalPhase } from "./lib/terrain.js";
 import { elevations, fetchRange } from "./lib/weather.js";
 import { RUN_COLOR, TRIP_COLORS, drawShotRun, drawSighting, drawTrips } from "./mapdraw.js";
+import PhotoStrip, { usePhotoUrls } from "./Photos.jsx";
+import { thumbPath } from "./lib/photos.js";
 
 const SAT = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const LAYERS = [["wind", "💨", "Wind"], ["deer", "🦌", "Deer seen"], ["shot", "🎯", "Shot deer"], ["tracks", "👣", "Tracking"],
-  ["pins", "📍", "Pins"], ["sites", "🌲", "Stands & bait"]];
+  ["pins", "📍", "Pins"], ["photos", "📷", "Photos"], ["sites", "🌲", "Stands & bait"]];
 const LS = "deercast.huntmapLayers";
 const emojiIcon = (e) => L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14], html: `<div class="emoji pin">${e}</div>` });
 
-export default function HuntMap({ hunt, shots = [], stands = [], features = [], tz, onClose }) {
+export default function HuntMap({ db, hunt, shots = [], stands = [], features = [], tz, onClose }) {
   const [on, setOn] = useState(() => {
-    const all = { wind: true, deer: true, shot: true, tracks: true, pins: true, sites: true };
+    const all = { wind: true, deer: true, shot: true, tracks: true, pins: true, photos: true, sites: true };
     try { return { ...all, ...JSON.parse(localStorage.getItem(LS) || "{}") }; } catch { return all; }
   });
   useEffect(() => { try { localStorage.setItem(LS, JSON.stringify(on)); } catch { /* ignore */ } }, [on]);
@@ -107,10 +109,26 @@ export default function HuntMap({ hunt, shots = [], stands = [], features = [], 
       else L.circle([f.lat, f.lon], { radius: (f.radius_yd || 40) * YD, color: col, weight: 2, fillColor: col, fillOpacity: 0.2 }).bindPopup(esc(`${e} ${label}${f.name ? ` · ${f.name}` : ""}`)).addTo(g.sites);
       c.sites++;
     }
+    c.photos = photos.length;
+    for (const p of located) all.push([p.lat, p.lon]);
     counts.current = c;
     if (all.length > 1) map.current.fitBounds(L.latLngBounds(all).pad(0.25), { maxZoom: 19 });
     setDrawn((n) => n + 1);
   }, [hunt, tracks, stands, features]);
+
+  // photos taken at a spot (GPS during the sit, or the deer they go with)
+  const photos = hunt.photos || [];
+  const thumb = usePhotoUrls(db, photos.map((p) => thumbPath(p.path)));
+  const located = photos.filter((p) => p.lat != null);
+  const thumbsReady = located.map((p) => (thumb(thumbPath(p.path)) ? 1 : 0)).join("");
+  useEffect(() => {
+    const g = lg.current.photos; if (!g) return; g.clearLayers();
+    for (const p of located) {
+      const u = thumb(thumbPath(p.path));
+      L.marker([p.lat, p.lon], { icon: emojiIcon("📷") })
+        .bindPopup(`${u ? `<img src="${esc(u)}" alt="" style="width:160px;border-radius:8px;display:block">` : ""}${p.caption ? `<div>${esc(p.caption)}</div>` : ""}`).addTo(g);
+    }
+  }, [hunt, thumbsReady]);
 
   // wind cone at your spot for the chosen hour (bent by thermals when the slope is known)
   useEffect(() => {
@@ -161,6 +179,7 @@ export default function HuntMap({ hunt, shots = [], stands = [], features = [], 
               : "Wind for this sit isn't available."}</div>
           </>
         )}
+        {on.photos && photos.length > 0 && <PhotoStrip db={db} photos={photos} sightings={hunt.sightings || []} tz={tz} canEdit={false} />}
         <div className="muted small">
           {c.deer > 0 && <>● deer seen: dashed = came from, arrow = went. </>}
           {c.shot > 0 && <><span className="sw" style={{ background: RUN_COLOR }} /> where the shot deer ran (hit analysis, else "went toward"). </>}

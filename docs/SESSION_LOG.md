@@ -4,6 +4,24 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-12 — Session 6b: hunt photos
+John: wanted to take a picture of a deer (or anything interesting) during a sit and keep it with the hunt log.
+- **Photos on a hunt** (`web/src/Photos.jsx`):
+  - A 📷 strip on the live sit ("Photo") and on every logged hunt ("Add photo"). On iPhone it offers Take Photo or Photo Library.
+  - A sheet with a preview, an optional caption and "Goes with" a Deer seen entry. During a sit it defaults to a deer saved in the last 15 minutes.
+  - A full-screen viewer to edit the caption or delete the photo.
+  - 📷 Photos layer on the hunt map: pins with a thumbnail popup, plus a thumbnail row in the panel.
+- **Stored:**
+  - Record: `hunt.photos[]` = `{id, path, w, h, caption, group, time?, lat?, lon?}`. The location is the phone's GPS for live photos, else the spot of the deer it goes with.
+  - Carried through end-of-sit and hunt edits. Deleted with the hunt or with a discarded sit.
+  - Files are shrunk on the phone (`lib/photos.js`): a 1600 px JPEG (~300 KB) plus a 360 px thumbnail. Decoding goes through an `<img>`, so iPhone rotation is applied, and EXIF (including GPS) is not uploaded.
+  - Private Storage bucket `hunt-photos`, path `<ground id|none>/<owner email>/<id>.jpg`. Read via 6-hour signed links.
+- **Rules** (`schema.sql`, new last section): the bucket is private and JPEG-only, max 5 MB. Ground members see photos (like hunts); only their approved owner adds or deletes them.
+  - Tested on local Postgres 16 with stub `auth`/`storage` by the new **`web/supabase/rls_test.sh`** (12 checks, plus schema re-run twice).
+  - **John must run the updated schema.sql** in the Supabase SQL Editor before photos work on the real app.
+- The demo keeps photos in the browser (`deercast.demo.photos`). Checked with Playwright: live sit → buck → photo (auto-linked, GPS) → viewer → end sit → logged hunt strip → hunt map. A rotated (EXIF 6) test photo came out upright.
+- Open: photos are not in the Mon/Thu table backups (`deercast-data` backup.yml dumps tables only). Supabase free plan storage is ~1 GB, a few thousand photos.
+
 ## 2026-11-12 — Session 6: hunt map; sightings off the main Map
 John: deer trails were cluttering the Map. He wanted them on a map per hunt in the log instead, along with the wind cones at the time, pins, tracking trail and the shot deer's trail, each as a layer he can toggle. He also wanted the shot deer's "where I think it went" shown when tracking.
 - **Main Map:** the deer sightings layer (dots and came-from/went trails) is removed. The map key now points to the hunt map.

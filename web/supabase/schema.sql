@@ -8,6 +8,7 @@
 --     only the owner renames it, changes members or deletes it; a member can leave.
 --   * Hunts: members of a ground see everyone's hunts on it (shared sightings, best-stand history);
 --     each person creates/edits/deletes only their own. Gear, active hunt and shots are personal.
+--   * Hunt photos (Storage bucket "hunt-photos", private): seen like hunts (ground members), added/deleted by their owner.
 
 create table if not exists public.app_users (email text primary key, name text, role text not null default 'member');
 create table if not exists public.grounds (id text primary key, name text not null, owner text not null,
@@ -73,3 +74,21 @@ create policy "docs own"      on public.user_docs for all to authenticated using
 create policy "punch admins"  on public.punchlist for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 revoke execute on function public.is_member(text), public.is_approved(), public.is_admin(), public.leave_ground(text) from anon;
+
+-- ---------------------------------------------------------------- hunt photos (Storage bucket "hunt-photos", private)
+-- Files are <ground id or 'none'>/<owner email>/<photo id>.jpg (+ _t.jpg thumbnail). Like hunts: members of that ground
+-- can see them; only their owner (an approved user) adds or deletes them. JPEG only, 5 MB max (the app sends ~300 KB).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('hunt-photos', 'hunt-photos', false, 5242880, array['image/jpeg'])
+  on conflict (id) do update set public = false, file_size_limit = 5242880, allowed_mime_types = array['image/jpeg'];
+drop policy if exists "hunt photos read" on storage.objects;
+drop policy if exists "hunt photos add" on storage.objects;
+drop policy if exists "hunt photos delete" on storage.objects;
+create policy "hunt photos read" on storage.objects for select to authenticated using (
+  bucket_id = 'hunt-photos' and (public.is_member((storage.foldername(name))[1])
+    or (public.is_approved() and (storage.foldername(name))[2] = public.me())));
+create policy "hunt photos add" on storage.objects for insert to authenticated with check (
+  bucket_id = 'hunt-photos' and public.is_approved() and (storage.foldername(name))[2] = public.me()
+  and ((storage.foldername(name))[1] = 'none' or public.is_member((storage.foldername(name))[1])));
+create policy "hunt photos delete" on storage.objects for delete to authenticated using (
+  bucket_id = 'hunt-photos' and public.is_approved() and (storage.foldername(name))[2] = public.me());

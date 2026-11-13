@@ -7,6 +7,8 @@ export const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(4)),
 export const nowIso = () => new Date().toISOString();
 const lower = (e) => (e || "").trim().toLowerCase();
 
+import { BUCKET } from "./photos.js";
+
 // ---------------------------------------------------------------- Supabase
 export function supabaseDb(sb, email) {
   const me = lower(email);
@@ -48,6 +50,11 @@ export function supabaseDb(sb, email) {
     listPunch: async () => rows(await sb.from("punchlist").select("data")),
     savePunch: async (p) => ok(await sb.from("punchlist").upsert({ id: p.id, data: p })),
     deletePunch: async (id) => ok(await sb.from("punchlist").delete().eq("id", id)),
+    // hunt photos (Storage bucket; rules in schema.sql)
+    uploadPhoto: async (path, blob) => ok(await sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/jpeg", upsert: false, cacheControl: "86400" })),
+    photoUrls: async (paths) => Object.fromEntries(ok(await sb.storage.from(BUCKET).createSignedUrls(paths, 6 * 3600))
+      .filter((r) => r.signedUrl).map((r) => [r.path, r.signedUrl])),
+    deletePhotos: async (paths) => (paths.length ? ok(await sb.storage.from(BUCKET).remove(paths)) : null),
   };
 }
 
@@ -89,5 +96,12 @@ export function demoDb(seed) {
     listPunch: async () => clone(st.punch),
     savePunch: async (p) => up(st.punch, clone(p)),
     deletePunch: async (id) => del(st.punch, (p) => p.id === id),
+    // demo photos stay in this browser (data URLs; very small budget)
+    uploadPhoto: async (path, blob) => { demoPhotos[path] = await new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(blob); }); keepDemoPhotos(); },
+    photoUrls: async (paths) => Object.fromEntries(paths.filter((p) => demoPhotos[p]).map((p) => [p, demoPhotos[p]])),
+    deletePhotos: async (paths) => { for (const p of paths) delete demoPhotos[p]; keepDemoPhotos(); },
   };
 }
+const DEMO_PHOTOS = "deercast.demo.photos";
+const demoPhotos = (() => { try { return JSON.parse(localStorage.getItem(DEMO_PHOTOS)) || {}; } catch { return {}; } })();
+const keepDemoPhotos = () => { try { localStorage.setItem(DEMO_PHOTOS, JSON.stringify(demoPhotos)); } catch { /* over the browser's limit: kept until reload */ } };

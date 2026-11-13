@@ -154,7 +154,7 @@ export default function App() {
         sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === overlay.shot.hunt_id), overlay.shot)}
         onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay}
         onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
-      {overlay?.kind === "huntmap" && <div className="overlay"><HuntMap hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
+      {overlay?.kind === "huntmap" && <div className="overlay"><HuntMap db={db} hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
         stands={data?.stands || []} features={data?.features || []} onClose={closeOverlay} /></div>}
       <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
         email={session.user.email} onSignOut={signOut} onManage={() => { setMenu(false); go("more"); history.replaceState(null, "", "#more/grounds"); }} />

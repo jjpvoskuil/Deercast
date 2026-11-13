@@ -3,6 +3,8 @@ import Icon from "./Icon.jsx";
 import NumInput from "./NumInput.jsx";
 import { normalizeTrack } from "./TrackMode.jsx";
 import { shotSighting } from "./lib/huntmap.js";
+import PhotoStrip from "./Photos.jsx";
+import { allPaths } from "./lib/photos.js";
 import { defaultWeaponId, findWeapon, weaponIdFor, weaponOptions } from "./lib/gear.js";
 import { GroundChip, ThemeButton } from "./Shell.jsx";
 import { CARDINALS_8, degToCardinal } from "./lib/geo.js";
@@ -194,7 +196,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
     }
     setBusy(true); setEndAsk(null);
     const endMs = Math.max(endAt ?? Math.floor(Date.now() / 60000) * 60000, startMs + 60000);
-    const rec = { ...(await buildHunt(live.where, startMs, endMs, live.sightings, notes, recovered({ id: live.id }), live.id, live)), ...huntWeaponFields(live.weapon_id) };
+    const rec = { ...(await buildHunt(live.where, startMs, endMs, live.sightings, notes, recovered({ id: live.id }), live.id, live)), ...huntWeaponFields(live.weapon_id),
+      ...(live.photos?.length ? { photos: live.photos } : {}) };
     if (await save((d) => d.saveHunt(rec), { ok: "Hunt saved — ready for the next one." })) {
       await putLive(null); setNotes("");
     }
@@ -295,6 +298,9 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
               onRetime={(idx, hhmm) => putLive({ ...live, notes, sightings: retime(live.sightings, idx, hhmm, dateKey(Date.parse(live.start), tz)) })}
               onShot={(e) => { const d = new Date(Date.parse(e.time)); setShotForm({ huntId: live.id, stand: live.where, day: localDay(d), time: localHM(d), status: "hit", weapon_id: huntWeapon(live.id), dist: 20, deer: deerText(e.deer), notes: "" }); }} />
             {!live.sightings.length && <p className="muted small">Nothing saved yet. Each sighting is saved to this sit as soon as you tap Save.</p>}
+            <div className="sub-h">Photos</div>
+            <PhotoStrip db={db} photos={live.photos || []} sightings={live.sightings} groundId={ground.id} tz={tz} live toast={toast}
+              onChange={async (photos) => { const v = { ...live, notes, photos }; await db.putDoc("active_hunt", v); setLive(v); }} />
             {shotPanel(live.id, live.where, () => Date.now(), groupSightings(live.sightings).map((g) => deerText(g.deer)), true)}
             <label className="field"><span>Notes for this sit</span><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)}
               onBlur={() => notes !== (live.notes || "") && putLive({ ...live, notes })} /></label>
@@ -314,8 +320,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
               </div>
             )}
             {confirmDiscard && (
-              <div className="confirm">Throw away this sit and its sightings?
-                <div className="btn-row"><button className="btn danger" onClick={() => { putLive(null); setConfirmDiscard(false); setNotes(""); }}>Discard</button>
+              <div className="confirm">Throw away this sit and its sightings{live.photos?.length ? " and photos" : ""}?
+                <div className="btn-row"><button className="btn danger" onClick={() => { db.deletePhotos(allPaths(live.photos)).catch(() => {}); putLive(null); setConfirmDiscard(false); setNotes(""); }}>Discard</button>
                   <button className="btn" onClick={() => setConfirmDiscard(false)}>Keep it</button></div>
               </div>
             )}
@@ -392,6 +398,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   ))}
                   {h.notes && <p className="small"><i>{h.notes}</i></p>}
                   {h.edited && <div className="muted small">Edited {h.edited}</div>}
+                  <PhotoStrip db={db} photos={h.photos || []} sightings={h.sightings || []} groundId={h.ground_id || ground.id} tz={tz} toast={toast}
+                    onChange={async (photos) => { if (!(await save((d) => d.saveHunt({ ...h, photos })))) throw new Error("not saved"); }} />
                   <button className="btn wide" onClick={() => openHuntMap(h, shotsFor(h.id), tz)}>🗺️ Map this hunt</button>
                   {shotPanel(h.id, h.stand, () => s, groupSightings(h.sightings).map((g) => deerText(g.deer)), false)}
                   <div className="btn-row">
@@ -400,7 +408,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   </div>
                   {confirmDel === h.id && (
                     <div className="confirm">Delete this hunt permanently?
-                      <div className="btn-row"><button className="btn danger" onClick={() => save((d) => d.deleteHunt(h.id), { ok: "Hunt deleted" })}>Yes, delete</button>
+                      <div className="btn-row"><button className="btn danger" onClick={async () => { if (await save((d) => d.deleteHunt(h.id), { ok: "Hunt deleted" })) db.deletePhotos(allPaths(h.photos)).catch(() => {}); }}>Yes, delete</button>
                         <button className="btn" onClick={() => setConfirmDel(null)}>Keep it</button></div>
                     </div>
                   )}
@@ -425,7 +433,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                         return withPosition(y, anchor);
                       });
                       const rec = { ...(await buildHunt(f.where, f.startMs, f.endMs, fixed, f.notes, recovered(h), h.id, f.where === h.stand ? h : null)), ...huntWeaponFields(f.weapon_id) };
-                      const ok = await save((d) => d.saveHunt({ ...rec, id: h.id, ground_id: h.ground_id || ground.id, edited: nowIso().slice(0, 16).replace("T", " ") }),
+                      const ok = await save((d) => d.saveHunt({ ...rec, ...(h.photos ? { photos: h.photos } : {}), id: h.id, ground_id: h.ground_id || ground.id, edited: nowIso().slice(0, 16).replace("T", " ") }),
                         { ok: "Hunt updated" });
                       if (ok) setEditId(null);
                       return ok;
