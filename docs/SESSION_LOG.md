@@ -18,7 +18,7 @@ John: wanted to take a picture of a deer (or anything interesting) during a sit 
   - Private Storage bucket `hunt-photos`, path `<ground id|none>/<owner email>/<id>.jpg`. Read via 6-hour signed links.
 - **Rules** (`schema.sql`, new last section): the bucket is private and JPEG-only, max 5 MB. Ground members see photos (like hunts); only their approved owner adds or deletes them.
   - Tested on local Postgres 16 with stub `auth`/`storage` by the new **`web/supabase/rls_test.sh`** (12 checks, plus schema re-run twice).
-  - **John must run the updated schema.sql** in the Supabase SQL Editor before photos work on the real app.
+  - John ran the updated schema.sql in the Supabase SQL Editor (11-12, no errors).
 - The demo keeps photos in the browser (`deercast.demo.photos`). Checked with Playwright: live sit → buck → photo (auto-linked, GPS) → viewer → end sit → logged hunt strip → hunt map. A rotated (EXIF 6) test photo came out upright.
 - Open: photos are not in the Mon/Thu table backups (`deercast-data` backup.yml dumps tables only). Supabase free plan storage is ~1 GB, a few thousand photos.
 
