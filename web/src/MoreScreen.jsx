@@ -51,7 +51,8 @@ export default function MoreScreen(props) {
             <div className="muted small">Signed in as <b>{me?.name || me?.email}</b> ({me?.email}){admin ? " · admin" : ""}</div>
             <button className="link" onClick={signOut}>Sign out</button>
             <div className="muted small">Deercast {MODEL_VERSION} · updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}{demo ? " · demo data" : ""}
-              {(() => { const g = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--ios-gap")) || 0; return g ? ` · screen fit +${g}` : ""; })()}</div>
+</div>
+            {(() => { const i = window.__screenInfo?.(); return i ? <div className="muted small">Screen {i.screen} · page {i.inner} · view {i.vv} · safe top {i.top} / bottom {i.bottom}{i.standalone ? " · home-screen app" : ""}</div> : null; })()}
           </section>
         </>
       )}
