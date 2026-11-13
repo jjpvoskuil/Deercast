@@ -1,3 +1,4 @@
+import { applyUpdate } from "./lib/update.js";
 // Pieces every screen shares: the ground chip + theme button, the ground/appearance menu, and the tab bar.
 import Icon from "./Icon.jsx";
 
@@ -23,7 +24,7 @@ export function ThemeButton({ theme }) {
   );
 }
 
-export function Menu({ open, onClose, ground, grounds, onGround, theme, email, onSignOut, onManage }) {
+export function Menu({ open, update, onClose, ground, grounds, onGround, theme, email, onSignOut, onManage }) {
   if (!open) return null;
   return (
     <div className="menu" onClick={onClose}>
@@ -50,18 +51,19 @@ export function Menu({ open, onClose, ground, grounds, onGround, theme, email, o
         <div className="menu-row muted">{email}</div>
         <button className="menu-row" onClick={onSignOut}>Sign out</button>
         <div className="muted small" style={{ padding: "6px 4px" }}>App updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}</div>
+        {update && <button className="menu-row update-row" onClick={() => applyUpdate(update)}>⬆️ Update to the {update.label} version</button>}
       </div>
     </div>
   );
 }
 
-export function TabBar({ tab, onTab, built }) {
+export function TabBar({ tab, onTab, built, dots = {} }) {
   return (
     <nav className="tabbar">
       {TABS.map(([id, label, ic]) => (
         <button key={id} className={tab === id ? "on" : ""} aria-current={tab === id ? "page" : undefined}
           onClick={() => onTab(id, built.includes(id))}>
-          <Icon name={ic} /><span>{label}</span>
+          <Icon name={ic} /><span>{label}</span>{dots[id] && <span className="tab-dot" aria-label="new" />}
         </button>
       ))}
     </nav>

@@ -53,7 +53,9 @@ doesn't need to run anything locally. Design for phone screens first.
   stays full-screen. Screens under an overlay are `display:none` (iPhone taps went through stacked fixed layers).
   **Admins** see every ground and act as a member of each (schema.sql `is_member`), read everyone's shots, edit only their own.
   Recovery photos: TrackMode Found sheet → `hunt.photos[]` with `shot: <shot id>`. **Who's hunting** (More, `WhosHunting.jsx`): everyone
-  else's `active_hunt` on any ground, watch read-only (30 s refresh) via `db.listLiveSits` + "docs live sit" / `on_live_sit` photo policy. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
+  else's `active_hunt` on any ground, watch read-only (30 s refresh) via `db.listLiveSits` + "docs live sit" / `on_live_sit` photo policy.
+  **Chat** (More, `Chat.jsx`, table `chat`, 8 s polling). **Update**: `version.json` per build + `lib/update.js` → dot on More.
+  iPhone home-screen viewport bug: `--ios-gap` (main.jsx) — anchor bottom things with `--tabbar` / `--ios-gap`, not a bare `bottom: 0`. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
 - All logic ported from Python lives in `web/src/lib/` with **parity tests** against Python fixtures
   (`cd web && npm test`): geo/terrain, model/ (scoring, astro, rut, beststand), huntlog, archery, shot, recovery.
   Change both sides, then regenerate: `python web/supabase/make_fixtures.py`, `make_model_fixtures.py`,

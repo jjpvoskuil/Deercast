@@ -12,6 +12,8 @@ import TrackMode from "./TrackMode.jsx";
 import HuntMap from "./HuntMap.jsx";
 import { shotSighting } from "./lib/huntmap.js";
 import { resolveTheme } from "./lib/theme.js";
+import { useUpdate } from "./lib/update.js";
+import { CHAT_READ } from "./Chat.jsx";
 
 const LAST_GROUND = "deercast.ground";
 const THEME_PREF = "deercast.theme";
@@ -94,6 +96,14 @@ export default function App() {
 
   const ground = (grounds || []).find((g) => g.id === gid) || (grounds || [])[0];
   const theme = useTheme(ground?.home || HOME);
+  const update = useUpdate(); // a newer build is published → dot on More + "Update" row
+  // unread chat: newest message from someone else vs. when you last looked (checked every minute)
+  const [chatNew, setChatNew] = useState(false);
+  const checkChat = useCallback(async () => {
+    if (!db?.lastChat || !me) return;
+    try { const m = await db.lastChat(); setChatNew(!!m && m.created > (localStorage.getItem(CHAT_READ) || "")); } catch { /* ignore */ }
+  }, [db, me]);
+  useEffect(() => { checkChat(); const i = setInterval(checkChat, 60e3); return () => clearInterval(i); }, [checkChat]);
 
   // that ground's stands, marks and everyone's hunts on it
   const loadData = useCallback(async () => {
@@ -184,8 +194,9 @@ export default function App() {
         <HuntLogScreen {...common} active={(tab === "log" || showHistory) && !overlay} view={showHistory ? "history" : "live"} key={`l-${ground.id}`}
           onBack={() => setMorePage(null)} openHistory={() => { go("more"); setMorePage("history"); }} />
       </> : tab !== "more" && <NoGround go={() => { go("more"); setMorePage("grounds"); }} />}
-      <MoreScreen {...common} active={tab === "more" && !showHistory && !overlay} page={morePage === "history" ? null : morePage} open={setMorePage} />
-      {overlay?.kind !== "track" && <TabBar tab={tab} onTab={onTab} built={BUILT} />}
+      <MoreScreen {...common} active={tab === "more" && !showHistory && !overlay} page={morePage === "history" ? null : morePage} open={setMorePage}
+        update={update} chatNew={chatNew} onChatRead={() => setChatNew(false)} />
+      {overlay?.kind !== "track" && <TabBar tab={tab} onTab={onTab} built={BUILT} dots={{ more: !!update || chatNew }} />}
       {overlay?.kind === "analysis" && <div className="overlay with-tabs"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
       {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} stand={overlay.stand || overlay.center} live={overlay.live}
         sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === overlay.shot.hunt_id), overlay.shot)}
@@ -193,7 +204,7 @@ export default function App() {
         onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
       {overlay?.kind === "huntmap" && <div className="overlay with-tabs"><HuntMap db={db} hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
         stands={data?.stands || []} features={data?.features || []} onClose={closeOverlay} /></div>}
-      <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
+      <Menu open={menu} update={update} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
         email={session.user.email} onSignOut={signOut} onManage={() => { setMenu(false); go("more"); setMorePage("grounds"); }} />
       {toast && <div className="toast" role="status">{toast}</div>}
     </>

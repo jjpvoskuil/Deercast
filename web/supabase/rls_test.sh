@@ -83,4 +83,12 @@ check "non-member sees photos on a live sit (+ thumb), not other photos" eve@x.c
 check "can't add a photo to someone's live sit" eve@x.com "insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g2/matt@x.com/q.jpg'); select 'ok';" 'ERROR:  new row violates row-level security policy for table "objects"'
 check "unapproved can't see live-sit photos" stranger@x.com "select count(*) from storage.objects where name like 'g2/%';" "0"
 check "can't change someone's live sit" john@x.com "update public.user_docs set data = '{}' where owner = 'matt@x.com'; reset role; select data ->> 'ground_id' from public.user_docs where owner = 'matt@x.com' and name = 'active_hunt';" "g2"
+check "approved user posts as self" matt@x.com "insert into public.chat (id, author, body) values ('c1', 'matt@x.com', 'Big buck on cam'); select 'ok';" "ok"
+check "can't post as someone else" matt@x.com "insert into public.chat (id, author, body) values ('c2', 'john@x.com', 'fake'); select 'ok';" 'ERROR:  new row violates row-level security policy for table "chat"'
+check "unapproved can't post" stranger@x.com "insert into public.chat (id, author, body) values ('c3', 'stranger@x.com', 'hi'); select 'ok';" 'ERROR:  new row violates row-level security policy for table "chat"'
+check "empty message refused" eve@x.com "insert into public.chat (id, author, body) values ('c4', 'eve@x.com', ''); select 'ok';" 'ERROR:  new row for relation "chat" violates check constraint "chat_body_check"'
+check "approved user reads chat" eve@x.com "select string_agg(body, ',') from public.chat;" "Big buck on cam"
+check "unapproved can't read chat" stranger@x.com "select count(*) from public.chat;" "0"
+check "member can't delete another's message" eve@x.com "delete from public.chat where id = 'c1'; reset role; select count(*) from public.chat;" "1"
+check "admin deletes any message" john@x.com "delete from public.chat where id = 'c1'; reset role; select count(*) from public.chat;" "0"
 exit $FAILED

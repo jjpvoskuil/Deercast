@@ -28,7 +28,12 @@
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
   /* tab bar sits low: its buttons reach 22px into the home-indicator strip (John, 11-13 — the old extra room was for Netlify's badge) */
   --tab-pad: max(var(--safe-bottom) - 22px, 6px);
-  --tabbar: calc(52px + var(--tab-pad));
+  /* --ios-gap (set in main.jsx): on iPhone home-screen apps with a see-through status bar, iOS makes the page shorter
+     than the screen by about the status-bar height, so "bottom: 0" sits that far above the real bottom (WebKit bug).
+     Things that should reach the screen's bottom go down by the gap; --tabbar = from the page's bottom to the tab bar's top. */
+  --ios-gap: 0px;
+  --tab-h: calc(52px + var(--tab-pad));
+  --tabbar: calc(var(--tab-h) - var(--ios-gap));
   font-family: var(--body); color: var(--text); background: var(--page);
   -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
 }
@@ -53,7 +58,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* full-screen map */
-.screen { position: fixed; inset: 0; }
+.screen { position: fixed; inset: 0 0 calc(-1 * var(--ios-gap)) 0; }
 .map { position: absolute; inset: 0; background: #2F3A26; }
 .leaflet-container { font: inherit; }
 .leaflet-top { top: calc(var(--safe-top) + 64px); }
@@ -148,7 +153,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .toggle input:focus-visible + .track { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* tab bar */
-.tabbar { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tabbar); z-index: 1180; display: flex;
+.tabbar { position: fixed; left: 0; right: 0; bottom: calc(-1 * var(--ios-gap)); height: var(--tab-h); z-index: 1180; display: flex;
   padding: 0 8px var(--tab-pad); background: var(--tab); border-top: 1px solid var(--line); transition: background-color .4s; }
 .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   font-size: 12px; font-weight: 500; color: var(--muted); }
@@ -366,8 +371,8 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .picker-map { margin-top: 6px; }
 
 /* ---- shots in the session + tracking map ---- */
-.overlay { position: fixed; inset: 0; z-index: 1150; background: var(--page); }
-.overlay .page { inset: 0; }
+.overlay { position: fixed; inset: 0 0 calc(-1 * var(--ios-gap)) 0; z-index: 1150; background: var(--page); }
+.overlay .page { inset: 0 0 calc(-1 * var(--ios-gap)) 0; }
 /* Shot analyzer / hunt map: the tab bar stays under them */
 .overlay.with-tabs { bottom: var(--tabbar); }
 .overlay.with-tabs .page { bottom: var(--tabbar); }
@@ -460,3 +465,24 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .photo-view-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .photo-view-info { padding: 10px 14px calc(14px + var(--safe-bottom, 0px)); display: grid; gap: 8px; background: #111; }
 .photo-caption { width: 100%; background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; padding: 10px; font-size: 16px; }
+
+/* chat (More → Chat) */
+.chat { display: flex; flex-direction: column; gap: 2px; padding-bottom: 76px; }
+.msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 84%; margin-top: 4px; }
+.msg.mine { align-self: flex-end; align-items: flex-end; }
+.msg-who { font-size: 12px; font-weight: 600; color: var(--muted); margin: 6px 0 2px 10px; }
+.msg-bubble { text-align: left; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 16px; color: var(--text);
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; padding: 8px 12px; }
+.msg.mine .msg-bubble { background: var(--accent); color: var(--on-accent); border-color: var(--accent); border-radius: 18px 18px 6px 18px; }
+.msg-time { font-size: 11px; color: var(--muted); margin: 1px 10px 0; }
+.chat-send { position: fixed; left: 0; right: 0; bottom: var(--tabbar); z-index: 1100; display: flex; gap: 8px; align-items: flex-end;
+  padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line); }
+.chat-send textarea { flex: 1; min-width: 0; font: inherit; font-size: 16px; min-height: 44px; max-height: 120px; padding: 10px 12px; border-radius: 22px;
+  border: 1px solid var(--line); background: var(--page); color: var(--text); resize: none; }
+.chat-send .btn { min-height: 44px; }
+/* new version / unread chat dot */
+.tab-dot { position: absolute; top: 6px; left: calc(50% + 8px); width: 10px; height: 10px; border-radius: 50%; background: #e5372b; box-shadow: 0 0 0 2px var(--tab); }
+.tabbar button { position: relative; }
+.nav-row .dot { width: 10px; height: 10px; border-radius: 50%; background: #e5372b; flex: none; }
+.update-row { color: var(--accent-text); font-weight: 700; }
+.nav-row .emoji { font-style: normal; font-size: 18px; width: 24px; text-align: center; flex: none; }

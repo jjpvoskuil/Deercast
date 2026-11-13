@@ -10,8 +10,10 @@ import { dailyAstro } from "./lib/model/astro.js";
 import { dateKey, daysBetween } from "./lib/model/tz.js";
 import { MODEL_VERSION } from "./HuntLogScreen.jsx";
 import WhosHunting from "./WhosHunting.jsx";
+import Chat from "./Chat.jsx";
+import { applyUpdate } from "./lib/update.js";
 
-const PAGES = { who: "Who's hunting", grounds: "Hunting grounds", gear: "Bow setup", gun: "Gun setup", regs: "Regulations", dev: "Development" };
+const PAGES = { chat: "Chat", who: "Who's hunting", grounds: "Hunting grounds", gear: "Bow setup", gun: "Gun setup", regs: "Regulations", dev: "Development" };
 
 export default function MoreScreen(props) {
   const { active, me, ground, demo, theme, onMenu, signOut, open } = props;
@@ -29,8 +31,14 @@ export default function MoreScreen(props) {
       <div className="page-title"><h1>{page ? PAGES[page] : "More"}</h1></div>
       {!page && (
         <>
+          {props.update && <section className="card list">
+            <button className="nav-row update-row" onClick={() => applyUpdate(props.update)}><i className="dot" /><span>Update available</span>
+              <span className="muted small">{props.update.label}</span><Icon name="chev" className="icon chev-r" /></button>
+          </section>}
           <section className="card list">
-            <button className="nav-row" onClick={() => open("who")}><span style={{ fontSize: 18, width: 24, textAlign: "center" }}>🟢</span><span>Who's hunting</span><span className="muted small">watch a sit</span><Icon name="chev" className="icon chev-r" /></button>
+            <button className="nav-row" onClick={() => open("chat")}><i className="icon emoji">💬</i><span>Chat</span>
+              {props.chatNew ? <i className="dot" aria-label="new messages" /> : <span className="muted small">everyone</span>}<Icon name="chev" className="icon chev-r" /></button>
+            <button className="nav-row" onClick={() => open("who")}><i className="icon emoji">🟢</i><span>Who's hunting</span><span className="muted small">watch a sit</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("grounds")}><Icon name="ground" /><span>Hunting grounds</span><span className="muted small">{ground?.name}</span><Icon name="chev" className="icon chev-r" /></button>
             {ground && <button className="nav-row" onClick={() => open("history")}><Icon name="log" /><span>Hunt history</span><span className="muted small">past hunts</span><Icon name="chev" className="icon chev-r" /></button>}
             <button className="nav-row" onClick={() => open("gear")}><Icon name="bow" /><span>Bow setup</span><Icon name="chev" className="icon chev-r" /></button>
@@ -42,10 +50,12 @@ export default function MoreScreen(props) {
           <section className="card">
             <div className="muted small">Signed in as <b>{me?.name || me?.email}</b> ({me?.email}){admin ? " · admin" : ""}</div>
             <button className="link" onClick={signOut}>Sign out</button>
-            <div className="muted small">Deercast {MODEL_VERSION} · updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}{demo ? " · demo data" : ""}</div>
+            <div className="muted small">Deercast {MODEL_VERSION} · updated {typeof __BUILD__ === "undefined" ? "dev" : __BUILD__}{demo ? " · demo data" : ""}
+              {(() => { const g = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--ios-gap")) || 0; return g ? ` · screen fit +${g}` : ""; })()}</div>
           </section>
         </>
       )}
+      {page === "chat" && <Chat db={props.db} me={me} active={active} toast={props.toast} onRead={props.onChatRead} />}
       {page === "who" && <WhosHunting db={props.db} ground={ground} active={active} />}
       {page === "grounds" && <GroundsPage {...props} />}
       {page === "gear" && <GearPage {...props} />}

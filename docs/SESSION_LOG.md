@@ -4,6 +4,17 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-13 — Session 7d: tab bar gap (iPhone bug), Update button, Chat
+- **Tab bar "still high" — cause found from John's screenshot** (taken on the 7:28 build). There's a strip of page *below* the tab bar. This is the WebKit home-screen web-app bug: with `apple-mobile-web-app-status-bar-style: black-translucent` + `viewport-fit=cover`, the page comes out shorter than the screen by about the status-bar height, so `bottom: 0` sits ~60 pt above the real bottom.
+  - Fix: `main.jsx` measures the gap (standalone iPhone only: screen height − innerHeight, 0–100 px, ignored while the keyboard is up) into `--ios-gap`. The tab bar, `.screen` (Map) and overlays extend down by it. `--tabbar` is now "page bottom → tab bar top" (`--tab-h − --ios-gap`), so every offset that used it stays right.
+  - More shows "screen fit +N" when a gap was found, so John can confirm.
+- **Update button.** Each build writes `version.json` (vite plugin, `__BUILD_ID__`). `lib/update.js` checks it at start, every 5 min and when the app comes back to the screen. If the server's build is newer: a red dot on the More tab, an "Update available" row at the top of More, and a row in the ground menu. Tapping reloads with a fresh `?v=` so the phone doesn't reuse GitHub Pages' ~10-min cached page.
+- **Chat** (More → 💬 Chat, `Chat.jsx`): one room for every approved user. Bubbles with names and times; Enter or Send posts; tap your own message to delete it (admins: any). Polls every 8 s while open. The More-tab dot also lights for chat messages newer than when you last opened Chat (checked every minute; `deercast.chatRead`).
+  - `schema.sql`: new `chat` table (`id, created, author, body` 1–2000 chars) with RLS: approved users read; post only as yourself; delete own (admin any). 8 new checks, 39 pass.
+  - Not live/instant: polling, no push notifications.
+- **John must run schema.sql again** (adds the chat table). Until then Chat shows an error.
+- Open: the `deercast-data` backup workflow may need `chat` added if it lists tables by name (couldn't check — that repo isn't attached).
+
 ## 2026-11-13 — Session 7c: Who's hunting moved to More (any ground), tab bar lower still
 - John: the tab bar still looked high. His "screenshot" attachment was actually schema.sql, so I couldn't see it. Lowered further anyway: 52 px + (home-indicator inset − 22 px), about 62 px on an iPhone vs 98 px originally. Asked John to check the build time (a home-screen app can keep an old copy until it's reopened).
 - **Who's hunting is now a page: More → 🟢 Who's hunting** (`web/src/WhosHunting.jsx`). It lists everyone else with a sit going on **any ground**: name, stand, ground, time on stand, deer. Tap a name to **watch**: hunt clock, deer seen (newest first), photos and notes, refreshed every 30 s, nothing editable. The card on the Hunt tab is gone.

@@ -12,6 +12,8 @@
 --   * Admins (11-13, John) see every ground and are treated as a member of each (its stands, marks, everyone's hunts,
 --     photos) and can read everyone's shots; they still edit only their own hunts, and only a ground's owner renames,
 --     changes members or deletes it.
+--   * Chat (11-13): one room for every approved user. Everyone reads it; you post as yourself; you delete your own
+--     messages (admins can delete any).
 --   * A sit in progress (user_docs 'active_hunt') can be watched read-only by every approved user, whatever ground it's
 --     on (More → Who's hunting), along with the photos on it. Nobody can change someone else's sit.
 
@@ -24,6 +26,9 @@ create table if not exists public.hunts (id text primary key, ground_id text ref
 create table if not exists public.shots (id text primary key, ground_id text references public.grounds(id) on delete set null, owner text not null, data jsonb not null);
 create table if not exists public.user_docs (owner text not null, name text not null, data jsonb not null, primary key (owner, name));
 create table if not exists public.punchlist (id text primary key, data jsonb not null);
+create table if not exists public.chat (id text primary key, created timestamptz not null default now(), author text not null,
+  body text not null check (char_length(body) between 1 and 2000));
+create index if not exists chat_created on public.chat (created desc);
 
 -- deleting a ground keeps everyone's hunt logs and shots (they just lose the ground link)
 alter table public.hunts drop constraint if exists hunts_ground_id_fkey;
@@ -41,7 +46,7 @@ create or replace function public.leave_ground(gid text) returns void language s
   update public.grounds set members = array_remove(members, public.me()) where id = gid and owner <> public.me() and public.is_approved() $$;
 
 do $$ declare t text; begin
-  foreach t in array array['app_users','grounds','stands','features','hunts','shots','user_docs','punchlist'] loop
+  foreach t in array array['app_users','grounds','stands','features','hunts','shots','user_docs','punchlist','chat'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon, authenticated', t);
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
@@ -51,7 +56,7 @@ end $$;
 -- drop every existing policy on these tables, then create the current set
 do $$ declare p record; begin
   for p in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('app_users','grounds','stands','features','hunts','shots','user_docs','punchlist') loop
+    and tablename in ('app_users','grounds','stands','features','hunts','shots','user_docs','punchlist','chat') loop
     execute format('drop policy %I on public.%I', p.policyname, p.tablename);
   end loop;
 end $$;
@@ -81,6 +86,9 @@ create policy "docs own"      on public.user_docs for all to authenticated using
 -- "Who's hunting" (11-13, John): any approved user can watch (not change) anyone's sit in progress, on any ground
 create policy "docs live sit" on public.user_docs for select to authenticated
   using (name = 'active_hunt' and public.is_approved());
+create policy "chat read"   on public.chat for select to authenticated using (public.is_approved());
+create policy "chat post"   on public.chat for insert to authenticated with check (public.is_approved() and author = public.me());
+create policy "chat delete" on public.chat for delete to authenticated using (public.is_approved() and (author = public.me() or public.is_admin()));
 create policy "punch admins"  on public.punchlist for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 revoke execute on function public.is_member(text), public.is_approved(), public.is_admin(), public.leave_ground(text) from anon;

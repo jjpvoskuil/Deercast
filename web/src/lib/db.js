@@ -51,6 +51,11 @@ export function supabaseDb(sb, email) {
     // everyone else's sits in progress, any ground (More → Who's hunting; read-only by row-level security)
     listLiveSits: async () => ok(await sb.from("user_docs").select("owner,data").eq("name", "active_hunt").neq("owner", me))
       .map((r) => ({ ...r.data, owner: r.owner })),
+    // chat: one room for all approved users (newest 200, oldest first)
+    listChat: async () => ok(await sb.from("chat").select("*").order("created", { ascending: false }).limit(200)).reverse(),
+    lastChat: async () => ok(await sb.from("chat").select("created,author").neq("author", me).order("created", { ascending: false }).limit(1))[0] || null,
+    postChat: async (body) => ok(await sb.from("chat").insert({ id: newId() + newId(), author: me, body })),
+    deleteChat: async (id) => ok(await sb.from("chat").delete().eq("id", id)),
     // punch list (admins)
     listPunch: async () => rows(await sb.from("punchlist").select("data")),
     savePunch: async (p) => ok(await sb.from("punchlist").upsert({ id: p.id, data: p })),
@@ -95,6 +100,10 @@ export function demoDb(seed) {
     deleteHunt: async (id) => del(st.hunts, (h) => h.id === id && h.owner === me),
     listShots: async () => clone(st.shots),
     listLiveSits: async () => clone(st.liveOthers || []),
+    listChat: async () => clone(st.chat ||= [{ id: "m1", created: new Date(Date.now() - 50 * 60e3).toISOString(), author: "partner@example.com", body: "Two does at the creek already" }]),
+    lastChat: async () => clone((st.chat || []).filter((m) => m.author !== me).slice(-1)[0] || null),
+    postChat: async (body) => { (st.chat ||= []).push({ id: newId(), created: nowIso(), author: me, body }); save(); },
+    deleteChat: async (id) => del(st.chat || [], (m) => m.id === id),
     listGroundShots: async (gid) => clone(st.shots.filter((s) => s.ground_id === gid).map((s) => ({ owner: me, ...s }))),
     saveShot: async (s) => up(st.shots, clone(s)),
     deleteShot: async (id) => del(st.shots, (s) => s.id === id),
