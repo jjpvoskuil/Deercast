@@ -13,7 +13,7 @@ Newest first. Each session: what changed, decisions made, and what's open.
   - `schema.sql`: new `chat` table (`id, created, author, body` 1–2000 chars) with RLS: approved users read; post only as yourself; delete own (admin any). 8 new checks, 39 pass.
   - Not live/instant: polling, no push notifications.
 - **John must run schema.sql again** (adds the chat table). Until then Chat shows an error.
-- Open: the `deercast-data` backup workflow may need `chat` added if it lists tables by name (couldn't check — that repo isn't attached).
+- Backup: `deercast-data/backup/backup.py` lists tables by name, so **`chat` is not backed up yet**. The fix is prepared but **not pushed** (that repo is written only when John says so): add `"chat": "created,id"` to `TABLES`, skipped without failing on 404 until the table exists. Tested against a fake REST server, with and without the table. `make_restore.py` (this repo) restores `chat` now.
 
 ## 2026-11-13 — Session 7c: Who's hunting moved to More (any ground), tab bar lower still
 - John: the tab bar still looked high. His "screenshot" attachment was actually schema.sql, so I couldn't see it. Lowered further anyway: 52 px + (home-indicator inset − 22 px), about 62 px on an iPhone vs 98 px originally. Asked John to check the build time (a home-screen app can keep an old copy until it's reopened).

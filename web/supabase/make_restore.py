@@ -8,11 +8,12 @@ import json
 import sys
 from pathlib import Path
 
-ORDER = ["app_users", "grounds", "stands", "features", "hunts", "shots", "user_docs", "punchlist"]  # FK-safe
+ORDER = ["app_users", "grounds", "stands", "features", "hunts", "shots", "user_docs", "punchlist", "chat"]  # FK-safe
 COLS = {"app_users": ["email", "name", "role"], "grounds": ["id", "name", "owner", "members", "home", "created"],
         "stands": ["id", "ground_id", "data"], "features": ["id", "ground_id", "data"],
         "hunts": ["id", "ground_id", "owner", "data"], "shots": ["id", "ground_id", "owner", "data"],
-        "user_docs": ["owner", "name", "data"], "punchlist": ["id", "data"]}
+        "user_docs": ["owner", "name", "data"], "punchlist": ["id", "data"],
+        "chat": ["id", "created", "author", "body"]}
 
 
 def lit(v, col):
