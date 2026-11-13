@@ -26,7 +26,8 @@ export function usePhotoUrls(db, paths) {
 const fmtWhen = (iso, tz) => (iso ? new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz }) : "");
 
 /** photos: this hunt's list · onChange(newList) saves it · live = taken right now (time + GPS) · canEdit = it's yours */
-export default function PhotoStrip({ db, photos = [], sightings = [], groundId, tz, live = false, canEdit = true, onChange, toast }) {
+export default function PhotoStrip({ db, photos = [], sightings = [], groundId, tz, live = false, canEdit = true, onChange, toast,
+  caption = "", extra = null, addLabel = null }) {
   const input = useRef(null);
   const [draft, setDraft] = useState(null);   // { file, preview, caption, group }
   const [busy, setBusy] = useState(false);
@@ -51,7 +52,7 @@ export default function PhotoStrip({ db, photos = [], sightings = [], groundId, 
     if (!file) return;
     // a photo taken during a sit goes with the deer you saved in the last 15 minutes, if any
     const recent = live ? [...groups].reverse().find((g) => Date.now() - Date.parse(g.time) < 15 * 60e3) : null;
-    setDraft({ file, preview: URL.createObjectURL(file), caption: "", group: recent?.group || "" });
+    setDraft({ file, preview: URL.createObjectURL(file), caption, group: recent?.group || "" });
   };
   const close = () => { if (draft?.preview) URL.revokeObjectURL(draft.preview); setDraft(null); };
   const saveDraft = async () => {
@@ -64,7 +65,7 @@ export default function PhotoStrip({ db, photos = [], sightings = [], groundId, 
       if (at.lat == null && draft.group) { const s = groups.find((x) => x.group === draft.group); if (s?.lat != null) at = { lat: s.lat, lon: s.lon, at_deer: true }; }
       await db.uploadPhoto(thumbPath(path), thumb);
       await db.uploadPhoto(path, full);
-      const rec = { id, path, w, h, caption: draft.caption.trim(), group: draft.group || null, added: nowIso(), ...(live ? { time: nowIso() } : {}), ...at };
+      const rec = { id, path, w, h, caption: draft.caption.trim(), group: draft.group || null, added: nowIso(), ...(live ? { time: nowIso() } : {}), ...at, ...(extra || {}) };
       await onChange([...photos, rec]);
       toast?.("Photo saved");
       close();
@@ -88,7 +89,7 @@ export default function PhotoStrip({ db, photos = [], sightings = [], groundId, 
               {url(thumbPath(p.path)) ? <img src={url(thumbPath(p.path))} alt="" loading="lazy" /> : <span className="muted small">…</span>}
             </button>
           ))}
-          {canEdit && <button className="photo-thumb add" onClick={() => input.current?.click()}><span>📷</span><span className="small">{live ? "Photo" : "Add photo"}</span></button>}
+          {canEdit && <button className="photo-thumb add" onClick={() => input.current?.click()}><span>📷</span><span className="small">{addLabel || (live ? "Photo" : "Add photo")}</span></button>}
         </div>
       )}
       <input ref={input} type="file" accept="image/*" hidden onChange={pick} />

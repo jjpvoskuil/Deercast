@@ -46,8 +46,13 @@ doesn't need to run anything locally. Design for phone screens first.
   **Data now lives in Supabase.** `deercast-data` (GitHub) is the pre-cutover backup; the Streamlit Cloud app was
   deleted 11-04 (its GitHub PAT revoked); the Python code stays as the reference the web app is tested against. The sandbox can't reach Supabase — test with `?demo` (browser-only
   made-up data via `lib/db.js` demoDb) and Playwright mocks of Open-Meteo/FCC/Overpass.
-- Screens: Forecast, Map (+ editing), Hunt Log, Shot & Recovery, More → Grounds / Bow setup / Regulations /
-  Development. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
+- Screens (v0.8.3): Forecast, Map (+ editing), **Hunt** tab (the sit in progress + open tracks), More → Grounds / **Hunt history**
+  (past hunts, add a past hunt, forecast check; Mine / Everyone on this ground, others' hunts read-only) / Bow / Gun setup /
+  Shot analyzer / Regulations / Development. One `HuntLogScreen` drawn with `view="live"|"history"`; App owns More's sub-page
+  (`morePage`). The tab bar stays under the Shot analyzer and hunt map overlays (tapping a tab closes them); the tracking map
+  stays full-screen. Screens under an overlay are `display:none` (iPhone taps went through stacked fixed layers).
+  **Admins** see every ground and act as a member of each (schema.sql `is_member`), read everyone's shots, edit only their own.
+  Recovery photos: TrackMode Found sheet → `hunt.photos[]` with `shot: <shot id>`. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
 - All logic ported from Python lives in `web/src/lib/` with **parity tests** against Python fixtures
   (`cd web && npm test`): geo/terrain, model/ (scoring, astro, rut, beststand), huntlog, archery, shot, recovery.
   Change both sides, then regenerate: `python web/supabase/make_fixtures.py`, `make_model_fixtures.py`,

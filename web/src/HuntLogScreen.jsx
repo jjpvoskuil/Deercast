@@ -42,7 +42,11 @@ async function scoredDay(lat, lon, key, rutPeak) {
   return v;
 }
 
-export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, openHuntMap, shotsV }) {
+/** view "live" = the Hunt tab (the sit in progress, open tracks); "history" = More → Hunt history (past hunts, forecast check). */
+export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, openHuntMap, shotsV,
+  view = "live", onBack, openHistory }) {
+  const isHistory = view === "history";
+  useEffect(() => { document.querySelector(".page.hunt-log")?.scrollTo(0, 0); }, [view]);
   const home = ground?.home || { lat: 37.3006, lon: -86.0608, state: "KY" };
   const stands = data?.stands || [];
   const baits = (data?.features || []).filter((f) => BAIT_TYPES.has(f.type));
@@ -98,6 +102,21 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   );
   const mine = useMemo(() => (data?.hunts || []).filter((h) => !h.owner || h.owner === db.email)
     .sort((a, b) => Date.parse(b.start) - Date.parse(a.start)), [data, db.email]);
+  // Hunt history can also show the other hunters' sits on this ground (read-only); admins also get their shots
+  const everyone = useMemo(() => [...(data?.hunts || [])].sort((a, b) => Date.parse(b.start) - Date.parse(a.start)), [data]);
+  const hasOthers = everyone.length > mine.length;
+  const [who, setWho] = useState(() => localStorage.getItem("deercast.historyWho") || "mine");
+  const showAll = hasOthers && who === "all";
+  const listed = showAll ? everyone : mine;
+  const isMine = (h) => !h.owner || h.owner === db.email;
+  const [names, setNames] = useState({});
+  const [otherShots, setOtherShots] = useState([]);
+  useEffect(() => {
+    if (!shown || !isHistory || !showAll) return;
+    db.listUsers().then((us) => setNames(Object.fromEntries(us.map((u) => [u.email, u.name || u.email])))).catch(() => {});
+    (db.listGroundShots ? db.listGroundShots(ground.id) : Promise.resolve([])).then((xs) => setOtherShots(xs.filter((x) => x.owner && x.owner !== db.email))).catch(() => setOtherShots([]));
+  }, [shown, isHistory, showAll, ground?.id, shotsV]);
+  const shotsOf = (h) => (isMine(h) ? shotsFor(h.id) : otherShots.filter((x) => x.hunt_id === h.id && x.owner === h.owner));
   const [tz, setTz] = useState("America/Chicago");
   useEffect(() => { fetchForecast(home.lat, home.lon).then((f) => setTz(f.tz)).catch(() => {}); }, [home.lat, home.lon]);
 
@@ -131,6 +150,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
       setLive(v);
     }).catch(() => setLive(null));
   }, [db]);
+  useEffect(() => { if (shotsV) db.getDoc("active_hunt", null).then((v) => setLive((cur) => (v?.id && cur?.id === v.id ? v : cur))).catch(() => {}); }, [shotsV]);
   const putLive = async (v) => { setLive(v); try { await db.putDoc("active_hunt", v); } catch (e) { toast(`Couldn't save — ${e.message}`); } };
   // A recovered deer is always a deer seen: if the sit has no sighting near the shot, add one (once per shot).
   const seenDone = useRef(new Set());
@@ -148,7 +168,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
           const kind = sex === "Doe" ? { kind: "Doe" } : sex === "Button buck" ? { kind: "Fawn", fawn: "buck" } : sex === "Buck" ? { kind: "Buck" } : { kind: "Unknown" };
           const sg = { ...kind, count: 1, activity: "", bait: "", notes: "Added from the recovered deer", group: newId(), time: isoLocal(shotMs, tz) };
           const sightings = [...(hunt.sightings || []), sg].sort((a, b) => String(a.time).localeCompare(String(b.time)));
-          if (isLive) await putLive({ ...live, sightings });
+          if (isLive) { const cur = await db.getDoc("active_hunt", null).catch(() => null); await putLive({ ...(cur?.id === live.id ? cur : live), sightings }); }
           else {
             const r = await buildHunt(hunt.stand, Date.parse(hunt.start), Date.parse(hunt.end), sightings, hunt.notes || "", true, hunt.id, hunt);
             await save((d) => d.saveHunt({ ...hunt, ...r }), { reload: "data" });
@@ -229,13 +249,15 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   };
 
   return (
-    <div className="page" style={{ display: shown ? undefined : "none" }}>
+    <div className="page hunt-log" style={{ display: shown ? undefined : "none" }}>
       <header className="page-top">
-        <GroundChip ground={ground} onClick={onMenu} demo={demo} />
+        {isHistory ? <button className="chip" onClick={onBack}><Icon name="chev" size={16} style={{ transform: "rotate(90deg)" }} /><span>More</span></button>
+          : <GroundChip ground={ground} onClick={onMenu} demo={demo} />}
         <span className="spacer" />
         <ThemeButton theme={theme} />
       </header>
-      <div className="page-title"><span className="label">{ground?.name}</span><h1>Hunt Log</h1></div>
+      <div className="page-title"><span className="label">{ground?.name}</span><h1>{isHistory ? "Hunt history" : "Hunt"}</h1></div>
+      {!isHistory && <>
 
       {/* ------------------------------------------------ open tracks: deer hit but not yet recovered */}
       {shots.filter((x) => x.status === "hit" && (!x.result || x.result === "tracking")).map((x) => {
@@ -329,6 +351,11 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
         )}
       </section>
 
+      <button className="nav-row card" onClick={openHistory}><Icon name="log" /><span>Hunt history</span>
+        <span className="muted small">{mine.length} hunt{mine.length === 1 ? "" : "s"}</span><Icon name="chev" className="icon chev-r" /></button>
+      </>}
+
+      {isHistory && <>
       {/* ------------------------------------------------ past hunt */}
       <section className="card">
         <button className="row-toggle" onClick={() => setPastOpen(!pastOpen)}><span className="h2">Add a past hunt</span><Icon name="chev" /></button>
@@ -364,9 +391,12 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
 
       {/* ------------------------------------------------ log */}
       <section className="card">
-        <span className="h2">Log ({mine.length})</span>
-        {!mine.length && <p className="muted small">No hunts on this ground yet.</p>}
-        {mine.map((h) => {
+        <span className="h2">Hunts ({listed.length})</span>
+        {hasOthers && <div className="seg small-seg">{[["mine", "Mine"], ["all", "Everyone on this ground"]].map(([k, l]) =>
+          <button key={k} className={(showAll ? "all" : "mine") === k ? "on" : ""} onClick={() => { setWho(k); try { localStorage.setItem("deercast.historyWho", k); } catch { /* ignore */ } }}>{l}</button>)}</div>}
+        {!listed.length && <p className="muted small">No hunts on this ground yet.</p>}
+        {listed.map((h) => {
+          const own = isMine(h);
           const s = Date.parse(h.start), e = Date.parse(h.end);
           const fromStand = (h.sightings || []).filter((x) => !isCamera(x));
           const seen = fromStand.reduce((n, x) => n + (+x.count || 1), 0);
@@ -378,8 +408,8 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
             <div key={h.id} className="hunt">
               <button className="hunt-row" onClick={() => { setOpenId(isOpen ? null : h.id); setEditId(null); setConfirmDel(null); }} aria-expanded={isOpen}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="name">{fmtDay(s, tz)} · {h.stand.replace("Stand: ", "")}</div>
-                  <div className="muted small">{fmtClock(s, tz)}–{fmtClock(e, tz)} · {seen} deer ({bucks} buck{bucks === 1 ? "" : "s"}){onCam ? ` + ${onCam} on cams` : ""}{shotText(shotsFor(h.id), h.harvest)}</div>
+                  <div className="name">{fmtDay(s, tz)} · {h.stand.replace("Stand: ", "")}{!own && <span className="muted small"> · {names[h.owner] || h.owner}</span>}</div>
+                  <div className="muted small">{fmtClock(s, tz)}–{fmtClock(e, tz)} · {seen} deer ({bucks} buck{bucks === 1 ? "" : "s"}){onCam ? ` + ${onCam} on cams` : ""}{shotText(shotsOf(h), h.harvest)}</div>
                 </div>
                 {scores.length > 0 && <span className="pill" style={{ background: `var(--s${tone(Math.max(...scores))})` }}>{Math.max(...scores).toFixed(1)}</span>}
               </button>
@@ -398,14 +428,16 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   ))}
                   {h.notes && <p className="small"><i>{h.notes}</i></p>}
                   {h.edited && <div className="muted small">Edited {h.edited}</div>}
-                  <PhotoStrip db={db} photos={h.photos || []} sightings={h.sightings || []} groundId={h.ground_id || ground.id} tz={tz} toast={toast}
-                    onChange={async (photos) => { if (!(await save((d) => d.saveHunt({ ...h, photos })))) throw new Error("not saved"); }} />
-                  <button className="btn wide" onClick={() => openHuntMap(h, shotsFor(h.id), tz)}>🗺️ Map this hunt</button>
-                  {shotPanel(h.id, h.stand, () => s, groupSightings(h.sightings).map((g) => deerText(g.deer)), false)}
-                  <div className="btn-row">
+                  {(own || (h.photos || []).length > 0) && <PhotoStrip db={db} photos={h.photos || []} sightings={h.sightings || []} groundId={h.ground_id || ground.id} tz={tz} toast={toast}
+                    canEdit={own} onChange={async (photos) => { if (!(await save((d) => d.saveHunt({ ...h, photos })))) throw new Error("not saved"); }} />}
+                  <button className="btn wide" onClick={() => openHuntMap(h, shotsOf(h), tz)}>🗺️ Map this hunt</button>
+                  {own ? shotPanel(h.id, h.stand, () => s, groupSightings(h.sightings).map((g) => deerText(g.deer)), false)
+                    : shotsOf(h).map((x) => <div key={x.id} className="small">🎯 {shotStatus(x)}{x.deer ? ` · ${x.deer}` : ""}{x.distance_yd ? ` · ${x.distance_yd} yd` : ""}</div>)}
+                  {!own && <p className="muted small">{names[h.owner] || h.owner}'s hunt — only they can change it.</p>}
+                  {own && <div className="btn-row">
                     <button className="btn" onClick={() => setEditId(h.id)}>Edit</button>
                     <button className="btn" onClick={() => setConfirmDel(h.id)}>Delete</button>
-                  </div>
+                  </div>}
                   {confirmDel === h.id && (
                     <div className="confirm">Delete this hunt permanently?
                       <div className="btn-row"><button className="btn danger" onClick={async () => { if (await save((d) => d.deleteHunt(h.id), { ok: "Hunt deleted" })) db.deletePhotos(allPaths(h.photos)).catch(() => {}); }}>Yes, delete</button>
@@ -414,7 +446,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
                   )}
                 </div>
               )}
-              {isOpen && editId === h.id && (
+              {isOpen && own && editId === h.id && (
                 <div className="hunt-body">
                   <HuntForm key={`ed-${h.id}`} tz={tz} whereOptions={whereOptions.includes(h.stand) ? whereOptions : [...whereOptions, h.stand]}
                     baitNames={baitNames} coords={coords} today={today} submitLabel="Save changes" onCancel={() => setEditId(null)}
@@ -444,6 +476,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
           );
         })}
       </section>
+      </>}
     </div>
   );
 }
@@ -697,7 +730,7 @@ function ShotQuick({ initial, deerOpts, whereOptions, wOpts, onSave, onCancel })
       </div>
       <label className="field"><span>Notes (optional)</span><input value={f.notes} onChange={(e) => set("notes")(e.target.value)} placeholder={f.status === "hit" ? "reaction, where you think you hit" : "high, low, deflected?"} /></label>
       <div className="btn-row">
-        <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); await onSave(f); setBusy(false); }}>{busy ? "Saving…" : f.status === "hit" ? "Save — I hit it" : "Save — missed"}</button>
+        <button className="btn primary" disabled={busy} onClick={async () => { setBusy(true); await onSave(f); setBusy(false); }}>{busy ? "Saving…" : f.status === "hit" ? (f.id ? "Save shot" : "Track and recover") : "Save — missed"}</button>
         <button className="btn" onClick={onCancel}>Cancel</button>
       </div>
     </div>

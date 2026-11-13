@@ -39,6 +39,8 @@ export function supabaseDb(sb, email) {
     deleteHunt: async (id) => ok(await sb.from("hunts").delete().eq("id", `${me}:${id}`)),
     // shots (personal)
     listShots: async () => rows(await sb.from("shots").select("data").eq("owner", me)),
+    // everyone's shots on a ground (row-level security: admins see them all, others only their own)
+    listGroundShots: async (gid) => ok(await sb.from("shots").select("owner,data").eq("ground_id", gid)).map((r) => ({ ...r.data, owner: r.owner })),
     saveShot: async (s) => ok(await sb.from("shots").upsert({ id: `${me}:${s.id}`, ground_id: s.ground_id || null, owner: me, data: s })),
     deleteShot: async (id) => ok(await sb.from("shots").delete().eq("id", `${me}:${id}`)),
     // personal documents: gear, active_hunt
@@ -75,7 +77,7 @@ export function demoDb(seed) {
     listUsers: async () => clone(st.users),
     saveUser: async (u) => up(st.users, { ...u, email: lower(u.email) }, "email"),
     deleteUser: async (e) => del(st.users, (u) => u.email === lower(e)),
-    listGrounds: async () => clone(st.grounds.filter((g) => g.owner === me || g.members.includes(me))),
+    listGrounds: async () => clone(st.grounds.filter((g) => g.owner === me || g.members.includes(me) || st.users.find((u) => u.email === me)?.role === "admin")),
     saveGround: async (g) => up(st.grounds, clone(g)),
     deleteGround: async (id) => del(st.grounds, (g) => g.id === id),
     leaveGround: async (id) => { const g = st.grounds.find((x) => x.id === id); if (g) g.members = g.members.filter((m) => m !== me); save(); },
@@ -89,6 +91,7 @@ export function demoDb(seed) {
     saveHunt: async (h) => up(st.hunts, { ...clone(h), owner: me }),
     deleteHunt: async (id) => del(st.hunts, (h) => h.id === id && h.owner === me),
     listShots: async () => clone(st.shots),
+    listGroundShots: async (gid) => clone(st.shots.filter((s) => s.ground_id === gid).map((s) => ({ owner: me, ...s }))),
     saveShot: async (s) => up(st.shots, clone(s)),
     deleteShot: async (id) => del(st.shots, (s) => s.id === id),
     getDoc: async (name, dflt) => (name in st.docs ? clone(st.docs[name]) : dflt),

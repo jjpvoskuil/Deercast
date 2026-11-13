@@ -1,7 +1,7 @@
 // Pieces every screen shares: the ground chip + theme button, the ground/appearance menu, and the tab bar.
 import Icon from "./Icon.jsx";
 
-export const TABS = [["forecast", "Forecast", "chart"], ["map", "Map", "map"], ["log", "Hunt Log", "log"], ["more", "More", "more"]];
+export const TABS = [["forecast", "Forecast", "chart"], ["map", "Map", "map"], ["log", "Hunt", "log"], ["more", "More", "more"]];
 const fmtTime = (d) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 export function GroundChip({ ground, onClick, demo }) {

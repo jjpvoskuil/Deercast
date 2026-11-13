@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import Icon from "./Icon.jsx";
+import PhotoStrip from "./Photos.jsx";
 import NumInput from "./NumInput.jsx";
 import { newId, nowIso } from "./lib/db.js";
 import { ORGANS } from "./lib/shot.js";
@@ -67,7 +68,7 @@ export function normalizeTrack(s) {
   return { ...s, trips, pins, recovery };
 }
 
-export default function TrackMode({ shot: initial, center, stand, sighting = null, live: startLive, onSave, onClose, onAnalysis }) {
+export default function TrackMode({ shot: initial, center, stand, sighting = null, live: startLive, onSave, onClose, onAnalysis, photos = null, db = null, toast = null }) {
   const [s, setS] = useState(() => normalizeTrack(initial));
   const sRef = useRef(s); sRef.current = s;
   const [live, setLive] = useState(startLive);          // GPS recording on
@@ -233,6 +234,13 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
   const hitPin = s.pins.find((p) => p.kind === "hit");
   const hasRun = shotRun(s, sighting, stand || center).bearing != null;
 
+  // photos of the recovered deer: saved on the hunt (they show in Hunt history and on the hunt map), tagged with this shot
+  const deerPhotos = photos && db ? (
+    <div className="field"><span>📷 Photos of the deer</span>
+      <PhotoStrip db={db} photos={photos.photos.filter((p) => p.shot === s.id)} sightings={photos.sightings} groundId={photos.groundId} live toast={toast}
+        caption="Recovered deer" extra={{ shot: s.id }} addLabel="Photo of the deer"
+        onChange={(list) => photos.onChange([...photos.photos.filter((p) => p.shot !== s.id), ...list])} /></div>
+  ) : null;
   return (
     <div className="track-mode">
       <div ref={el} className="track-map" />
@@ -269,7 +277,7 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
           <OffSheet onCancel={() => setSheet(null)} onOff={async (notes, yd, end) => { await endTrip({ stopped: "Called it off", notes, ...(openTrip ? { end } : {}) }, { result: "not_found", found_yd: yd }); setSheet(null); setLive(false); }}
             farthest={hitPin ? Math.max(0, ...s.pins.map((p) => yds([hitPin.lat, hitPin.lon], [p.lat, p.lon]))) : null} />
         ) : sheet === "found" ? (
-          <FoundSheet r={fd} setR={setFd} me={me} lastPin={lastPin} onCancel={() => setSheet(null)} onTapMap={() => { setSheet(null); setArm("found"); }}
+          <FoundSheet r={fd} setR={setFd} me={me} lastPin={lastPin} photoStrip={deerPhotos} onCancel={() => setSheet(null)} onTapMap={() => { setSheet(null); setArm("found"); }}
             onSave={async (rec) => { await endTrip({ stopped: "Found it" }, { recovery: rec, result: "recovered", found_yd: hitPin && rec.lat != null ? yds([hitPin.lat, hitPin.lon], [rec.lat, rec.lon]) : s.found_yd ?? null }); setSheet(null); setLive(false); }} />
         ) : sheet === "log" ? (
           <LogSheet s={s} onPin={(p) => { setSheet(null); setSel(p.id); map.current.setView([p.lat, p.lon], 19); }} onClose={() => setSheet(null)}
@@ -290,13 +298,14 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
               </div>
               <button className={`btn sm ${draw ? "primary" : ""}`} onClick={() => { setDraw(!draw); setArm(null); }}>✏️ Draw path</button>
             </div>
-            {s.recovery || s.result === "not_found" ? (
+            {s.recovery || s.result === "not_found" ? (<>
               <div className="btn-row">
                 <button className="btn" onClick={() => setSheet("log")}>See the whole track</button>
                 {s.recovery && <button className="btn" onClick={() => { setFd(blankRecovery(s.recovery)); setSheet("found"); }}>Edit recovery</button>}
                 {s.result === "not_found" && <button className="btn" onClick={() => persist({ ...sRef.current, result: "tracking" })}>Re-open track</button>}
               </div>
-            ) : openTrip ? (
+              {s.recovery && deerPhotos}
+            </>) : openTrip ? (
               <div className="track-actions">
                 <button className="btn" onClick={() => setSheet("stop")}>⏸ Stop for now</button>
                 <button className="btn primary" onClick={() => { setFd(blankRecovery(s.recovery)); setSheet("found"); }}>🦌 Found it</button>
@@ -418,7 +427,7 @@ function OffSheet({ onOff, onCancel, farthest }) {
 
 const SEX = ["Buck", "Doe", "Button buck", "Other"];
 export const blankRecovery = (rec) => ({ time: nowIso(), lat: null, lon: null, sex: "Buck", points: null, weight_lb: null, organs_actual: [], entry_exit: "", notes: "", ...(rec || {}) });
-function FoundSheet({ r, setR, me, lastPin, onSave, onCancel, onTapMap }) {
+function FoundSheet({ r, setR, me, lastPin, onSave, onCancel, onTapMap, photoStrip }) {
   const set = (k) => (v) => setR({ ...r, [k]: v });
   const hm = new Date(r.time || Date.now()).toTimeString().slice(0, 5);
   return (
@@ -440,6 +449,7 @@ function FoundSheet({ r, setR, me, lastPin, onSave, onCancel, onTapMap }) {
       <div className="field"><span>What it actually hit</span><Chips multi opts={ORGANS.map((o) => o.label)} value={r.organs_actual} onChange={set("organs_actual")} /></div>
       <label className="field"><span>Entry / exit</span><input value={r.entry_exit} onChange={(e) => set("entry_exit")(e.target.value)} placeholder="e.g. in behind left shoulder, out low right" /></label>
       <label className="field"><span>Notes</span><textarea rows="2" value={r.notes} onChange={(e) => set("notes")(e.target.value)} /></label>
+      {photoStrip}
       <div className="btn-row"><button className="btn primary" onClick={() => onSave(r)}>Save recovery</button><button className="btn" onClick={onCancel}>Back</button></div>
     </div>
   );

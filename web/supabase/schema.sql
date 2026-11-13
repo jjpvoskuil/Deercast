@@ -9,6 +9,9 @@
 --   * Hunts: members of a ground see everyone's hunts on it (shared sightings, best-stand history);
 --     each person creates/edits/deletes only their own. Gear, active hunt and shots are personal.
 --   * Hunt photos (Storage bucket "hunt-photos", private): seen like hunts (ground members), added/deleted by their owner.
+--   * Admins (11-13, John) see every ground and are treated as a member of each (its stands, marks, everyone's hunts,
+--     photos) and can read everyone's shots; they still edit only their own hunts, and only a ground's owner renames,
+--     changes members or deletes it.
 
 create table if not exists public.app_users (email text primary key, name text, role text not null default 'member');
 create table if not exists public.grounds (id text primary key, name text not null, owner text not null,
@@ -30,7 +33,8 @@ create or replace function public.is_approved() returns boolean language sql sta
 create or replace function public.is_admin() returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from public.app_users where email = public.me() and role = 'admin') $$;
 create or replace function public.is_member(gid text) returns boolean language sql stable security definer set search_path = public as $$
-  select public.is_approved() and exists (select 1 from public.grounds g where g.id = gid and (g.owner = public.me() or public.me() = any (g.members))) $$;
+  select public.is_approved() and exists (select 1 from public.grounds g where g.id = gid
+    and (g.owner = public.me() or public.me() = any (g.members) or public.is_admin())) $$;
 create or replace function public.leave_ground(gid text) returns void language sql security definer set search_path = public as $$
   update public.grounds set members = array_remove(members, public.me()) where id = gid and owner <> public.me() and public.is_approved() $$;
 
@@ -56,7 +60,7 @@ create policy "users admin"  on public.app_users for all    to authenticated usi
 -- read by checking the row itself: a brand-new ground isn't in the table yet, and "insert or update" (upsert)
 -- must also pass the read rule — is_member(id) looked the ground up and blocked creating grounds (fixed 11-04)
 create policy "grounds read"   on public.grounds for select to authenticated
-  using (public.is_approved() and (owner = public.me() or public.me() = any (members)));
+  using (public.is_approved() and (owner = public.me() or public.me() = any (members) or public.is_admin()));
 create policy "grounds create" on public.grounds for insert to authenticated with check (public.is_approved() and owner = public.me());
 create policy "grounds owner"  on public.grounds for update to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 create policy "grounds delete" on public.grounds for delete to authenticated using (public.is_approved() and owner = public.me());
@@ -70,6 +74,7 @@ create policy "hunts edit"  on public.hunts for update to authenticated using (p
 create policy "hunts del"   on public.hunts for delete to authenticated using (public.is_approved() and owner = public.me());
 
 create policy "shots own"     on public.shots     for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
+create policy "shots admin read" on public.shots  for select to authenticated using (public.is_admin());
 create policy "docs own"      on public.user_docs for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 create policy "punch admins"  on public.punchlist for all to authenticated using (public.is_admin()) with check (public.is_admin());
 

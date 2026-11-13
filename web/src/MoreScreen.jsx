@@ -11,14 +11,10 @@ import { dateKey, daysBetween } from "./lib/model/tz.js";
 import { MODEL_VERSION } from "./HuntLogScreen.jsx";
 
 const PAGES = { grounds: "Hunting grounds", gear: "Bow setup", gun: "Gun setup", regs: "Regulations", dev: "Development" };
-const pageFromHash = () => { const [t, p] = location.hash.slice(1).split("/"); return t === "more" && PAGES[p] ? p : null; };
 
 export default function MoreScreen(props) {
-  const { active, me, ground, demo, theme, onMenu, signOut } = props;
-  const [page, setPageState] = useState(pageFromHash);
-  useEffect(() => { if (active) setPageState(pageFromHash()); }, [active]);
-  useEffect(() => { const f = () => setPageState(pageFromHash()); addEventListener("hashchange", f); return () => removeEventListener("hashchange", f); }, []);
-  const open = (p) => { setPageState(p); history.replaceState(null, "", p ? `#more/${p}` : "#more"); document.querySelector(".page.more")?.scrollTo(0, 0); };
+  const { active, me, ground, demo, theme, onMenu, signOut, open } = props;
+  const page = PAGES[props.page] ? props.page : null; // App keeps the sub-page (Hunt history is drawn by the Hunt screen)
   const admin = me?.role === "admin";
 
   return (
@@ -34,6 +30,7 @@ export default function MoreScreen(props) {
         <>
           <section className="card list">
             <button className="nav-row" onClick={() => open("grounds")}><Icon name="ground" /><span>Hunting grounds</span><span className="muted small">{ground?.name}</span><Icon name="chev" className="icon chev-r" /></button>
+            {ground && <button className="nav-row" onClick={() => open("history")}><Icon name="log" /><span>Hunt history</span><span className="muted small">past hunts</span><Icon name="chev" className="icon chev-r" /></button>}
             <button className="nav-row" onClick={() => open("gear")}><Icon name="bow" /><span>Bow setup</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => open("gun")}><Icon name="target" /><span>Gun setup</span><Icon name="chev" className="icon chev-r" /></button>
             <button className="nav-row" onClick={() => props.openAnalysis?.(null)}><Icon name="target" /><span>Shot analyzer</span><span className="muted small">calculator</span><Icon name="chev" className="icon chev-r" /></button>

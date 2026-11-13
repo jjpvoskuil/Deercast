@@ -4,6 +4,22 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-13 — Session 7b: Hunt / Hunt history split, tab bar everywhere, recovery photos, admin sees all grounds (v0.8.3)
+John's asks (11-13 morning):
+- **Tab bar on the Shot analyzer.** The Shot analyzer and the hunt map now keep the tab bar under them. Tapping a tab closes the overlay and goes there. The Shot analyzer also got a Close / Back to the hunt button at the bottom. The **tracking map stays full-screen** (my call): a stray tap on a tab there would stop GPS path recording. Every More sub-page already had the tab bar.
+- **Tab bar lower.** Its height went from 64 px + the full home-indicator inset to 54 px + (inset − 14 px). That gives about 24 px more page on an iPhone. The old room was for Netlify's badge.
+- **Recovery photo.** Tracking map → 🦌 Found it now has "📷 Photos of the deer" (camera or library, caption "Recovered deer", GPS). The same strip shows on the panel after recovery. Photos go on the shot's hunt (`hunt.photos[]`, tagged `shot: <id>`), whether it's the sit in progress (active_hunt) or a logged hunt. They show on the hunt's photo strip and the hunt map. App resolves the hunt (`trackPhotos`). The Hunt screen re-reads the live sit when an overlay closes, and the "add the recovered deer as seen" step re-reads it before writing, so the photo isn't overwritten.
+- **"Save — I hit it" → "Track and recover"** on a new shot. It still goes into Hit analysis first, then the let-it-lie timer → tracking. Editing a shot says "Save shot".
+- **Hunt split.** The tab is now **Hunt**: open tracks, In the stand (live sit, shots, photos) and a "Hunt history" link. **More → Hunt history** has Add a past hunt, Does the forecast work? and the list of hunts. One `HuntLogScreen` is drawn with `view`. App owns More's sub-page (`morePage`; MoreScreen is controlled now).
+- **Admin sees all grounds and hunt logs** (Matt's "Luke's farm" wasn't visible). `schema.sql`: `is_member()` is true for admins (stands, marks, everyone's hunts and photos on every ground), "grounds read" adds admins, and a new "shots admin read" policy. Admins still edit only their own hunts and shots, and only the owner renames, changes members or deletes a ground. 13 new checks in `rls_test.sh` (25 pass).
+  - **John must run the updated schema.sql** in Supabase → SQL Editor before he can see Luke's farm.
+  - Hunt history has **Mine / Everyone on this ground**. Other hunters' sits are read-only, with their name. Admins also see their shots. Members could already read others' hunts on a shared ground; the app just didn't list them.
+- Demo: a second ground "Partner's Farm" (admin not a member) and a partner hunt.
+- Checked with Playwright on `?demo`: Hunt tab, history + Everyone, back to More, Partner's Farm in the ground menu, tab bar under the analyzer + tab closes it, live sit → shot ("Track and recover") → analysis → map without GPS → Found it → photo saved → shows on the live sit.
+
+**Open**
+- John: run schema.sql. Then check Luke's farm appears in the ground menu and the tab bar height on the phone.
+
 ## 2026-11-13 — Session 7: frozen buttons, Shot analyzer → Gun setup, time boxes overlapping
 John (11-12 night, iPhone): the app froze — scrolling worked but no button did. Around the same time More → Shot analyzer took him to Gun setup. Time boxes run over the text next to them (Shot analyzer step 6, maybe more).
 - **Cause (likely, not reproduced — the sandbox has no iPhone Safari):** the Shot analyzer, tracking map and hunt map open as an overlay *on top of* the current screen, which stayed mounted and visible underneath. Every screen is its own fixed, touch-scrolling layer, and iPhone Safari is known to hit-test stacked fixed scrolling layers wrongly — taps go to the layer underneath. "Gun setup" sits right above "Shot analyzer" on More, so a tap meant for the analyzer opened Gun setup underneath; the same mix-up makes buttons look dead while scrolling still works.

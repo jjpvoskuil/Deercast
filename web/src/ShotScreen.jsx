@@ -313,6 +313,7 @@ export default function ShotScreen({ db, ground, data, demo, theme, onMenu, save
         <button className="btn primary wide" onClick={saveShot}>Save analysis to this shot</button>
         <p className="muted small">Saves the hit estimate, wait time and search map inputs. Tracking itself is logged on the tracking map.</p>
       </section>}
+      {onClose && <button className="btn wide page-end" onClick={onClose}><Icon name="x" size={18} /> {openId ? "Back to the hunt" : "Close"}</button>}
     </div>
   );
 }

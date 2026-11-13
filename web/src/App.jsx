@@ -58,7 +58,13 @@ export default function App() {
   const [toast, setToast] = useState("");
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2600); return () => clearTimeout(t); }, [toast]);
   const go = (id) => { setTabState(id); history.replaceState(null, "", `#${id}`); };
-  const onTab = (id) => go(id);
+  // More's sub-page (grounds, gear, gun, regs, dev, history) — kept here because Hunt history is drawn by the Hunt screen
+  const morePageFromHash = () => { const [t, p] = location.hash.slice(1).split("/"); return t === "more" && p ? p : null; };
+  const [morePage, setMorePageState] = useState(morePageFromHash);
+  useEffect(() => { const f = () => setMorePageState(morePageFromHash()); addEventListener("hashchange", f); return () => removeEventListener("hashchange", f); }, []);
+  const setMorePage = (p) => { setMorePageState(p); history.replaceState(null, "", p ? `#more/${p}` : "#more"); document.querySelectorAll(".page").forEach((el) => el.scrollTo?.(0, 0)); };
+  // a tab tapped while the Shot analyzer or a hunt map is open closes it and goes there
+  const onTab = (id) => { if (overlay) closeOverlay(); go(id); if (id === "more") setMorePage(null); };
 
   // who is signed in
   useEffect(() => {
@@ -118,6 +124,32 @@ export default function App() {
   }, { reload: "none", ok }), [save]);
   const closeOverlay = () => { setOverlay(null); setShotsV((v) => v + 1); };
 
+  // Photos of a recovered deer, taken on the tracking map, go on the shot's hunt: the sit in progress
+  // (the active_hunt doc) or a logged hunt.
+  const [trackHunt, setTrackHunt] = useState(null); // { hunt, live }
+  const trackHuntId = overlay?.kind === "track" ? overlay.shot?.hunt_id : null;
+  useEffect(() => {
+    setTrackHunt(null);
+    if (!trackHuntId || !db) return;
+    const logged = (data?.hunts || []).find((h) => h.id === trackHuntId);
+    if (logged) { setTrackHunt({ hunt: logged, live: false }); return; }
+    db.getDoc("active_hunt", null).then((v) => { if (v?.id === trackHuntId) setTrackHunt({ hunt: v, live: true }); }).catch(() => {});
+  }, [trackHuntId, db]);
+  const trackPhotos = trackHunt && {
+    photos: trackHunt.hunt.photos || [], sightings: trackHunt.hunt.sightings || [], groundId: trackHunt.hunt.ground_id || ground?.id,
+    onChange: async (photos) => {
+      if (trackHunt.live) {
+        const cur = await db.getDoc("active_hunt", null);
+        if (cur?.id !== trackHunt.hunt.id) throw new Error("that sit has ended — add the photo on the logged hunt");
+        const v = { ...cur, photos }; await db.putDoc("active_hunt", v); setTrackHunt({ hunt: v, live: true });
+      } else {
+        const h = { ...trackHunt.hunt, photos };
+        if (!(await save((d) => d.saveHunt(h), { reload: "data" }))) throw new Error("not saved");
+        setTrackHunt({ hunt: h, live: false });
+      }
+    },
+  };
+
   const signIn = () => supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin + import.meta.env.BASE_URL } });
   const signOut = () => { if (!demo) supabase.auth.signOut(); localStorage.removeItem(LAST_GROUND); if (demo) location.reload(); };
 
@@ -138,6 +170,7 @@ export default function App() {
   );
   if (me === undefined || grounds === null) return <Splash><p className="muted">Loading your grounds…</p></Splash>;
 
+  const showHistory = tab === "more" && morePage === "history" && !!ground;
   const openTrack = (shot, center, live, stand, sighting = null) => setOverlay({ kind: "track", shot, center, live, stand, sighting });
   const openAnalysis = (shotId) => setOverlay({ kind: "analysis", shotId });
   const openHuntMap = (hunt, shots, tz) => setOverlay({ kind: "huntmap", hunt, shots, tz });
@@ -148,19 +181,20 @@ export default function App() {
       {ground ? <>
         <ForecastScreen {...common} active={tab === "forecast" && !overlay} key={`f-${ground.id}-${pin ? `${pin.lat},${pin.lon}` : "home"}`} pin={pin} clearPin={() => setPin(null)} />
         <MapScreen {...common} active={tab === "map" && !overlay} onForecastPin={(p) => { setPin(p); go("forecast"); }} />
-        <HuntLogScreen {...common} active={tab === "log" && !overlay} key={`l-${ground.id}`} />
-      </> : tab !== "more" && <NoGround go={go} />}
-      <MoreScreen {...common} active={tab === "more" && !overlay} />
-      {!overlay && <TabBar tab={tab} onTab={onTab} built={BUILT} />}
-      {overlay?.kind === "analysis" && <div className="overlay"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
+        <HuntLogScreen {...common} active={(tab === "log" || showHistory) && !overlay} view={showHistory ? "history" : "live"} key={`l-${ground.id}`}
+          onBack={() => setMorePage(null)} openHistory={() => { go("more"); setMorePage("history"); }} />
+      </> : tab !== "more" && <NoGround go={() => { go("more"); setMorePage("grounds"); }} />}
+      <MoreScreen {...common} active={tab === "more" && !showHistory && !overlay} page={morePage === "history" ? null : morePage} open={setMorePage} />
+      {overlay?.kind !== "track" && <TabBar tab={tab} onTab={onTab} built={BUILT} />}
+      {overlay?.kind === "analysis" && <div className="overlay with-tabs"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
       {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} stand={overlay.stand || overlay.center} live={overlay.live}
         sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === overlay.shot.hunt_id), overlay.shot)}
-        onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay}
+        onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay} photos={trackPhotos} db={db} toast={setToast}
         onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
-      {overlay?.kind === "huntmap" && <div className="overlay"><HuntMap db={db} hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
+      {overlay?.kind === "huntmap" && <div className="overlay with-tabs"><HuntMap db={db} hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
         stands={data?.stands || []} features={data?.features || []} onClose={closeOverlay} /></div>}
       <Menu open={menu} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}
-        email={session.user.email} onSignOut={signOut} onManage={() => { setMenu(false); go("more"); history.replaceState(null, "", "#more/grounds"); }} />
+        email={session.user.email} onSignOut={signOut} onManage={() => { setMenu(false); go("more"); setMorePage("grounds"); }} />
       {toast && <div className="toast" role="status">{toast}</div>}
     </>
   );
@@ -171,7 +205,7 @@ function NoGround({ go }) {
     <div className="page"><div className="splash">
       <h1>No hunting ground yet</h1>
       <p className="muted">Create one (or ask a friend to add you to theirs) to see the forecast and map.</p>
-      <button className="btn primary" onClick={() => { go("more"); history.replaceState(null, "", "#more/grounds"); }}>Set up a ground</button>
+      <button className="btn primary" onClick={go}>Set up a ground</button>
     </div></div>
   );
 }

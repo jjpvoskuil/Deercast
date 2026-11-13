@@ -9,11 +9,15 @@ export function demoSeed() {
   const me = DEMO_EMAIL;
   return {
     users: [{ email: me, name: "Demo Hunter", role: "admin" }, { email: "partner@example.com", name: "Hunting Partner", role: "member" }],
-    grounds: [{ ...g, owner: me, members: [me, "partner@example.com"], created: "2026-10-27T12:00:00" }],
+    grounds: [{ ...g, owner: me, members: [me, "partner@example.com"], created: "2026-10-27T12:00:00" },
+      // a ground the admin isn't on (admins still see it)
+      { id: "demo2", name: "Partner's Farm", owner: "partner@example.com", members: [], home: g.home, created: "2026-11-12T12:00:00" }],
     stands: { demo: d.stands }, features: { demo: d.features },
     hunts: d.hunts.map((h) => ({ ...h, owner: me, ground_id: "demo", start: "2026-10-27T15:30:00-05:00", end: "2026-10-27T18:10:00-05:00",
       notes: "", harvest: false, hours: [{ hour: "2026-10-27T16:00:00-05:00", score: 5.5, minutes: 60, seen: 0 },
-        { hour: "2026-10-27T17:00:00-05:00", score: 7.2, minutes: 60, seen: 3 }, { hour: "2026-10-27T18:00:00-05:00", score: 6.1, minutes: 10, seen: 1 }] })),
+        { hour: "2026-10-27T17:00:00-05:00", score: 7.2, minutes: 60, seen: 3 }, { hour: "2026-10-27T18:00:00-05:00", score: 6.1, minutes: 10, seen: 1 }] })).concat([{ id: "hp1", owner: "partner@example.com", ground_id: "demo", date: "2026-11-01", stand: "Stand: Creek Blind",
+      start: "2026-11-01T06:20:00-05:00", end: "2026-11-01T09:00:00-05:00", notes: "Partner's sit", harvest: false, hours: [],
+      sightings: [{ kind: "Doe", count: 2, activity: "", bait: "", group: "gp1", time: "2026-11-01T07:10:00-05:00" }] }]),
     shots: [], docs: {},
     punch: [{ id: "p1", title: "Example punch-list item", category: "Feature", priority: "Medium", status: "Open", details: "", created: "2026-11-01 10:00", updated: "2026-11-01 10:00" }],
   };

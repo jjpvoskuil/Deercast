@@ -28,9 +28,13 @@ su postgres -c "$P -f $HERE/schema.sql" >/dev/null
 su postgres -c "$P -f $HERE/schema.sql" >/dev/null   # re-runnable
 su postgres -c "$P" <<'SQL'
 insert into public.app_users values ('john@x.com', 'John', 'admin'), ('matt@x.com', 'Matt', 'member'), ('eve@x.com', 'Eve', 'member');
-insert into public.grounds (id, name, owner, members) values ('g1', 'Lewis/Klein', 'john@x.com', array['john@x.com', 'matt@x.com']);
+insert into public.grounds (id, name, owner, members) values ('g1', 'Lewis/Klein', 'john@x.com', array['john@x.com', 'matt@x.com']),
+  ('g2', 'Luke''s farm', 'matt@x.com', '{}');
+insert into public.stands values ('g2:s1', 'g2', '{}');
+insert into public.hunts values ('matt@x.com:h1', 'g2', 'matt@x.com', '{}'), ('john@x.com:h2', 'g1', 'john@x.com', '{}');
+insert into public.shots values ('matt@x.com:x1', 'g2', 'matt@x.com', '{}');
 insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g1/john@x.com/a.jpg'), ('hunt-photos', 'none/john@x.com/b.jpg'),
-  ('hunt-photos', 'g1/matt@x.com/c.jpg'), ('other', 'g1/john@x.com/z.jpg');
+  ('hunt-photos', 'g1/matt@x.com/c.jpg'), ('hunt-photos', 'g2/matt@x.com/m.jpg'), ('other', 'g1/john@x.com/z.jpg');
 SQL
 check() { # name, email, sql, expected
   local got
@@ -43,8 +47,8 @@ SQL
 }
 FAILED=0
 S="select string_agg(name, ',' order by name) from storage.objects;"
-check "owner sees own photos (ground + none), member's on shared ground" john@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,none/john@x.com/b.jpg"
-check "member sees ground photos, not owner's 'none' ones" matt@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg"
+check "admin sees own photos (ground + none), member's on shared ground, other grounds'" john@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,g2/matt@x.com/m.jpg,none/john@x.com/b.jpg"
+check "member sees ground photos, not owner's 'none' ones" matt@x.com "$S" "g1/john@x.com/a.jpg,g1/matt@x.com/c.jpg,g2/matt@x.com/m.jpg"
 check "approved non-member sees nothing" eve@x.com "$S" ""
 check "unapproved sees nothing" stranger@x.com "$S" ""
 check "add own photo on own ground" matt@x.com "insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g1/matt@x.com/d.jpg'); select 'ok';" "ok"
@@ -55,4 +59,18 @@ check "unapproved can't add" stranger@x.com "insert into storage.objects (bucket
 check "member can't delete owner's photo" matt@x.com "delete from storage.objects where name = 'g1/john@x.com/a.jpg'; select count(*) from storage.objects where name = 'g1/john@x.com/a.jpg';" "1"
 check "owner deletes own photo" john@x.com "delete from storage.objects where name = 'g1/john@x.com/a.jpg'; select count(*) from storage.objects where name = 'g1/john@x.com/a.jpg';" "0"
 check "bucket is private, JPEG only" john@x.com "reset role; select public::text || ',' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'hunt-photos';" "false,image/jpeg"
+G="select string_agg(id, ',' order by id) from public.grounds;"
+check "admin sees every ground" john@x.com "$G" "g1,g2"
+check "member sees only own grounds" matt@x.com "$G" "g1,g2"
+check "non-member sees no grounds" eve@x.com "$G" ""
+check "admin sees another ground's stands" john@x.com "select count(*) from public.stands where ground_id = 'g2';" "1"
+check "non-member can't see stands" eve@x.com "select count(*) from public.stands where ground_id = 'g2';" "0"
+check "admin sees everyone's hunts" john@x.com "select string_agg(id, ',' order by id) from public.hunts;" "john@x.com:h2,matt@x.com:h1"
+check "member sees only hunts on their grounds" eve@x.com "select count(*) from public.hunts;" "0"
+check "admin reads others' shots" john@x.com "select count(*) from public.shots;" "1"
+check "member can't read others' shots" eve@x.com "select count(*) from public.shots;" "0"
+check "admin can't edit someone else's hunt" john@x.com "update public.hunts set data = '{\"x\":1}' where id = 'matt@x.com:h1'; reset role; select data::text from public.hunts where id = 'matt@x.com:h1';" "{}"
+check "admin can't change someone else's shot" john@x.com "delete from public.shots; reset role; select count(*) from public.shots;" "1"
+check "admin can't rename someone else's ground" john@x.com "update public.grounds set name = 'x' where id = 'g2'; reset role; select name from public.grounds where id = 'g2';" "Luke's farm"
+check "admin can log own hunt on another ground" john@x.com "insert into public.hunts values ('john@x.com:h3', 'g2', 'john@x.com', '{}'); select 'ok';" "ok"
 exit $FAILED
