@@ -117,3 +117,6 @@ create policy "hunt photos add" on storage.objects for insert to authenticated w
   and ((storage.foldername(name))[1] = 'none' or public.is_member((storage.foldername(name))[1])));
 create policy "hunt photos delete" on storage.objects for delete to authenticated using (
   bucket_id = 'hunt-photos' and public.is_approved() and (storage.foldername(name))[2] = public.me());
+
+-- tell the Supabase API to pick up new tables (chat) right away
+notify pgrst, 'reload schema';
