@@ -534,8 +534,9 @@ function BandChart({ bands }) {
 export function HuntClock({ start, t, tz }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i); }, []);
-  const ref = start ?? now;
-  const morning = ref < t.sunrise + (t.sunset - t.sunrise) / 2;
+  // morning countdowns only until shortly after sunrise; from then on count down to sunset (a sit started
+  // mid-morning was stuck on "now legal" all day — John, 11-14). Goes by the clock now, not when the sit started.
+  const morning = now < t.sunrise + 30 * 60000;
   const items = morning ? [["Legal shooting light", t.legalStart, "starts"], ["Sunrise", t.sunrise, "starts"]]
     : [["Sunset", t.sunset, "ends"], ["Legal shooting light", t.legalEnd, "ends"]];
   const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
