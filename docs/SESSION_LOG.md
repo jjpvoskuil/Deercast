@@ -4,6 +4,13 @@ Newest first. Each session: what changed, decisions made, and what's open.
 
 ---
 
+## 2026-11-14 — Session 8: edit a deer sighting
+- John (on stand, iPhone screenshot): wants to edit a Deer seen entry during an active hunt, not just delete it.
+- Each sighting row now has an ✏️ Edit button above the ✕. It opens the Deer seen card inline, pre-filled (counts per type, time, doing, feeder, where / trail cam). "Save changes" swaps that entry's records in place: same `group` id, so linked photos stay attached, and notes are kept. Cancel closes it. Works on the live sit (saved to `active_hunt` at once) and in the past-hunt form / inline hunt edit.
+- A shot is linked to its sighting by the deer text (`shotSighting`); changing the counts on a sighting you shot at can unlink it on the hunt map.
+- Checked with Playwright on `?demo`: start sit → save 1 Buck → Edit → add a Doe, Feeding → saved as "1 Buck, 1 Doe · Feeding".
+- **Held, not pushed at first:** John was hunting with the app and asked for no changes mid-sit.
+
 ## 2026-11-13 — Session 7e: the strip under the tab bar, measured
 - The 7d `--ios-gap` shift made the tab bar **disappear** on John's iPhone: iOS doesn't draw fixed elements below the page it thinks it has. Reverted (8:36). `--ios-gap` stays 0. More now shows screen measurements.
 - John's iPhone (home-screen app): screen 402×874, page 402×812, safe top 62 / bottom 34. The page is short by exactly the status-bar height, the WebKit bug with `apple-mobile-web-app-status-bar-style: black-translucent` + `viewport-fit=cover`.

@@ -294,6 +294,9 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 .stepper b { font-size: 20px; min-width: 24px; text-align: center; }
 .sightings { margin: 8px 0; }
 .sighting { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; }
+.sighting-btns { display: flex; flex-direction: column; gap: 2px; }
+.sighting-edit { padding: 8px 0; border-top: 1px solid var(--line); }
+.sighting-edit .btn.wide + .btn.wide { margin-top: 8px; }
 .sighting .x { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: var(--muted); }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0; }
 .stats > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

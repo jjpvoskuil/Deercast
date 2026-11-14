@@ -193,6 +193,9 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   // each sighting is saved to the sit the moment you tap Save (survives closing the app)
   const addLive = async (recs) => { await putLive({ ...live, notes, sightings: [...live.sightings, ...recs] }); toast(`Saved — ${deerText(recs.map((r) => [r.kind, r.count]))}`); return true; };
+  // swap one sighting's records (positions idx) for its edited records, kept where the first one was
+  const replaceAt = (list, idx, recs) => { const at = Math.min(...idx), rest = list.filter((_, i) => !idx.includes(i)); return [...rest.slice(0, at), ...recs, ...rest.slice(at)]; };
+  const editLive = async (idx, recs) => { await putLive({ ...live, notes, sightings: replaceAt(live.sightings, idx, recs) }); toast(`Updated — ${deerText(recs.map((r) => [r.kind, r.count]))}`); return true; };
   const retime = (list, idx, hhmm, key) => list.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(key, hhmm, tz), tz) } : x));
   const [busy, setBusy] = useState(false);
   const liveCoords = ptOf(live?.where || where, live);
@@ -323,6 +326,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
             <SightingCard baitNames={baitNames} anchor={liveCoords} cameras={cameras} stands={stands} tz={tz} dayKey={dateKey(Date.parse(live.start), tz)} onSave={addLive} />
             <SightingList sightings={live.sightings} tz={tz} onRemove={(idx) => putLive({ ...live, notes, sightings: live.sightings.filter((_, i) => !idx.includes(i)) })}
               onRetime={(idx, hhmm) => putLive({ ...live, notes, sightings: retime(live.sightings, idx, hhmm, dateKey(Date.parse(live.start), tz)) })}
+              onEdit={editLive} card={{ baitNames, anchor: liveCoords, cameras, stands, tz, dayKey: dateKey(Date.parse(live.start), tz) }}
               onShot={(e) => { const d = new Date(Date.parse(e.time)); setShotForm({ huntId: live.id, stand: live.where, day: localDay(d), time: localHM(d), status: "hit", weapon_id: huntWeapon(live.id), dist: 20, deer: deerText(e.deer), notes: "" }); }} />
             {!live.sightings.length && <p className="muted small">Nothing saved yet. Each sighting is saved to this sit as soon as you tap Save.</p>}
             <div className="sub-h">Photos</div>
@@ -575,11 +579,20 @@ const EMPTY_LOC = { dir: null, dist_yd: null, came_from: null, went_to: null };
 /** One card for every sighting: source (stand / trail camera), time, how many of each, doing, bait, where → Save.
  *  Each Save is its own entry (deer seen together share a group id); the card resets for the next deer. */
 const SIGHT_TYPES = [["Buck", "Buck"], ["Doe", "Doe"], ["Doe fawn", "Fawn", "doe"], ["Button buck", "Fawn", "buck"], ["Fawn (?)", "Fawn", "unknown"], ["Unknown", "Unknown"]];
-function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, defaultTime, onSave }) {
+const typeKey = (r) => (SIGHT_TYPES.find(([, kind, fawn]) => kind === r.kind && (fawn || null) === (r.kind === "Fawn" ? r.fawn || "unknown" : null)) || SIGHT_TYPES[5])[0];
+/** `edit` = { recs, time } — the saved records of one sighting, to change in place (keeps its group id and notes). */
+function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, defaultTime, onSave, edit, onCancel }) {
   const zero = Object.fromEntries(SIGHT_TYPES.map(([k]) => [k, 0]));
-  const [c, setC] = useState(zero), [act, setAct] = useState(""), [bait, setBait] = useState(""), [loc, setLoc] = useState(EMPTY_LOC);
-  const [src, setSrc] = useState("stand"), [cam, setCam] = useState(cameras[0]?.id || "");
-  const [time, setTime] = useState(defaultTime || ""); // "" = now (live sit only)
+  const r0 = edit?.recs[0];
+  const [c, setC] = useState(() => {
+    if (!edit) return zero;
+    const o = { ...zero }; edit.recs.forEach((r) => { o[typeKey(r)] += +r.count || 1; }); return o;
+  });
+  const [act, setAct] = useState(r0?.activity || ""), [bait, setBait] = useState(r0?.bait || "");
+  const [loc, setLoc] = useState(r0 ? { dir: r0.dir ?? null, dist_yd: r0.dist_yd ?? null, came_from: r0.came_from ?? null, went_to: r0.went_to ?? null } : EMPTY_LOC);
+  const [src, setSrc] = useState(r0?.source === "camera" ? "camera" : "stand");
+  const [cam, setCam] = useState((r0?.source === "camera" && cameras.find((x) => (x.name || "Trail camera") === r0.camera)?.id) || cameras[0]?.id || "");
+  const [time, setTime] = useState(edit ? edit.time : defaultTime || ""); // "" = now (live sit only)
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!cam && cameras.length) setCam(cameras[0].id); }, [cameras.length]);
   const total = Object.values(c).reduce((a, b) => a + b, 0);
@@ -587,21 +600,21 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
   const picked = SIGHT_TYPES.filter(([k]) => c[k]).map(([k]) => [k, c[k]]);
   const save = async () => {
     if (!total) return;
-    const g = newId();
-    const stamp = time ? isoLocal(atLocal(dayKey, time, tz), tz) : isoLocal(Math.floor(Date.now() / 60000) * 60000, tz);
+    const g = r0?.group || newId();
+    const stamp = edit && !time ? r0.time : time ? isoLocal(atLocal(dayKey, time, tz), tz) : isoLocal(Math.floor(Date.now() / 60000) * 60000, tz);
     const near = camera?.stand_id ? stands.find((x) => x.id === camera.stand_id) : null;
     const recs = SIGHT_TYPES.filter(([k]) => c[k]).map(([k, kind, fawn]) => {
-      const r = { kind, count: c[k], activity: act, bait, notes: "", group: g, time: stamp, ...(fawn ? { fawn } : {}) };
+      const r = { kind, count: c[k], activity: act, bait, notes: r0?.notes || "", group: g, time: stamp, ...(fawn ? { fawn } : {}) };
       if (src === "camera" && camera) return { ...r, source: "camera", camera: camera.name || "Trail camera", near: near ? `Stand: ${near.name}` : null, lat: camera.lat, lon: camera.lon };
       return withPosition({ ...r, ...loc }, anchor);
     });
     setBusy(true);
     const ok = await onSave(recs);
     setBusy(false);
-    if (ok !== false) { setC(zero); setLoc(EMPTY_LOC); setAct(""); setBait(""); setTime(defaultTime || ""); }
+    if (ok !== false && !edit) { setC(zero); setLoc(EMPTY_LOC); setAct(""); setBait(""); setTime(defaultTime || ""); }
   };
   return (
-    <div className="picker sight-card">
+    <div className={`picker sight-card${edit ? " editing" : ""}`}>
       <div className="seg">
         <button className={src === "stand" ? "on" : ""} onClick={() => setSrc("stand")}>From my stand</button>
         <button className={src === "camera" ? "on" : ""} onClick={() => setSrc("camera")}>📷 On a trail cam</button>
@@ -612,7 +625,7 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
         : <p className="confirm small">No trail cameras on the map yet. On the Map, tap where a camera is → Add mark → Trail camera. Then pick it here.</p>)}
       <div className="time-row">
         <label className="field"><span>Time seen</span><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
-        {defaultTime == null && <button className={`btn sm ${time ? "" : "primary"}`} onClick={() => setTime("")}>Now</button>}
+        {defaultTime == null && !edit && <button className={`btn sm ${time ? "" : "primary"}`} onClick={() => setTime("")}>Now</button>}
       </div>
       <div className="steppers">
         {SIGHT_TYPES.map(([k]) => (
@@ -627,8 +640,9 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
       <Extras {...{ act, setAct, bait, setBait, baitNames }} />
       {src === "stand" && <WhereFields value={loc} onChange={setLoc} />}
       <button className="btn primary wide" disabled={!total || busy || (src === "camera" && !camera)} onClick={save}>
-        {busy ? "Saving…" : total ? `Save sighting — ${deerText(picked)}` : "Tap + to count deer, then save"}
+        {busy ? "Saving…" : edit ? (total ? `Save changes — ${deerText(picked)}` : "Count at least one deer") : total ? `Save sighting — ${deerText(picked)}` : "Tap + to count deer, then save"}
       </button>
+      {onCancel && <button className="btn wide" disabled={busy} onClick={onCancel}>Cancel</button>}
     </div>
   );
 }
@@ -641,12 +655,19 @@ function shotText(list, harvest) {
   return harvest ? " · harvest" : "";
 }
 
-function SightingList({ sightings, tz, onRemove, onRetime, onShot }) {
+function SightingList({ sightings, tz, onRemove, onRetime, onShot, onEdit, card }) {
+  const [editing, setEditing] = useState(null);
   const groups = groupSightings(sightings);
   if (!groups.length) return null;
   return (
     <div className="sightings">
-      {groups.map((e) => (
+      {groups.map((e) => editing === e.group && onEdit ? (
+        <div key={e.group} className="sighting-edit">
+          <div className="sub-h">Edit sighting</div>
+          <SightingCard {...card} edit={{ recs: e.idx.map((i) => sightings[i]), time: timeOf(Date.parse(e.time), tz) }} onCancel={() => setEditing(null)}
+            onSave={async (recs) => { const ok = await onEdit(e.idx, recs); if (ok !== false) setEditing(null); return ok; }} />
+        </div>
+      ) : (
         <div key={e.group} className="sighting">
           <div style={{ flex: 1, minWidth: 0 }}>
             {onRetime
@@ -656,7 +677,10 @@ function SightingList({ sightings, tz, onRemove, onRetime, onShot }) {
             {whereText(e) && <div className="muted small">{whereText(e)}</div>}
             {onShot && e.source !== "camera" && <button className="btn sm shot-this" onClick={() => onShot(e)}>🎯 I shot at {e.deer.length === 1 && e.deer[0][1] === 1 ? "this deer" : "one of these"}</button>}
           </div>
-          <button className="x" aria-label="Remove" onClick={() => onRemove(e.idx)}><Icon name="x" size={18} /></button>
+          <div className="sighting-btns">
+            {onEdit && <button className="x" aria-label="Edit" onClick={() => setEditing(e.group)}><Icon name="edit" size={18} /></button>}
+            <button className="x" aria-label="Remove" onClick={() => onRemove(e.idx)}><Icon name="x" size={18} /></button>
+          </div>
         </div>
       ))}
     </div>
@@ -697,7 +721,9 @@ function HuntForm({ initial, tz, whereOptions, baitNames, coords, today, onSubmi
       <SightingCard key={`${f.date}-${f.start}`} baitNames={baitNames} anchor={coords(f.where)} cameras={cameras} stands={stands} tz={tz} dayKey={f.date} defaultTime={f.start}
         onSave={(recs) => { setF({ ...f, sightings: [...f.sightings, ...recs] }); return true; }} />
       <SightingList sightings={f.sightings} tz={tz} onRemove={(idx) => setF({ ...f, sightings: f.sightings.filter((_, i) => !idx.includes(i)) })}
-        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })} />
+        onRetime={(idx, hhmm) => setF({ ...f, sightings: f.sightings.map((x, i) => (idx.includes(i) ? { ...x, time: isoLocal(atLocal(f.date, hhmm, tz), tz) } : x)) })}
+        onEdit={(idx, recs) => { const at = Math.min(...idx), rest = f.sightings.filter((_, i) => !idx.includes(i)); setF({ ...f, sightings: [...rest.slice(0, at), ...recs, ...rest.slice(at)] }); return true; }}
+        card={{ baitNames, anchor: coords(f.where), cameras, stands, tz, dayKey: f.date, defaultTime: f.start }} />
       {!f.sightings.length && <p className="muted small">No deer added — that's fine for a sit where you saw nothing.</p>}
       {!onShotAfter && <p className="muted small">Shots for this hunt are listed under it — save, then use 🎯 there.</p>}
       <label className="field"><span>Notes</span><textarea rows="2" value={f.notes} onChange={set("notes")} /></label>
