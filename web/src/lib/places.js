@@ -65,8 +65,10 @@ export async function countyFor(lat, lon) {
 /** The phone's location (asks permission). */
 export const myLocation = () => new Promise((res, rej) => {
   if (!navigator.geolocation) return rej(new Error("Location isn't available on this device"));
-  navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
-    () => rej(new Error("Location permission was denied")), { enableHighAccuracy: true, timeout: 15000 });
+  // the location prompt / GPS start can leave an iPhone home-screen app's taps offset: re-seat the page after (main.jsx)
+  const done = () => window.__vpReset?.("location");
+  navigator.geolocation.getCurrentPosition((p) => { done(); res({ lat: p.coords.latitude, lon: p.coords.longitude }); },
+    () => { done(); rej(new Error("Location permission was denied")); }, { enableHighAccuracy: true, timeout: 15000 });
 });
 
 export const REG_DATA = REGS;
