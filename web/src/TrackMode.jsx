@@ -68,8 +68,45 @@ export function normalizeTrack(s) {
   return { ...s, trips, pins, recovery };
 }
 
-export default function TrackMode({ shot: initial, center, stand, sighting = null, live: startLive, onSave, onClose, onAnalysis, photos = null, db = null, toast = null }) {
+// other people on the same track (shooter + helpers), one color each — not the trip colors
+const PEOPLE_COLORS = ["#ffd60a", "#bf5af2", "#64d2ff", "#ff9f0a", "#30d158"];
+/** Someone else's trips + pins on this track, read-only (helping track, 11-14). */
+function drawPerson(g, o, col, onPin) {
+  const all = [];
+  for (const t of o.trips || []) {
+    let seg = [];
+    (t.path || []).forEach((p, j) => {
+      if (j && p[2] && t.path[j - 1][2] && p[2] - t.path[j - 1][2] > 60000) { if (seg.length > 1) L.polyline(seg, { color: col, weight: 4, opacity: 0.85, interactive: false }).addTo(g); seg = []; }
+      seg.push([p[0], p[1]]); all.push([p[0], p[1]]);
+    });
+    if (seg.length > 1) L.polyline(seg, { color: col, weight: 4, opacity: 0.85, interactive: false }).addTo(g);
+    if ((t.drawn || []).length > 1) L.polyline(t.drawn, { color: col, weight: 4, opacity: 0.85, dashArray: "8 8", interactive: false }).addTo(g);
+    all.push(...(t.drawn || []));
+  }
+  for (const p of o.pins || []) {
+    L.marker([p.lat, p.lon], { icon: L.divIcon({ className: "", iconSize: [28, 28], iconAnchor: [14, 14],
+      html: `<div class="emoji pin other" style="border-color:${col}">${PIN_KINDS[p.kind]?.[0] || "📌"}</div>` }) })
+      .bindPopup(`${PIN_KINDS[p.kind]?.[0] || "📌"} ${PIN_KINDS[p.kind]?.[1] || "Pin"} — ${o.who}${p.time ? ` · ${clock(p.time)}` : ""}${p.notes ? `<br>${p.notes}` : ""}`).addTo(g);
+    all.push([p.lat, p.lon]);
+  }
+  if (o.recovery?.lat != null) { L.marker([o.recovery.lat, o.recovery.lon], { icon: pinIcon("🦌") }).bindPopup(`Recovered — ${o.who}`).addTo(g); all.push([o.recovery.lat, o.recovery.lon]); }
+  return all;
+}
+
+/** `helping` = the shooter's shot when I'm helping someone track (my own trips/pins are `shot`, saved apart);
+ *  `loadOthers()` → [{ who, trips, pins, recovery?, result? }] — everyone else on this track, refreshed every 15 s. */
+export default function TrackMode({ shot: initial, center, stand, sighting = null, live: startLive, onSave, onClose, onAnalysis, photos = null, db = null, toast = null,
+  helping = null, loadOthers = null }) {
   const [s, setS] = useState(() => normalizeTrack(initial));
+  const [others, setOthers] = useState(() => (helping ? [{ who: helping.who, ...normalizeTrack(helping) }] : []));
+  useEffect(() => {
+    if (!loadOthers) return;
+    let gone = false;
+    const get = () => loadOthers().then((xs) => { if (!gone) setOthers(xs.map((o) => ({ ...o, ...normalizeTrack(o) }))); }).catch(() => {});
+    get(); const i = setInterval(() => document.visibilityState === "visible" && get(), 15000);
+    return () => { gone = true; clearInterval(i); };
+  }, []);
+  const base = helping ? others.find((o) => o.isShot) || { ...normalizeTrack(helping), who: helping.who } : null; // the shooter's track, latest
   const sRef = useRef(s); sRef.current = s;
   const [live, setLive] = useState(startLive);          // GPS recording on
   const [me, setMe] = useState(null);                    // [lat, lon, accuracy]
@@ -196,7 +233,9 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
     const st = stand || center, all = [st];
     L.marker(st, { icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: '<div class="stand-pin">S</div>' }), interactive: false }).addTo(g);
     // where you think the shot deer went (hit analysis 'ran', else its 'Deer seen' 'went toward') — under the tracks
-    if (showRun) all.push(...drawShotRun(g, shotRun(s, sighting, st), { hitMarker: !s.pins.some((p) => p.kind === "hit") }));
+    const runOf = base || s, hasHit = [...s.pins, ...(base?.pins || [])].some((p) => p.kind === "hit");
+    if (showRun) all.push(...drawShotRun(g, shotRun(runOf, sighting, st), { hitMarker: !hasHit }));
+    others.forEach((o, i) => all.push(...drawPerson(g, o, PEOPLE_COLORS[i % PEOPLE_COLORS.length])));
     all.push(...drawTrips(g, s.trips));
     for (const p of s.pins) {
       L.marker([p.lat, p.lon], { icon: pinIcon(PIN_KINDS[p.kind]?.[0] || "📌", p.id === sel) }).on("click", () => setSel(p.id)).addTo(g);
@@ -205,7 +244,7 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
     if (fd?.lat != null && sheet === "found") L.marker([fd.lat, fd.lon], { icon: pinIcon("🦌", true) }).addTo(g);
     if (s.recovery?.lat != null) { L.marker([s.recovery.lat, s.recovery.lon], { icon: pinIcon("🦌") }).bindPopup("Recovered here").addTo(g); all.push([s.recovery.lat, s.recovery.lon]); }
     if (!fitted.current && all.length > 1) { map.current.fitBounds(L.latLngBounds(all).pad(0.3), { maxZoom: 19 }); fitted.current = true; }
-  }, [s, sel, fd, sheet, showRun]);
+  }, [s, sel, fd, sheet, showRun, others]);
   useEffect(() => {
     const g = meLayer.current; if (!g) return; g.clearLayers();
     if (me) { L.circle([me[0], me[1]], { radius: me[2], color: "#4da3ff", weight: 1, fillOpacity: 0.12, interactive: false }).addTo(g);
@@ -231,8 +270,9 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
   const selPin = s.pins.find((p) => p.id === sel);
   const walked = openTrip ? pathYards(openTrip.path.map((p) => [p[0], p[1]])) : 0;
   const lastPin = s.pins[s.pins.length - 1];
-  const hitPin = s.pins.find((p) => p.kind === "hit");
-  const hasRun = shotRun(s, sighting, stand || center).bearing != null;
+  const hitPin = s.pins.find((p) => p.kind === "hit") || base?.pins.find((p) => p.kind === "hit");
+  const hasRun = shotRun(base || s, sighting, stand || center).bearing != null;
+  const otherNames = [...new Set(others.map((o) => o.who))];
 
   // photos of the recovered deer: saved on the hunt (they show in Hunt history and on the hunt map), tagged with this shot
   const deerPhotos = photos && db ? (
@@ -247,7 +287,10 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
       <div className="track-top">
         <button className="btn sm" onClick={close} aria-label="Close map"><Icon name="x" size={18} /> Close</button>
         <div className="track-title">
-          <b>{s.recovery ? "Recovered 🦌" : s.result === "not_found" ? "Track ended — not found" : openTrip ? `Tracking · trip ${tripNo(openTrip.id)}` : "Track paused"}</b>
+          <b>{helping ? (base?.recovery ? `${base.who} found it 🦌` : base?.result === "not_found" ? `${base.who} called it off`
+            : `Helping ${helping.who}${openTrip ? " · tracking" : " · paused"}`)
+            : s.recovery ? "Recovered 🦌" : s.result === "not_found" ? "Track ended — not found" : openTrip ? `Tracking · trip ${tripNo(openTrip.id)}` : "Track paused"}</b>
+          {otherNames.length > 0 && <span className="small people-line">{otherNames.map((n, i) => <span key={n}><i className="sw" style={{ background: PEOPLE_COLORS[others.findIndex((o) => o.who === n) % PEOPLE_COLORS.length] }} />{n}</span>)}</span>}
           <span className="muted small">{live ? (me ? `${crumbs && openTrip ? "● Recording" : "Paused"} · ${walked} yd · ±${Math.round(me[2])} m` : gpsMsg || "Finding GPS…") : "Editing — tap the map to place things"}</span>
         </div>
         {live && openTrip && <button className={`btn sm ${crumbs ? "" : "primary"}`} onClick={() => setCrumbs(!crumbs)}>{crumbs ? "Pause" : "Resume"}</button>}
@@ -298,7 +341,13 @@ export default function TrackMode({ shot: initial, center, stand, sighting = nul
               </div>
               <button className={`btn sm ${draw ? "primary" : ""}`} onClick={() => { setDraw(!draw); setArm(null); }}>✏️ Draw path</button>
             </div>
-            {s.recovery || s.result === "not_found" ? (<>
+            {helping ? (<>
+              <div className="track-actions">
+                {openTrip ? <button className="btn" onClick={() => setSheet("stop")}>⏸ Stop helping for now</button>
+                  : <button className="btn primary" onClick={() => setSheet("start")}>▶ {s.trips.length ? "Pick up helping" : "Start helping"}</button>}
+              </div>
+              <p className="muted small">Your path and pins show on {helping.who}'s map, and theirs on yours (updates every 15 s). Found the deer? Drop a pin with a note and call {helping.who} — they mark it recovered.</p>
+            </>) : s.recovery || s.result === "not_found" ? (<>
               <div className="btn-row">
                 <button className="btn" onClick={() => setSheet("log")}>See the whole track</button>
                 {s.recovery && <button className="btn" onClick={() => { setFd(blankRecovery(s.recovery)); setSheet("found"); }}>Edit recovery</button>}

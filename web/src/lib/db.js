@@ -39,10 +39,14 @@ export function supabaseDb(sb, email) {
     deleteHunt: async (id) => ok(await sb.from("hunts").delete().eq("id", `${me}:${id}`)),
     // shots (personal)
     listShots: async () => rows(await sb.from("shots").select("data").eq("owner", me)),
-    // everyone's shots on a ground (row-level security: admins see them all, others only their own)
+    // everyone's shots on a ground (members of the ground can read them since 11-14 — helping track)
     listGroundShots: async (gid) => ok(await sb.from("shots").select("owner,data").eq("ground_id", gid)).map((r) => ({ ...r.data, owner: r.owner })),
     saveShot: async (s) => ok(await sb.from("shots").upsert({ id: `${me}:${s.id}`, ground_id: s.ground_id || null, owner: me, data: s })),
     deleteShot: async (id) => ok(await sb.from("shots").delete().eq("id", `${me}:${id}`)),
+    // helping track someone's shot: one row per helper; key = "<shooter email>:<shot id>"
+    listHelp: async (key) => ok(await sb.from("track_help").select("owner,data").eq("shot_key", key)).map((r) => ({ ...r.data, owner: r.owner })),
+    saveHelp: async (h) => { const { owner, ...d } = h; return ok(await sb.from("track_help").upsert({ id: `${me}:${d.shot_key}`, shot_key: d.shot_key, ground_id: d.ground_id, owner: me, data: d })); },
+    deleteHelp: async (key) => ok(await sb.from("track_help").delete().eq("id", `${me}:${key}`)),
     // personal documents: gear, active_hunt
     getDoc: async (name, dflt) => { const r = ok(await sb.from("user_docs").select("data").eq("owner", me).eq("name", name)); return r.length ? r[0].data : dflt; },
     putDoc: async (name, data) => (data == null
@@ -104,9 +108,12 @@ export function demoDb(seed) {
     lastChat: async () => clone((st.chat || []).filter((m) => m.author !== me).slice(-1)[0] || null),
     postChat: async (body) => { (st.chat ||= []).push({ id: newId(), created: nowIso(), author: me, body }); save(); },
     deleteChat: async (id) => del(st.chat || [], (m) => m.id === id),
-    listGroundShots: async (gid) => clone(st.shots.filter((s) => s.ground_id === gid).map((s) => ({ owner: me, ...s }))),
+    listGroundShots: async (gid) => clone([...st.shots.map((s) => ({ owner: me, ...s })), ...(st.otherShots || [])].filter((s) => s.ground_id === gid)),
     saveShot: async (s) => up(st.shots, clone(s)),
     deleteShot: async (id) => del(st.shots, (s) => s.id === id),
+    listHelp: async (key) => clone((st.help ||= []).filter((h) => h.shot_key === key)),
+    saveHelp: async (h) => up((st.help ||= []), { ...clone(h), owner: h.owner || me, id: `${h.owner || me}:${h.shot_key}` }),
+    deleteHelp: async (key) => del(st.help || [], (h) => h.id === `${me}:${key}`),
     getDoc: async (name, dflt) => (name in st.docs ? clone(st.docs[name]) : dflt),
     putDoc: async (name, data) => { if (data == null) delete st.docs[name]; else st.docs[name] = clone(data); save(); },
     listPunch: async () => clone(st.punch),

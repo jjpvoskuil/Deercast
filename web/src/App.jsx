@@ -7,13 +7,14 @@ import MoreScreen from "./MoreScreen.jsx";
 import ShotScreen from "./ShotScreen.jsx";
 import { Menu, TabBar } from "./Shell.jsx";
 import { demoSeed } from "./demo.js";
-import { demoDb, nowIso, supabaseDb } from "./lib/db.js";
+import { demoDb, newId, nowIso, supabaseDb } from "./lib/db.js";
 import TrackMode from "./TrackMode.jsx";
 import HuntMap from "./HuntMap.jsx";
 import { shotSighting } from "./lib/huntmap.js";
 import { resolveTheme } from "./lib/theme.js";
 import { useUpdate } from "./lib/update.js";
 import { CHAT_READ } from "./Chat.jsx";
+const NAMES = { map: null }; // app users' names for helping track
 
 const LAST_GROUND = "deercast.ground";
 const THEME_PREF = "deercast.theme";
@@ -182,9 +183,33 @@ export default function App() {
 
   const showHistory = tab === "more" && morePage === "history" && !!ground;
   const openTrack = (shot, center, live, stand, sighting = null) => setOverlay({ kind: "track", shot, center, live, stand, sighting });
+  // ---- helping track (11-14): someone else's open track on this ground. My trips/pins are my own track_help row;
+  // the shooter's track and other helpers' show read-only on the map (and mine on theirs).
+  const userNames = NAMES; // module-level cache (no hook here: this code runs after early returns)
+  const nameOf = async (email) => {
+    if (!userNames.map) userNames.map = await db.listUsers().then((us) => Object.fromEntries(us.map((u) => [u.email, u.name || u.email.split("@")[0]]))).catch(() => ({}));
+    return userNames.map[email] || String(email).split("@")[0];
+  };
+  const helpersOf = async (key, skip) => Promise.all((await db.listHelp(key)).filter((h) => h.owner !== skip).map(async (h) => ({ ...h, who: await nameOf(h.owner) })));
+  const openHelp = async (shot, center, stand) => {
+    const key = `${shot.owner}:${shot.id}`;
+    try {
+      const mine = (await db.listHelp(key)).find((h) => h.owner === db.email);
+      const who = await nameOf(shot.owner);
+      setOverlay({ kind: "track", shot: mine || { id: newId(), shot_key: key, ground_id: shot.ground_id || ground?.id, trips: [], pins: [] }, center, live: true, stand,
+        helping: { ...shot, who } });
+    } catch (e) { setToast(`Couldn't open the track — ${e.message}`); }
+  };
+  const othersFor = (ov) => (ov.helping
+    ? async () => {
+      const key = `${ov.helping.owner}:${ov.helping.id}`;
+      const shot = (await db.listGroundShots(ov.helping.ground_id || ground?.id)).find((x) => x.id === ov.helping.id && x.owner === ov.helping.owner) || ov.helping;
+      return [{ ...shot, who: ov.helping.who, isShot: true }, ...await helpersOf(key, db.email)];
+    }
+    : async () => helpersOf(`${db.email}:${ov.shot.id}`, db.email));
   const openAnalysis = (shotId) => setOverlay({ kind: "analysis", shotId });
   const openHuntMap = (hunt, shots, tz) => setOverlay({ kind: "huntmap", hunt, shots, tz });
-  const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true), openAnalysis, openTrack, openHuntMap, shotsV, patchShot,
+  const common = { db, me, ground, grounds, data, demo, theme, save, toast: setToast, go, onMenu: () => setMenu(true), openAnalysis, openTrack, openHuntMap, openHelp, shotsV, patchShot,
     setGround: setGid, reloadGrounds: loadGrounds, reloadData: loadData, signOut };
   return (
     <>
@@ -199,9 +224,11 @@ export default function App() {
       {overlay?.kind !== "track" && <TabBar tab={tab} onTab={onTab} built={BUILT} dots={{ more: !!update || chatNew }} />}
       {overlay?.kind === "analysis" && <div className="overlay with-tabs"><ShotScreen {...common} active shotId={overlay.shotId} onClose={closeOverlay} /></div>}
       {overlay?.kind === "track" && <div className="overlay"><TrackMode shot={overlay.shot} center={overlay.center} stand={overlay.stand || overlay.center} live={overlay.live}
-        sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === overlay.shot.hunt_id), overlay.shot)}
-        onAnalysis={() => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay} photos={trackPhotos} db={db} toast={setToast}
-        onSave={async (rec) => { try { await db.saveShot(rec); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
+        sighting={overlay.sighting || shotSighting((data?.hunts || []).find((h) => h.id === (overlay.helping || overlay.shot).hunt_id), overlay.helping || overlay.shot)}
+        helping={overlay.helping || null} loadOthers={othersFor(overlay)}
+        onAnalysis={overlay.helping ? null : () => { setOverlay({ kind: "analysis", shotId: overlay.shot.id }); }} onClose={closeOverlay}
+        photos={overlay.helping ? null : trackPhotos} db={db} toast={setToast}
+        onSave={async (rec) => { try { await (overlay.helping ? db.saveHelp(rec) : db.saveShot(rec)); } catch (e) { setToast(`Couldn't save — ${e.message}`); throw e; } }} /></div>}
       {overlay?.kind === "huntmap" && <div className="overlay with-tabs"><HuntMap db={db} hunt={overlay.hunt} shots={overlay.shots} tz={overlay.tz}
         stands={data?.stands || []} features={data?.features || []} onClose={closeOverlay} /></div>}
       <Menu open={menu} update={update} onClose={() => setMenu(false)} ground={ground} grounds={grounds} onGround={setGid} theme={theme}

@@ -501,3 +501,8 @@ html.ios-short { --tab-pad: 0px; }
 .deer-name .chip.sm { min-height: 36px; padding: 0 12px; font-size: 15px; }
 .deer-name .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .deer-tag { color: var(--accent-text); }
+
+/* Helping track */
+.emoji.pin.other { font-size: 17px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid; background: #0007; }
+.people-line { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.people-line .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }

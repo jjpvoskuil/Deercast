@@ -16,6 +16,9 @@
 --     messages (admins can delete any).
 --   * A sit in progress (user_docs 'active_hunt') can be watched read-only by every approved user, whatever ground it's
 --     on (More → Who's hunting), along with the photos on it. Nobody can change someone else's sit.
+--   * Helping track (11-14, John): members of a ground can see the shots on it (so a helper sees the hit spot, the
+--     shooter's path and pins). A helper's own path and pins go in track_help, one row per helper per shot: members of
+--     the ground see them; only the helper adds, changes or deletes their own. Nobody changes someone else's shot.
 
 create table if not exists public.app_users (email text primary key, name text, role text not null default 'member');
 create table if not exists public.grounds (id text primary key, name text not null, owner text not null,
@@ -28,6 +31,10 @@ create table if not exists public.user_docs (owner text not null, name text not 
 create table if not exists public.punchlist (id text primary key, data jsonb not null);
 create table if not exists public.chat (id text primary key, created timestamptz not null default now(), author text not null,
   body text not null check (char_length(body) between 1 and 2000));
+-- one helper's tracking (trips, pins) on someone's shot; shot_key = '<shooter email>:<shot id>'
+create table if not exists public.track_help (id text primary key, shot_key text not null,
+  ground_id text not null references public.grounds(id) on delete cascade, owner text not null, data jsonb not null);
+create index if not exists track_help_shot on public.track_help (shot_key);
 create index if not exists chat_created on public.chat (created desc);
 
 -- deleting a ground keeps everyone's hunt logs and shots (they just lose the ground link)
@@ -46,7 +53,7 @@ create or replace function public.leave_ground(gid text) returns void language s
   update public.grounds set members = array_remove(members, public.me()) where id = gid and owner <> public.me() and public.is_approved() $$;
 
 do $$ declare t text; begin
-  foreach t in array array['app_users','grounds','stands','features','hunts','shots','user_docs','punchlist','chat'] loop
+  foreach t in array array['app_users','grounds','stands','features','hunts','shots','user_docs','punchlist','chat','track_help'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on public.%I from anon, authenticated', t);
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
@@ -56,7 +63,7 @@ end $$;
 -- drop every existing policy on these tables, then create the current set
 do $$ declare p record; begin
   for p in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('app_users','grounds','stands','features','hunts','shots','user_docs','punchlist','chat') loop
+    and tablename in ('app_users','grounds','stands','features','hunts','shots','user_docs','punchlist','chat','track_help') loop
     execute format('drop policy %I on public.%I', p.policyname, p.tablename);
   end loop;
 end $$;
@@ -82,6 +89,11 @@ create policy "hunts del"   on public.hunts for delete to authenticated using (p
 
 create policy "shots own"     on public.shots     for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 create policy "shots admin read" on public.shots  for select to authenticated using (public.is_admin());
+-- helping track (11-14): everyone on the ground can see its shots (read-only)
+create policy "shots ground read" on public.shots for select to authenticated using (public.is_member(ground_id));
+create policy "help read"  on public.track_help for select to authenticated using (public.is_member(ground_id) or (public.is_approved() and owner = public.me()));
+create policy "help own"   on public.track_help for all to authenticated
+  using (public.is_approved() and owner = public.me()) with check (owner = public.me() and public.is_member(ground_id));
 create policy "docs own"      on public.user_docs for all to authenticated using (public.is_approved() and owner = public.me()) with check (owner = public.me());
 -- "Who's hunting" (11-13, John): any approved user can watch (not change) anyone's sit in progress, on any ground
 create policy "docs live sit" on public.user_docs for select to authenticated
@@ -118,5 +130,5 @@ create policy "hunt photos add" on storage.objects for insert to authenticated w
 create policy "hunt photos delete" on storage.objects for delete to authenticated using (
   bucket_id = 'hunt-photos' and public.is_approved() and (storage.foldername(name))[2] = public.me());
 
--- tell the Supabase API to pick up new tables (chat) right away
+-- tell the Supabase API to pick up new tables (chat, track_help) right away
 notify pgrst, 'reload schema';

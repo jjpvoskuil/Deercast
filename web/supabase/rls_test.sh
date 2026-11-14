@@ -32,7 +32,7 @@ insert into public.grounds (id, name, owner, members) values ('g1', 'Lewis/Klein
   ('g2', 'Luke''s farm', 'matt@x.com', '{}');
 insert into public.stands values ('g2:s1', 'g2', '{}');
 insert into public.hunts values ('matt@x.com:h1', 'g2', 'matt@x.com', '{}'), ('john@x.com:h2', 'g1', 'john@x.com', '{}');
-insert into public.shots values ('matt@x.com:x1', 'g2', 'matt@x.com', '{}');
+insert into public.shots values ('matt@x.com:x1', 'g2', 'matt@x.com', '{}'), ('john@x.com:x2', 'g1', 'john@x.com', '{}');
 insert into public.user_docs values ('matt@x.com', 'active_hunt', '{"ground_id": "g2", "photos": [{"path": "g2/matt@x.com/m.jpg"}]}'),
   ('matt@x.com', 'gear', '{}'), ('eve@x.com', 'active_hunt', '{"ground_id": "g9"}');
 insert into storage.objects (bucket_id, name) values ('hunt-photos', 'g2/matt@x.com/m_t.jpg'), ('hunt-photos', 'g2/matt@x.com/old.jpg');
@@ -70,10 +70,19 @@ check "admin sees another ground's stands" john@x.com "select count(*) from publ
 check "non-member can't see stands" eve@x.com "select count(*) from public.stands where ground_id = 'g2';" "0"
 check "admin sees everyone's hunts" john@x.com "select string_agg(id, ',' order by id) from public.hunts;" "john@x.com:h2,matt@x.com:h1"
 check "member sees only hunts on their grounds" eve@x.com "select count(*) from public.hunts;" "0"
-check "admin reads others' shots" john@x.com "select count(*) from public.shots;" "1"
-check "member can't read others' shots" eve@x.com "select count(*) from public.shots;" "0"
+check "admin reads others' shots" john@x.com "select count(*) from public.shots where owner <> 'john@x.com';" "1"
+check "non-member can't read others' shots" eve@x.com "select count(*) from public.shots;" "0"
+check "member reads shots on their ground (help track)" matt@x.com "select string_agg(id, ',' order by id) from public.shots;" "john@x.com:x2,matt@x.com:x1"
+check "member can't change someone else's shot" matt@x.com "update public.shots set data = '{\"x\":1}' where id = 'john@x.com:x2'; reset role; select data::text from public.shots where id = 'john@x.com:x2';" "{}"
+check "helper saves own help track" matt@x.com "insert into public.track_help values ('matt@x.com:john@x.com:x2', 'john@x.com:x2', 'g1', 'matt@x.com', '{}'); select 'ok';" "ok"
+check "shooter sees the helper's track" john@x.com "select owner from public.track_help where shot_key = 'john@x.com:x2';" "matt@x.com"
+check "non-member can't see help tracks" eve@x.com "select count(*) from public.track_help;" "0"
+check "can't help as someone else" matt@x.com "insert into public.track_help values ('x', 'john@x.com:x2', 'g1', 'john@x.com', '{}'); select 'ok';" 'ERROR:  new row violates row-level security policy for table "track_help"'
+check "can't help on a ground you're not on" eve@x.com "insert into public.track_help values ('y', 'john@x.com:x2', 'g1', 'eve@x.com', '{}'); select 'ok';" 'ERROR:  new row violates row-level security policy for table "track_help"'
+check "shooter can't change a helper's track" john@x.com "update public.track_help set data = '{\"x\":1}'; reset role; select data::text from public.track_help;" "{}"
+check "helper deletes own help track" matt@x.com "delete from public.track_help; reset role; select count(*) from public.track_help;" "0"
 check "admin can't edit someone else's hunt" john@x.com "update public.hunts set data = '{\"x\":1}' where id = 'matt@x.com:h1'; reset role; select data::text from public.hunts where id = 'matt@x.com:h1';" "{}"
-check "admin can't change someone else's shot" john@x.com "delete from public.shots; reset role; select count(*) from public.shots;" "1"
+check "admin can't change someone else's shot" john@x.com "delete from public.shots where owner <> 'john@x.com'; reset role; select count(*) from public.shots where owner <> 'john@x.com';" "1"
 check "admin can't rename someone else's ground" john@x.com "update public.grounds set name = 'x' where id = 'g2'; reset role; select name from public.grounds where id = 'g2';" "Luke's farm"
 check "admin can log own hunt on another ground" john@x.com "insert into public.hunts values ('john@x.com:h3', 'g2', 'john@x.com', '{}'); select 'ok';" "ok"
 L="select string_agg(owner || '/' || name, ',' order by owner, name) from public.user_docs;"

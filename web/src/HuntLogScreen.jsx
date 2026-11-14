@@ -46,7 +46,7 @@ async function scoredDay(lat, lon, key, rutPeak) {
 }
 
 /** view "live" = the Hunt tab (the sit in progress, open tracks); "history" = More → Hunt history (past hunts, forecast check). */
-export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, openHuntMap, shotsV,
+export default function HuntLogScreen({ db, me, ground, data, demo, theme, save, toast, onMenu, active: shown, openTrack, openAnalysis, openHuntMap, openHelp, shotsV,
   view = "live", onBack, openHistory }) {
   const isHistory = view === "history";
   useEffect(() => { document.querySelector(".page.hunt-log")?.scrollTo(0, 0); }, [view]);
@@ -113,6 +113,19 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   const listed = showAll ? everyone : mine;
   const isMine = (h) => !h.owner || h.owner === db.email;
   const [names, setNames] = useState({});
+  // helping track: other hunters' open tracks on this ground (hit in the last 3 days, not found / called off yet)
+  const [helpable, setHelpable] = useState([]);
+  useEffect(() => {
+    if (!shown || isHistory || !db.listGroundShots || !ground?.id) return;
+    const get = () => db.listGroundShots(ground.id).then(async (xs) => {
+      const open = xs.filter((x) => x.owner && x.owner !== db.email && x.status === "hit" && (!x.result || x.result === "tracking") && !x.recovery
+        && (!x.time_iso || Date.now() - Date.parse(x.time_iso) < 3 * 86400e3));
+      if (open.length) { const us = await db.listUsers().catch(() => []); setNames((n) => ({ ...n, ...Object.fromEntries(us.map((u) => [u.email, u.name || u.email])) })); }
+      setHelpable(open);
+    }).catch(() => {});
+    get(); const i = setInterval(get, 60000);
+    return () => clearInterval(i);
+  }, [shown, isHistory, ground?.id]);
   const [otherShots, setOtherShots] = useState([]);
   useEffect(() => {
     if (!shown || !isHistory || !showAll) return;
@@ -290,6 +303,19 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
               <button className="btn primary" onClick={() => openTrack(x, centerFor(x), true, standOf(x))}>▶ Pick up the track</button>
               <button className="btn" onClick={() => openTrack(x, centerFor(x), false, standOf(x))}>🗺️ Map / edit</button>
             </div>
+          </section>
+        );
+      })}
+
+      {/* ------------------------------------------------ help someone else track their deer */}
+      {helpable.map((x) => {
+        const n = normalizeTrack(x), who = names[x.owner] || x.owner.split("@")[0], t = n.trips[n.trips.length - 1];
+        return (
+          <section key={`${x.owner}:${x.id}`} className="card open-track help-track">
+            <span className="h2">🤝 {who} is tracking a deer</span>
+            <p className="small">Shot {x.time}{x.stand ? ` from ${x.stand.replace("Stand: ", "")}` : ""}{x.outcome ? ` · ${x.outcome}` : ""}{x.deer ? ` · ${x.deer}` : ""}</p>
+            <p className="muted small">{t ? (t.end ? `Paused ${fmtClock(Date.parse(t.end), tz)}${t.stopped ? ` — ${t.stopped.toLowerCase()}` : ""}` : "Tracking now") : "Not on the trail yet"} · {n.pins.length} pin{n.pins.length === 1 ? "" : "s"}</p>
+            <button className="btn primary wide" onClick={() => openHelp(x, centerFor(x), standOf(x))}>🤝 Help track</button>
           </section>
         );
       })}

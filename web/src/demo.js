@@ -19,6 +19,13 @@ export function demoSeed() {
       start: "2026-11-01T06:20:00-05:00", end: "2026-11-01T09:00:00-05:00", notes: "Partner's sit", harvest: false, hours: [],
       sightings: [{ kind: "Doe", count: 2, activity: "", bait: "", group: "gp1", time: "2026-11-01T07:10:00-05:00" }] }]),
     shots: [], docs: {},
+    // the partner's deer hit an hour ago, track still open (Help track)
+    otherShots: [{ id: "ps1", owner: "partner@example.com", ground_id: "demo", hunt_id: "lp1", status: "hit", result: "tracking", time: "4:12 PM", outcome: "Liver",
+      time_iso: new Date(Date.now() - 70 * 60e3).toISOString(), stand: "Stand: Creek Blind", deer: "1 Buck",
+      trips: [{ id: "pt1", start: new Date(Date.now() - 20 * 60e3).toISOString(), end: null, drawn: [], stopped: "", notes: "",
+        path: [[...P(0.0006, 0.0004), Date.now() - 20 * 60e3], [...P(0.0009, 0.0009), Date.now() - 12 * 60e3], [...P(0.0011, 0.0015), Date.now() - 4 * 60e3]] }],
+      pins: [{ id: "pp1", kind: "hit", lat: P(0.0006, 0.0004)[0], lon: P(0.0006, 0.0004)[1], time: null, trip: "pt1", details: {}, notes: "" },
+        { id: "pp2", kind: "blood", lat: P(0.0010, 0.0012)[0], lon: P(0.0010, 0.0012)[1], time: new Date(Date.now() - 8 * 60e3).toISOString(), trip: "pt1", details: {}, notes: "drops" }] }],
     // a partner sitting right now (Who's hunting)
     liveOthers: [{ id: "lp1", owner: "partner@example.com", ground_id: "demo2", ground_name: "Partner's Farm", where: "Stand: Creek Blind", start: new Date(Date.now() - 95 * 60e3).toISOString(),
       notes: "Wind's good", weapon_id: null, sightings: [{ kind: "Doe", count: 2, activity: "Feeding", bait: "", group: "lg1", time: new Date(Date.now() - 40 * 60e3).toISOString() }], photos: [] }],

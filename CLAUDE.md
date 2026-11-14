@@ -54,6 +54,7 @@ doesn't need to run anything locally. Design for phone screens first.
   **Admins** see every ground and act as a member of each (schema.sql `is_member`), read everyone's shots, edit only their own.
   Recovery photos: TrackMode Found sheet → `hunt.photos[]` with `shot: <shot id>`. **Who's hunting** (More, `WhosHunting.jsx`): everyone
   else's `active_hunt` on any ground, watch read-only (30 s refresh) via `db.listLiveSits` + "docs live sit" / `on_live_sit` photo policy.
+  **Help track** (11-14): Hunt tab lists others' open tracks on the ground → `App.openHelp` → TrackMode `helping` + `loadOthers` (15 s); helper's trips/pins in table `track_help` (`shot_key` = `shooter:shot`); ground members read shots on their ground.
   **Chat** (More, `Chat.jsx`, table `chat`, 8 s polling). **Update**: `version.json` per build + `lib/update.js` → dot on More.
   iPhone home-screen viewport bug (black-translucent status bar → page short by the status-bar height; nothing draws in the strip):
   status bar style is `default` since 11-13; `html.ios-short` (main.jsx) blends the strip if it's still there. Don't move fixed things below the page. Shell + theme: `Shell.jsx`, `styles.css` tokens, Light/Soft auto-switch by sun (`lib/theme.js`).
