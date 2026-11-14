@@ -611,7 +611,7 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
     setBusy(true);
     const ok = await onSave(recs);
     setBusy(false);
-    if (ok !== false && !edit) { setC(zero); setLoc(EMPTY_LOC); setAct(""); setBait(""); setTime(defaultTime || ""); }
+    if (ok !== false && !edit) { setSrc("stand"); setC(zero); setLoc(EMPTY_LOC); setAct(""); setBait(""); setTime(defaultTime || ""); }
   };
   return (
     <div className={`picker sight-card${edit ? " editing" : ""}`}>
