@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+// names given to deer in sightings on this ground (newest first) — offered in every Deer seen card
+const DeerNames = createContext([]);
+const namesOf = (r) => (r?.names?.length ? r.names : r?.name ? [r.name] : []);
 import Icon from "./Icon.jsx";
 import NumInput from "./NumInput.jsx";
 import { normalizeTrack } from "./TrackMode.jsx";
@@ -144,6 +147,16 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
 
   // ---------------------------------------------------------------- live sit
   const [live, setLive] = useState(undefined);
+  // every deer name used on this ground (anyone's hunts + this sit), most recently seen first; same name in any case = one
+  const deerNames = useMemo(() => {
+    const seen = new Map();
+    for (const h of [live, ...(data?.hunts || [])]) for (const r of h?.sightings || []) for (const raw of namesOf(r)) {
+      const n = String(raw).trim(); if (!n) continue;
+      const k = n.toLowerCase(), t = Date.parse(r.time) || 0;
+      if (!seen.has(k) || seen.get(k).t < t) seen.set(k, { n: seen.get(k)?.n || n, t });
+    }
+    return [...seen.values()].sort((a, b) => b.t - a.t).map((x) => x.n);
+  }, [data, live]);
   useEffect(() => {
     db.getDoc("active_hunt", null).then((v) => {
       if (v && !v.id) { v = { ...v, id: newId() }; db.putDoc("active_hunt", v).catch(() => {}); } // sits started before shots could be linked
@@ -253,6 +266,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
   };
 
   return (
+    <DeerNames.Provider value={deerNames}>
     <div className="page hunt-log" style={{ display: shown ? undefined : "none" }}>
       <header className="page-top">
         {isHistory ? <button className="chip" onClick={onBack}><Icon name="chev" size={16} style={{ transform: "rotate(90deg)" }} /><span>More</span></button>
@@ -487,6 +501,7 @@ export default function HuntLogScreen({ db, me, ground, data, demo, theme, save,
       </section>
       </>}
     </div>
+    </DeerNames.Provider>
   );
 }
 
@@ -580,6 +595,39 @@ const EMPTY_LOC = { dir: null, dist_yd: null, came_from: null, went_to: null };
  *  Each Save is its own entry (deer seen together share a group id); the card resets for the next deer. */
 const SIGHT_TYPES = [["Buck", "Buck"], ["Doe", "Doe"], ["Doe fawn", "Fawn", "doe"], ["Button buck", "Fawn", "buck"], ["Fawn (?)", "Fawn", "unknown"], ["Unknown", "Unknown"]];
 const typeKey = (r) => (SIGHT_TYPES.find(([, kind, fawn]) => kind === r.kind && (fawn || null) === (r.kind === "Fawn" ? r.fawn || "unknown" : null)) || SIGHT_TYPES[5])[0];
+/** Name the deer you know ("Big 8", "Split G2") — any number per sighting: tap names used before on this ground, or type a new one + Add. */
+function DeerNameField({ value, onChange, names }) {
+  const [text, setText] = useState("");
+  const has = (n) => value.some((x) => x.toLowerCase() === n.toLowerCase());
+  const add = () => {
+    const n = text.trim(); if (!n) return;
+    const known = names.find((x) => x.toLowerCase() === n.toLowerCase()) || n; // keep the spelling used before
+    if (!has(known)) onChange([...value, known]);
+    setText("");
+  };
+  const toggle = (n) => onChange(has(n) ? value.filter((x) => x.toLowerCase() !== n.toLowerCase()) : [...value, n]);
+  // chips: the ones picked for this sighting, then up to 8 recent ones not picked
+  const chips = [...value, ...names.filter((n) => !has(n)).slice(0, 8)];
+  return (
+    <div className="deer-name">
+      <div className="field"><span>Deer names (optional)</span>
+        <div className="name-add">
+          <input list="deer-names" value={text} placeholder={names.length ? "Pick below or type a new name" : "e.g. Big 8"} autoCapitalize="words"
+            autoComplete="off" maxLength={40} enterKeyHint="done" onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+          <button className="btn sm" disabled={!text.trim()} onClick={add}>Add</button>
+        </div>
+        <datalist id="deer-names">{names.filter((n) => !has(n)).map((n) => <option key={n} value={n} />)}</datalist>
+      </div>
+      {chips.length > 0 && (
+        <div className="chips">
+          {chips.map((n) => <button key={n} className={`chip sm ${has(n) ? "on" : ""}`} aria-pressed={has(n)} onClick={() => toggle(n)}>{has(n) ? "✓ " : ""}{n}</button>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** `edit` = { recs, time } — the saved records of one sighting, to change in place (keeps its group id and notes). */
 function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, defaultTime, onSave, edit, onCancel }) {
   const zero = Object.fromEntries(SIGHT_TYPES.map(([k]) => [k, 0]));
@@ -589,6 +637,8 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
     const o = { ...zero }; edit.recs.forEach((r) => { o[typeKey(r)] += +r.count || 1; }); return o;
   });
   const [act, setAct] = useState(r0?.activity || ""), [bait, setBait] = useState(r0?.bait || "");
+  const [named, setNamed] = useState(() => namesOf(r0));
+  const names = useContext(DeerNames);
   const [loc, setLoc] = useState(r0 ? { dir: r0.dir ?? null, dist_yd: r0.dist_yd ?? null, came_from: r0.came_from ?? null, went_to: r0.went_to ?? null } : EMPTY_LOC);
   const [src, setSrc] = useState(r0?.source === "camera" ? "camera" : "stand");
   const [cam, setCam] = useState((r0?.source === "camera" && cameras.find((x) => (x.name || "Trail camera") === r0.camera)?.id) || cameras[0]?.id || "");
@@ -604,14 +654,14 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
     const stamp = edit && !time ? r0.time : time ? isoLocal(atLocal(dayKey, time, tz), tz) : isoLocal(Math.floor(Date.now() / 60000) * 60000, tz);
     const near = camera?.stand_id ? stands.find((x) => x.id === camera.stand_id) : null;
     const recs = SIGHT_TYPES.filter(([k]) => c[k]).map(([k, kind, fawn]) => {
-      const r = { kind, count: c[k], activity: act, bait, notes: r0?.notes || "", group: g, time: stamp, ...(fawn ? { fawn } : {}) };
+      const r = { kind, count: c[k], activity: act, bait, notes: r0?.notes || "", group: g, ...(named.length ? { names: named } : {}), time: stamp, ...(fawn ? { fawn } : {}) };
       if (src === "camera" && camera) return { ...r, source: "camera", camera: camera.name || "Trail camera", near: near ? `Stand: ${near.name}` : null, lat: camera.lat, lon: camera.lon };
       return withPosition({ ...r, ...loc }, anchor);
     });
     setBusy(true);
     const ok = await onSave(recs);
     setBusy(false);
-    if (ok !== false && !edit) { setSrc("stand"); setC(zero); setLoc(EMPTY_LOC); setAct(""); setBait(""); setTime(defaultTime || ""); }
+    if (ok !== false && !edit) { setSrc("stand"); setNamed([]); setC(zero); setLoc(EMPTY_LOC); setAct(""); setBait(""); setTime(defaultTime || ""); }
   };
   return (
     <div className={`picker sight-card${edit ? " editing" : ""}`}>
@@ -637,6 +687,7 @@ function SightingCard({ baitNames, anchor, cameras, stands = [], tz, dayKey, def
           </div>
         ))}
       </div>
+      <DeerNameField value={named} onChange={setNamed} names={names} />
       <Extras {...{ act, setAct, bait, setBait, baitNames }} />
       {src === "stand" && <WhereFields value={loc} onChange={setLoc} />}
       <button className="btn primary wide" disabled={!total || busy || (src === "camera" && !camera)} onClick={save}>
@@ -673,7 +724,7 @@ function SightingList({ sightings, tz, onRemove, onRetime, onShot, onEdit, card 
             {onRetime
               ? <input className="time-in" type="time" aria-label="Time seen" value={timeOf(Date.parse(e.time), tz)} onChange={(ev) => ev.target.value && onRetime(e.idx, ev.target.value)} />
               : <b>{fmtClock(Date.parse(e.time), tz)}</b>}
-            {" "}— {deerText(e.deer)}{e.source === "camera" ? ` · 📷 ${e.camera || "trail cam"}` : ""}{e.activity ? ` · ${e.activity}` : ""}{e.bait ? ` · at ${e.bait}` : ""}
+            {" "}— {(() => { const n = namesOf(sightings[e.idx[0]]); return n.length ? <><b className="deer-tag">{n.map((x) => `“${x}”`).join(", ")}</b>{" · "}</> : null; })()}{deerText(e.deer)}{e.source === "camera" ? ` · 📷 ${e.camera || "trail cam"}` : ""}{e.activity ? ` · ${e.activity}` : ""}{e.bait ? ` · at ${e.bait}` : ""}
             {whereText(e) && <div className="muted small">{whereText(e)}</div>}
             {onShot && e.source !== "camera" && <button className="btn sm shot-this" onClick={() => onShot(e)}>🎯 I shot at {e.deer.length === 1 && e.deer[0][1] === 1 ? "this deer" : "one of these"}</button>}
           </div>

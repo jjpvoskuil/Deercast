@@ -493,3 +493,11 @@ a.btn { display: flex; align-items: center; justify-content: center; text-decora
 /* iPhone home-screen bug (main.jsx): page shorter than the screen → the strip under it shows the root background */
 html.ios-short, html.ios-short body { background: var(--tab); }
 html.ios-short { --tab-pad: 0px; }
+
+/* Deer name on a sighting */
+.deer-name .name-add { display: flex; gap: 8px; }
+.deer-name .name-add input { flex: 1; min-width: 0; }
+.deer-name .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 8px; }
+.deer-name .chip.sm { min-height: 36px; padding: 0 12px; font-size: 15px; }
+.deer-name .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.deer-tag { color: var(--accent-text); }

@@ -72,7 +72,7 @@ function Watch({ sit: o, name, db, home, at, onBack }) {
         <div className="sub-h">Deer seen</div>
         {!groups.length && <p className="muted small">No deer logged yet.</p>}
         {[...groups].reverse().map((g) => (
-          <div key={g.group} className="small">• {fmtClock(Date.parse(g.time), TZ)} — {deerText(g.deer)}{g.source === "camera" ? ` (📷 ${g.camera || "trail cam"})` : ""}{g.activity ? `, ${g.activity}` : ""}{g.bait ? `, at ${g.bait}` : ""}{whereText(g) ? ` (${whereText(g)})` : ""}</div>
+          <div key={g.group} className="small">• {fmtClock(Date.parse(g.time), TZ)} — {(() => { const r = (o.sightings || [])[g.idx[0]] || {}; const n = r.names?.length ? r.names : r.name ? [r.name] : []; return n.length ? `${n.map((x) => `“${x}”`).join(", ")} · ` : ""; })()}{deerText(g.deer)}{g.source === "camera" ? ` (📷 ${g.camera || "trail cam"})` : ""}{g.activity ? `, ${g.activity}` : ""}{g.bait ? `, at ${g.bait}` : ""}{whereText(g) ? ` (${whereText(g)})` : ""}</div>
         ))}
         {(o.photos || []).length > 0 && <><div className="sub-h">Photos</div>
           <PhotoStrip db={db} photos={o.photos} sightings={o.sightings || []} groundId={o.ground_id} tz={TZ} canEdit={false} /></>}
