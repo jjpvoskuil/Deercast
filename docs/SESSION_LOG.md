@@ -7,6 +7,8 @@ Newest first. Each session: what changed, decisions made, and what's open.
 ## 2026-11-20 — Session 8b: sign in with an email code
 - A new user has no Google account. Besides Google sign-in, the sign-in screen now has "No Google account? Sign in with an email code" (`App.jsx` `EmailSignIn`: `signInWithOtp` with `shouldCreateUser`, then `verifyOtp` type `email`). It's a typed 6-digit code, not the email's link: on an iPhone the link opens Safari, not the home-screen app, and PKCE would fail there anyway. The allow-list is unchanged (`app_users`/RLS): unknown emails get "isn't set up for Deercast". The App users text now says email, not Google email.
 - **Supabase setup John has to do:** (1) custom SMTP. The built-in mailer only delivers to the Supabase org's team members ("Email address not authorized") at about 2 emails/hour. Plan: his Gmail with an app password, smtp.gmail.com:465. (2) Add `{{ .Token }}` to both the **Magic Link** and **Confirm signup** email templates; a first-time email user gets Confirm signup. (3) Email provider on (default).
+- John set up Gmail SMTP (app password) and the Magic link template with `{{ .Token }}`. Email-code sign-in works.
+- **Sign-out bug** (John): "Couldn't load: null is not an object (evaluating 'A.listStands')". On sign-out `db` became null while `grounds` was still set, so `loadData` ran against null. Fix: `loadData`/`loadGrounds` return without a db, and an effect clears me, grounds, data, overlay, error and the names cache when signed out.
 
 ## 2026-11-14 — Session 8: edit a deer sighting
 - John (on stand, iPhone screenshot): wants to edit a Deer seen entry during an active hunt, not just delete it.

@@ -122,8 +122,12 @@ export default function App() {
   const db = useMemo(() => (session ? (demo ? demoDb(demoSeed) : supabaseDb(supabase, session.user.email)) : null), [session?.user?.email, demo]);
 
   const loadGrounds = useCallback(async () => {
+    if (!db) return;
     try { setGrounds(await db.listGrounds()); } catch (e) { setError(e.message); }
   }, [db]);
+  // signed out: drop the last user's grounds and data, so nothing loads without a database (sign-out showed
+  // "Couldn't load: null is not an object (evaluating 'A.listStands')" — John, 11-20)
+  useEffect(() => { if (!db) { setMe(undefined); setGrounds(null); setData(null); setOverlay(null); setError(""); NAMES.map = null; } }, [db]);
 
   // approved? + their hunting grounds (row-level security only returns grounds they belong to)
   useEffect(() => {
@@ -150,7 +154,7 @@ export default function App() {
 
   // that ground's stands, marks and everyone's hunts on it
   const loadData = useCallback(async () => {
-    if (!ground) { setData(null); return; }
+    if (!ground || !db) { setData(null); return; }
     try {
       const [stands, features, hunts] = await Promise.all([db.listStands(ground.id), db.listFeatures(ground.id), db.listHunts(ground.id)]);
       setData({ stands, features, hunts });
