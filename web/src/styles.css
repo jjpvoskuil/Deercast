@@ -506,3 +506,8 @@ html.ios-short { --tab-pad: 0px; }
 .emoji.pin.other { font-size: 17px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid; background: #0007; }
 .people-line { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .people-line .sw { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+
+/* Email-code sign-in */
+.email-signin-open { margin-top: 14px; }
+.email-signin { margin-top: 14px; width: 100%; max-width: 340px; text-align: left; }
+.email-signin .btn-row { display: flex; justify-content: space-between; margin-top: 8px; }

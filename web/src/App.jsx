@@ -41,6 +41,48 @@ function useTheme(place) {
 const TAB_IDS = ["forecast", "map", "log", "more"];
 const BUILT = ["forecast", "map", "log", "more"];
 
+/** No Google account? Sign in with an emailed 6-digit code (11-20, John). A code, not the email's link: on an iPhone the
+ *  link opens in Safari, not the home-screen app, so the sign-in would land in the wrong place. Only emails John has added
+ *  under App users get in (same rules as Google); anyone else sees "isn't set up for Deercast". */
+function EmailSignIn() {
+  const [open, setOpen] = useState(false), [email, setEmail] = useState(""), [code, setCode] = useState("");
+  const [sent, setSent] = useState(false), [busy, setBusy] = useState(false), [msg, setMsg] = useState("");
+  const e = email.trim().toLowerCase();
+  const send = async () => {
+    if (!e.includes("@")) return setMsg("Enter your email address.");
+    setBusy(true); setMsg("");
+    const { error } = await supabase.auth.signInWithOtp({ email: e, options: { shouldCreateUser: true } });
+    setBusy(false);
+    if (error) return setMsg(/not authorized/i.test(error.message) ? "Email sign-in isn't switched on yet — ask John." : /rate|seconds|too many/i.test(error.message) ? "Too many emails just now — wait a minute and try again." : `Couldn't send the code — ${error.message}`);
+    setSent(true); setCode("");
+  };
+  const verify = async () => {
+    setBusy(true); setMsg("");
+    const { error } = await supabase.auth.verifyOtp({ email: e, token: code.trim(), type: "email" });
+    setBusy(false);
+    if (error) setMsg(/expired|invalid/i.test(error.message) ? "That code didn't work — check it, or send a new one." : `Couldn't sign in — ${error.message}`);
+  };
+  if (!open) return <button className="link email-signin-open" onClick={() => setOpen(true)}>No Google account? Sign in with an email code</button>;
+  return (
+    <div className="email-signin">
+      {!sent ? (<>
+        <label className="field"><span>Your email</span>
+          <input type="email" inputMode="email" autoCapitalize="none" autoComplete="email" value={email} onChange={(x) => setEmail(x.target.value)}
+            onKeyDown={(x) => x.key === "Enter" && send()} /></label>
+        <button className="btn primary wide" disabled={busy} onClick={send}>{busy ? "Sending…" : "Email me a sign-in code"}</button>
+      </>) : (<>
+        <p className="small">We sent a code to <b>{e}</b>. It can take a minute — check spam too. Type it here (don't tap the link in the email).</p>
+        <label className="field"><span>Code</span>
+          <input inputMode="numeric" autoComplete="one-time-code" maxLength={10} value={code} onChange={(x) => setCode(x.target.value.replace(/\D/g, ""))}
+            onKeyDown={(x) => x.key === "Enter" && code.length >= 6 && verify()} /></label>
+        <button className="btn primary wide" disabled={busy || code.length < 6} onClick={verify}>{busy ? "Signing in…" : "Sign in"}</button>
+        <div className="btn-row"><button className="link" disabled={busy} onClick={send}>Send a new code</button><button className="link" onClick={() => { setSent(false); setMsg(""); }}>Different email</button></div>
+      </>)}
+      {msg && <p className="err small">{msg}</p>}
+    </div>
+  );
+}
+
 export default function App() {
   const demo = !configured || new URLSearchParams(location.search).has("demo"); // ?demo = made-up data only
   const [session, setSession] = useState(undefined); // undefined = still checking
@@ -170,6 +212,7 @@ export default function App() {
     <Splash>
       <p className="muted">Private app — sign in to continue.</p>
       <button className="btn primary" onClick={signIn}>Sign in with Google</button>
+      <EmailSignIn />
     </Splash>
   );
   if (me === null) return (

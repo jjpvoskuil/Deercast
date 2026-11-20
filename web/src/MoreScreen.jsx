@@ -195,14 +195,14 @@ function GroundsPage({ db, me, ground, grounds, save, setGround, toast }) {
       {me?.role === "admin" && (
         <section className="card">
           <span className="h2">App users</span>
-          <p className="muted small">Only these Google accounts can sign in. Add someone here, then add them to a ground.</p>
+          <p className="muted small">Only these emails can sign in — with Google, or with an emailed code if they have no Google account. Add someone here, then add them to a ground.</p>
           {users.map((u) => (
             <div key={u.email} className="rank-row">
               <div style={{ flex: 1, minWidth: 0 }}><div className="name">{u.name || u.email}{u.role === "admin" && <span className="tag">admin</span>}</div><div className="muted small">{u.email}</div></div>
               {u.email !== db.email && <button className="btn sm" onClick={async () => { if (await save((d) => d.deleteUser(u.email), { reload: "none", ok: `Removed ${u.name || u.email}` })) loadUsers(); }}>Remove</button>}
             </div>
           ))}
-          <label className="field"><span>Google email</span><input type="email" autoCapitalize="none" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></label>
+          <label className="field"><span>Email</span><input type="email" autoCapitalize="none" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} /></label>
           <label className="field"><span>Name</span><input value={nu.name} onChange={(e) => setNu({ ...nu, name: e.target.value })} /></label>
           {owner && <label className="check"><input type="checkbox" checked={nu.addHere} onChange={(e) => setNu({ ...nu, addHere: e.target.checked })} /> Also add to “{ground.name}”</label>}
           <button className="btn primary wide" onClick={async () => {
@@ -211,7 +211,7 @@ function GroundsPage({ db, me, ground, grounds, save, setGround, toast }) {
             const ok = await save((d) => d.saveUser({ email: e, name: nu.name.trim() || e.split("@")[0], role: "member" }), { reload: "none" });
             if (!ok) return;
             if (owner && nu.addHere && !ground.members.includes(e)) await saveG({ ...ground, members: [...ground.members, e] });
-            toast(`Added ${nu.name.trim() || e}. They can now sign in with Google.`);
+            toast(`Added ${nu.name.trim() || e}. They can sign in with Google, or with an email code.`);
             setNu({ email: "", name: "", addHere: true }); loadUsers();
           }}>Add user</button>
         </section>
